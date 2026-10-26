@@ -7,3 +7,5 @@ export const HUD_INTERVAL = 0.1;
 export const AIM_INTERVAL = 0.065;
 export const CARVE_HISTORY_LIMIT = 4000;
 export const AUTOSAVE_INTERVAL = 12;
+/** Distancia máxima para leer un cartel con la mirada. */
+export const SIGN_READ_DISTANCE = 90;

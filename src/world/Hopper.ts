@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { HOPPER_POSITION, SURFACE_DECK_Y } from '../config';
 import { mulberry32 } from '../core/Rng';
 
+// El cartel de la tolva comparte el problema de los carteles grandes: con el
+// render exterior a ~620 px, la letra pequeña desaparece. Titular dominante,
+// pocas líneas y mipmaps para que se lea desde la zona segura.
 function makeSignTexture(): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
@@ -13,31 +16,34 @@ function makeSignTexture(): THREE.CanvasTexture {
     context.strokeStyle = '#d9a24d';
     context.lineWidth = 6;
     context.strokeRect(8, 8, 496, 176);
+    context.fillStyle = '#d9a24d';
+    context.fillRect(26, 42, 10, 72);
     context.fillStyle = '#ffc66f';
-    context.font = '800 58px "Bahnschrift SemiCondensed", "Arial Narrow", sans-serif';
-    context.fillText('TOLVA', 30, 82);
+    context.font = '800 112px "Bahnschrift SemiCondensed", "Arial Narrow", Impact, sans-serif';
+    context.lineJoin = 'round';
+    context.lineWidth = 6;
+    context.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+    context.strokeText('TOLVA', 48, 112);
+    context.fillText('TOLVA', 48, 112);
     context.fillStyle = '#f2e7d3';
     context.font = '600 25px "Cascadia Mono", "Consolas", monospace';
-    context.fillText('DEPÓSITO DE CARBÓN', 32, 120);
+    context.fillText('DEPÓSITO DE CARBÓN', 30, 145);
     context.fillStyle = '#6edfd5';
-    context.font = '500 20px "Cascadia Mono", "Consolas", monospace';
-    context.fillText('CARGA · $ · CUOTA', 32, 154);
-    context.fillStyle = '#d9a24d';
-    for (let index = 0; index < 8; index += 1) {
-      context.fillRect(340 + index * 18, 144, 8, 3);
-    }
+    context.font = '500 21px "Cascadia Mono", "Consolas", monospace';
+    context.fillText('CARGA · $ · CUOTA', 30, 173);
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.magFilter = THREE.NearestFilter;
-  texture.minFilter = THREE.NearestFilter;
-  texture.generateMipmaps = false;
-  texture.anisotropy = 1;
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
   return texture;
 }
 
 export class Hopper {
   readonly group = new THREE.Group();
+  readonly signMesh: THREE.Mesh;
   private readonly pile: THREE.Mesh;
   private readonly pileMaterial: THREE.MeshStandardMaterial;
   private readonly chunks: THREE.InstancedMesh;
@@ -196,6 +202,7 @@ export class Hopper {
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.05, 1.14), signMaterial);
     sign.position.set(0, 3.72, -1.4);
     sign.rotation.y = -1.2;
+    this.signMesh = sign;
     this.group.add(sign);
 
     for (const offset of [-1.05, 1.05]) {
@@ -239,6 +246,7 @@ export class Hopper {
     texture.repeat.set(5, 1);
     texture.magFilter = THREE.NearestFilter;
     texture.minFilter = THREE.NearestFilter;
+    texture.generateMipmaps = false;
     return texture;
   }
 

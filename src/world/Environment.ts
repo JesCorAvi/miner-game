@@ -9,6 +9,30 @@ import { mulberry32 } from '../core/Rng';
 import { buildLandscape } from './Landscape';
 import { SkyCycle } from './SkyCycle';
 
+// La superficie se renderiza a ~620 px de ancho: si el título es pequeño, la
+// cuantización y el escalado lo convierten en ruido. Los carteles usan un
+// titular que ocupa casi todo el panel y mipmaps para sobrevivir a la distancia.
+function fitTextSize(
+  context: CanvasRenderingContext2D,
+  text: string,
+  weight: number,
+  family: string,
+  preferredSize: number,
+  minSize: number,
+  maxWidth: number,
+): number {
+  let size = preferredSize;
+  while (size > minSize) {
+    context.font = `${weight} ${size}px ${family}`;
+    if (context.measureText(text).width <= maxWidth) {
+      break;
+    }
+    size -= 4;
+  }
+  context.font = `${weight} ${size}px ${family}`;
+  return size;
+}
+
 function makeTextTexture(
   title: string,
   subtitle: string,
@@ -19,32 +43,49 @@ function makeTextTexture(
   canvas.height = 384;
   const context = canvas.getContext('2d');
   if (context) {
-    context.fillStyle = '#060b0d';
+    const margin = 20;
+    const titleFamily = '"Bahnschrift SemiCondensed", "Arial Narrow", Impact, sans-serif';
+    const subtitleFamily = '"Cascadia Mono", "Consolas", monospace';
+    context.fillStyle = '#05090b';
     context.fillRect(0, 0, canvas.width, canvas.height);
-    context.strokeStyle = 'rgba(225,165,74,0.6)';
-    context.lineWidth = 5;
-    context.strokeRect(15, 15, canvas.width - 30, canvas.height - 30);
+    context.strokeStyle = 'rgba(225,165,74,0.62)';
+    context.lineWidth = 8;
+    context.strokeRect(margin, margin, canvas.width - margin * 2, canvas.height - margin * 2);
     context.fillStyle = accent;
-    context.fillRect(34, 54, 10, 92);
-    context.fillStyle = '#f1e4cb';
-    context.font = '800 92px "Bahnschrift SemiCondensed", "Arial Narrow", sans-serif';
-    context.fillText(title, 70, 132);
-    context.fillStyle = '#9aaba7';
-    context.font = '500 28px "Cascadia Mono", "Consolas", monospace';
-    context.fillText(subtitle, 72, 192);
-    context.fillStyle = 'rgba(225,165,74,0.18)';
-    for (let x = 40; x < canvas.width - 40; x += 32) {
-      context.fillRect(x, 248, 14, 2);
-    }
-    context.fillStyle = '#e1a54a';
-    context.font = '600 23px "Cascadia Mono", "Consolas", monospace';
-    context.fillText('MAGNATE // DIVISION DE EXTRACCION PROFUNDA', 72, 300);
+    context.fillRect(margin, margin, 190, 10);
+    context.fillRect(canvas.width - margin - 190, canvas.height - margin - 10, 190, 10);
+
+    // Titular casi a sangre: se estrecha horizontalmente si no cabe entero.
+    const titleMaxWidth = canvas.width - 112;
+    const titleSize = fitTextSize(context, title, 800, titleFamily, 300, 180, titleMaxWidth);
+    const measuredTitle = context.measureText(title).width;
+    const titleScale = Math.min(1, titleMaxWidth / Math.max(1, measuredTitle));
+    context.save();
+    context.translate(56, 266);
+    context.scale(titleScale, 1);
+    context.font = `800 ${titleSize}px ${titleFamily}`;
+    context.lineJoin = 'round';
+    context.lineWidth = 10;
+    context.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+    context.strokeText(title, 0, 0);
+    context.fillStyle = '#f8ecd4';
+    context.fillText(title, 0, 0);
+    context.restore();
+
+    context.fillStyle = accent;
+    context.fillRect(58, 292, Math.min(titleMaxWidth, measuredTitle * titleScale), 8);
+
+    const subtitleMaxWidth = canvas.width - 116;
+    fitTextSize(context, subtitle, 600, subtitleFamily, 54, 34, subtitleMaxWidth);
+    context.fillStyle = '#b3c3be';
+    context.fillText(subtitle, 58, 350);
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 1;
-  texture.magFilter = THREE.NearestFilter;
+  texture.magFilter = THREE.LinearFilter;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
   return texture;
 }
 
@@ -208,12 +249,21 @@ function makePixelSurfaceTexture(
   return texture;
 }
 
+export interface SignReadout {
+  title: string;
+  subtitle: string;
+  distance: number;
+}
+
 export class Environment {
   readonly group = new THREE.Group();
   private readonly meshes: THREE.Mesh[] = [];
   private readonly textures: THREE.Texture[] = [];
   private readonly materials: THREE.Material[] = [];
   private readonly warningLights: THREE.MeshStandardMaterial[] = [];
+  private readonly signMeshes: THREE.Mesh[] = [];
+  private readonly signLabels = new Map<THREE.Mesh, { title: string; subtitle: string }>();
+  private readonly signRaycaster = new THREE.Raycaster();
   private readonly skyCycle: SkyCycle;
   private readonly camera: THREE.PerspectiveCamera;
   private elapsed = 0;
@@ -228,6 +278,31 @@ export class Environment {
     this.buildOffice();
     buildLandscape(this.group, this.meshes, this.materials);
     this.buildDescentSign();
+  }
+
+  registerSign(mesh: THREE.Mesh, title: string, subtitle: string): void {
+    this.signMeshes.push(mesh);
+    this.signLabels.set(mesh, { title, subtitle });
+  }
+
+  /** Devuelve el cartel que mira el jugador, para el panel de lectura del HUD. */
+  raycastSign(
+    origin: THREE.Vector3,
+    direction: THREE.Vector3,
+    maxDistance: number,
+  ): SignReadout | null {
+    this.signRaycaster.near = 0.05;
+    this.signRaycaster.far = maxDistance;
+    this.signRaycaster.set(origin, direction);
+    const hit = this.signRaycaster.intersectObjects(this.signMeshes, false)[0];
+    if (!hit) {
+      return null;
+    }
+    const label = this.signLabels.get(hit.object as THREE.Mesh);
+    if (!label) {
+      return null;
+    }
+    return { ...label, distance: hit.distance };
   }
 
   private buildSurfaceYard(): void {
@@ -367,6 +442,7 @@ export class Environment {
     sign.position.set(-0.7, 4.85, 0.05);
     office.add(sign);
     this.meshes.push(sign);
+    this.registerSign(sign, 'OFICINA', 'CONTROL DE CUOTA // TURNO NOCTURNO');
 
     const antennaMaterial = new THREE.MeshStandardMaterial({
       color: 0x1a2020,
@@ -456,8 +532,6 @@ export class Environment {
     }
 
     const safeSign = makeTextTexture('ZONA SEGURA', 'NO MINABLE · TOLVA CORPORATIVA', '#6edfd5');
-    safeSign.magFilter = THREE.NearestFilter;
-    safeSign.minFilter = THREE.NearestFilter;
     this.textures.push(safeSign);
     const safeSignMaterial = new THREE.MeshBasicMaterial({ map: safeSign, toneMapped: false });
     this.materials.push(safeSignMaterial);
@@ -466,9 +540,19 @@ export class Environment {
     sign.rotation.y = 1.9;
     this.group.add(sign);
     this.meshes.push(sign);
-    for (const offset of [-2.4, 2.4]) {
+    this.registerSign(sign, 'ZONA SEGURA', 'NO MINABLE · TOLVA CORPORATIVA');
+    const signYaw = sign.rotation.y;
+    const alongX = Math.cos(signYaw);
+    const alongZ = -Math.sin(signYaw);
+    const behindX = -Math.sin(signYaw) * 0.12;
+    const behindZ = -Math.cos(signYaw) * 0.12;
+    for (const offset of [-2.45, 2.45]) {
       const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.5, 0.12), railMaterial);
-      post.position.set(-5.8 + offset, SURFACE_DECK_Y + 1.25, SURFACE_SPAWN.z + 1.94);
+      post.position.set(
+        sign.position.x + alongX * offset + behindX,
+        SURFACE_DECK_Y + 1.25,
+        sign.position.z + alongZ * offset + behindZ,
+      );
       this.group.add(post);
       this.meshes.push(post);
     }
@@ -502,15 +586,14 @@ export class Environment {
 
   private buildDescentSign(): void {
     const signTexture = makeTextTexture('DESCENSO', 'CUBO MINERO · 120 M');
-    signTexture.magFilter = THREE.NearestFilter;
-    signTexture.minFilter = THREE.NearestFilter;
     this.textures.push(signTexture);
     const signMaterial = new THREE.MeshBasicMaterial({ map: signTexture, toneMapped: false });
     this.materials.push(signMaterial);
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 2.4), signMaterial);
-    sign.position.set(0, 2.8, -PIT_HALF - 0.9);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(8.0, 3.0), signMaterial);
+    sign.position.set(0, 2.85, -PIT_HALF - 0.9);
     this.group.add(sign);
     this.meshes.push(sign);
+    this.registerSign(sign, 'DESCENSO', 'CUBO MINERO · 120 M');
 
     const postMaterial = new THREE.MeshStandardMaterial({
       color: 0x4d554f,
@@ -518,7 +601,7 @@ export class Environment {
       metalness: 0.6,
     });
     this.materials.push(postMaterial);
-    for (const offset of [-3.1, 3.1]) {
+    for (const offset of [-3.9, 3.9]) {
       const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, 2.6, 0.16), postMaterial);
       post.position.set(offset, 1.3, -PIT_HALF - 0.98);
       this.group.add(post);
@@ -532,9 +615,9 @@ export class Environment {
     });
     this.materials.push(lampMaterial);
     this.warningLights.push(lampMaterial);
-    for (const offset of [-3.1, 3.1]) {
+    for (const offset of [-4.15, 4.15]) {
       const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.14), lampMaterial);
-      lamp.position.set(offset, 4.08, -PIT_HALF - 0.9);
+      lamp.position.set(offset, 4.4, -PIT_HALF - 0.9);
       this.group.add(lamp);
       this.meshes.push(lamp);
     }

@@ -3,6 +3,7 @@ import { WEAPONS, layerAtDepth, maxCarryWeight } from '../config';
 import type { AimViewData, HudViewData } from '../ui/UI';
 import { formatMoney, formatNumber } from '../ui/format';
 import type { Game } from './Game';
+import { SIGN_READ_DISTANCE } from './GameConstants';
 
 export function updateHud(game: Game): void {
   if (game.phase !== 'playing') {
@@ -100,6 +101,20 @@ export function updateAim(game: Game, forceUi: boolean): void {
   const weapon = WEAPONS[game.activeWeapon];
   const origin = game.player.getEyePosition();
   const direction = game.player.getAimDirection();
+  const signHit = game.environment.raycastSign(origin, direction, SIGN_READ_DISTANCE);
+  if (signHit && !game.terrain.raycast(origin, direction, signHit.distance)) {
+    game.aim = null;
+    if (forceUi) {
+      game.ui.updateAim({
+        kind: 'sign',
+        title: signHit.title,
+        status: `CARTEL · ${Math.round(signHit.distance)} M`,
+        detail: signHit.subtitle,
+        ratio: 1,
+      });
+    }
+    return;
+  }
   const terrainHit = game.terrain.raycast(origin, direction, weapon.range + 1);
   const terrainDistance = terrainHit?.distance ?? Number.POSITIVE_INFINITY;
   const nodeHit = game.resources.raycast(

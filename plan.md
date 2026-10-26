@@ -16,6 +16,8 @@
 > **Revisión de inventario y densidad (2026-10-25):** ~8.300 vetas (≈7×) con 7–10 fragmentos físicos por nodo, pesos de 0,12–0,24 kg, inventario local de **9 slots de hotbar + 27 de almacenamiento**, herramientas/objetos movibles, granadas consumibles por tier, audio de pico en cuatro capas y pops de recogida. El protocolo sube a v8 por la retirada del lanzagranadas y el nuevo `grenade_use`; guardado v5 (migra v4/v3/v2).
 >
 > **Revisión de logística y economía (2026-10-26):** el recolector ya no pica ni succiona pepitas a distancia; vuela hasta cada una, carga hasta **20 kg (media mochila inicial)** y regresa volando a la tolva para depositar. El carbón aporta cuota **y** dinero, y se retiran del loot la arcilla y los escombros de roca. La generación baja a ~7.800 vetas, así que el protocolo sube a v10; guardado v5 sin cambios.
+>
+> **Publicación web y cartelería (2026-10-26):** workflow de GitHub Pages (`.github/workflows/deploy-pages.yml`) que compila y publica `dist/` desde `main`; `base: './'` sirve tanto en el subdirectorio de Pages como en Electron, y se publica `.nojekyll`. Los carteles de superficie, tolva y oficina pasan a tipografía dominante, menos líneas y mipmaps con anisotropía para seguir siendo legibles con el render exterior de ~620 px.
 
 ## 1. Resumen
 
@@ -272,7 +274,7 @@ El daño escala con mejoras globales y pasivas de cofre. La cadencia escala con 
 
 - **Exterior pixel art:** `View.updatePixelMode()` decide la resolución interna; aplica `is-pixelated`, filtra con el SVG `#pixel-quantize` y usa texturas nearest-neighbor. `SkyCycle` interpola cielo atmosférico, nubes, niebla, ambiente y luz solar desde la mañana (progreso 0) hasta la noche (progreso 1); `Landscape` genera un heightfield FBM con montañas, bosque, rocas y vegetación. Al bajar al pozo se recupera resolución completa.
 - **Logo:** `src/ui/PixelLogo.ts` dibuja un bitmap 5×7 en canvas. No añadir una fuente externa.
-- **Cartelería:** `Environment.ts` genera canvas con texto corporativo y señales; el cielo atmosférico con nubes procedurales y el entorno montañoso viven en `SkyCycle.ts` y `Landscape.ts`.
+- **Cartelería:** `Environment.ts` y `Hopper.ts` generan canvas con texto corporativo. Como el exterior se renderiza a ~620 px, los carteles usan un titular que ocupa casi todo el panel, pocas líneas auxiliares y filtrado mipmapped con anisotropía; la letra pequeña solo se lee de cerca, pero el nombre del destino se reconoce desde la zona segura. Además, apuntar a un cartel activa el `aim-panel` en modo lectura (`Environment.raycastSign()`): el título y el subtítulo se pintan en DOM nítido, con la distancia, y siguen siendo legibles a 54 m aunque el cartel 3D sea un bloque de píxeles. El cielo atmosférico con nubes procedurales y el entorno montañoso viven en `SkyCycle.ts` y `Landscape.ts`.
 - **Viewmodel:** el pico se dibuja en una escena y un pass propios, con luces locales y `MeshStandardMaterial` + `flatShading`; las geometrías se fusionan por material para reducir draw calls. La linterna no lo ilumina, así que no se quema. Las demás armas conservan materiales sin iluminación. El cabezal va girado 90° para que las puntas apunten en profundidad, con una punta delantera larga y un pivote en la muñeca; anima por fases con anticipación, golpe, rebote elástico y recuperación en `src/player/PickaxeModel.ts`.
 - **Audio:** Web Audio 100 % sintetizado. El golpe del pico mezcla crujido de roca saturado, clink metálico, sub thud y pitch aleatorio ±12 %; las recogidas encadenan pops de 600–1400 Hz y el depósito añade un barrido de vaciado. El ambiente y los bucles de jetpack/taladro se reutilizan; el audio se inicializa tras un gesto del usuario. Los sonidos del equipo usan panner 3D.
 - **UI:** HTML/CSS acoplados por IDs a `UI.ts`. No eliminar/renombrar un ID sin actualizar el código. La interfaz y todos los textos del juego están en español.
@@ -290,6 +292,8 @@ npm run build:web
 npm run electron:dev
 npm run electron:preview
 npm run build:win
+# GitHub Pages: push a main → workflow Publicar en GitHub Pages
+# (Settings → Pages → Source: GitHub Actions)
 ```
 
 ### Comprobaciones ya realizadas
@@ -310,8 +314,9 @@ npm run build:win
 - Cierre y tienda: desglose por mineral, bonus por cuota/excedente, Continuar a la oficina, pestañas y compra; victoria de día 15, modo infinito y game over.
 - Nodos: puntería con geometría real sobre astillas visibles, rechazo de vetas ocultas tras muro, asistencia de 1,4° y prueba de veta parcialmente enterrada (harness CDP temporal fuera del repo).
 - Guardado/continuación de expediente.
+- Carteles: lectura a 54 m con el panel de apuntado y pixel mode activo, y comprobación del raycast de `DESCENSO`, `OFICINA`, `ZONA SEGURA` y `TOLVA` (harness CDP temporal fuera del repo).
 
-No hay tests automatizados ni CI. Las verificaciones anteriores se hicieron con harnesses temporales de Electron/CDP fuera del repositorio. Si se añade test runner o CI, reflejarlo en `CLAUDE.md` y aquí.
+No hay tests automatizados. El workflow de GitHub Pages ejecuta `npm ci` + `npm run build:web` (typecheck incluido) en cada push a `main`, pero no hay runner de tests ni smoke E2E. Las verificaciones anteriores se hicieron con harnesses temporales de Electron/CDP fuera del repositorio. El workflow intenta habilitar Pages con origen **GitHub Actions** (`configure-pages` con `enablement: true`); si la organización lo bloquea, hay que activarlo a mano en **Settings → Pages → Source: GitHub Actions**. El despliegue real no se pudo ejecutar desde este entorno local.
 
 ## 10. Limitaciones y deuda técnica conocidas
 
@@ -382,11 +387,11 @@ No hay tests automatizados ni CI. Las verificaciones anteriores se hicieron con 
 2. **Smoke E2E** reproducible con Playwright o harness Electron/CDP versionado en el repo:
    - menú → partida → carve → recogida → volver con escaleras → depositar en tolva → fin de día → tienda → siguiente día;
    - dos clientes: host, join, late join, depósito, escalera, compra y desbloqueo de jetpack.
-3. **CI** con `npm ci`, `npm run typecheck` y `npm run build:web` como mínimo.
+3. **CI** con `npm ci`, `npm run typecheck` y `npm run build:web` como mínimo. ✅ El workflow de GitHub Pages ya ejecuta estos pasos en cada push a `main`; falta separar un job de CI que no dependa del despliegue y añadir los tests del punto 1.
 
 ### P1 — Red y UX
 
-4. Configurar TURN/signaling mediante variables de entorno y documentar el despliegue.
+4. Configurar TURN/signaling mediante variables de entorno. El despliegue web ya está documentado en `README.md` y automatizado para GitHub Pages.
 5. Heartbeat, detección de cierre más rápida y reconexión; evaluar migración de host.
 6. Completar la validación de depósitos (importe máximo, rate limiting) y de colocaciones de escalera contra la posición real del cliente.
 7. Rate limiting y validación más estricta de eventos de cliente; hp de nodos autoritativo por completo.

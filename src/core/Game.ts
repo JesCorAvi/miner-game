@@ -175,6 +175,11 @@ export class Game {
     this.camera.rotation.order = 'YXZ';
 
     this.environment = new Environment(this.scene, this.camera);
+    this.environment.registerSign(
+      this.hopper.signMesh,
+      'TOLVA',
+      'DEPÓSITO DE CARBÓN · CARGA · $ · CUOTA',
+    );
     this.scene.add(
       this.terrain.group,
       this.resources.group,

@@ -78,6 +78,7 @@ interface HudViewData {
 | Guardado | `hud-save` | `setSaved()` |
 | Prompt | `interaction-prompt`, `interaction-key`, `interaction-text` | `E` coloca/deposita; `R` alterna escalera/puente; `G` muestra/oculta el fantasma |
 | Objetivo | `objective-text`, `objective-hint`, `hud-objective-kind` | `computeObjective()` |
+| Apuntado | `aim-panel`, `aim-type`, `aim-status`, `aim-detail`, `aim-fill` | veta/cofre/terreno; `kind='sign'` muestra la lectura de un cartel en DOM |
 
 ## Overlays y estados
 

@@ -71,7 +71,7 @@ export interface HudPrompt {
   text: string;
 }
 
-export type AimKind = 'node' | 'chest' | 'terrain';
+export type AimKind = 'node' | 'chest' | 'terrain' | 'sign';
 
 export interface AimViewData {
   kind: AimKind;
@@ -579,14 +579,16 @@ export class UI {
   updateAim(aim: AimViewData | null): void {
     if (!aim) {
       this.aimPanel.hidden = true;
-      this.crosshair.classList.remove('is-target', 'is-chest');
+      this.crosshair.classList.remove('is-target', 'is-chest', 'is-sign');
       return;
     }
     this.aimPanel.hidden = false;
     this.aimPanel.classList.toggle('is-chest', aim.kind === 'chest');
     this.aimPanel.classList.toggle('is-terrain', aim.kind === 'terrain');
+    this.aimPanel.classList.toggle('is-sign', aim.kind === 'sign');
     this.crosshair.classList.toggle('is-target', aim.kind !== 'terrain');
     this.crosshair.classList.toggle('is-chest', aim.kind === 'chest');
+    this.crosshair.classList.toggle('is-sign', aim.kind === 'sign');
     setText(this.aimType, aim.title);
     setText(this.aimStatus, aim.status);
     setText(this.aimDetail, aim.detail);

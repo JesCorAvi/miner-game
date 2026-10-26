@@ -14,6 +14,8 @@ npm run electron:dev     # Vite 5173 + Electron
 npm run electron:preview # build web + Electron sobre dist/
 npm run build:win        # build web + electron-builder portable
 node scripts/sync-agent-skills.mjs   # replica .claude/skills en .agent/skills
+# GitHub Pages: push a main → .github/workflows/deploy-pages.yml
+# (base relativa ya configurada; ver README para habilitar Pages)
 ```
 
 No hay test runner ni linter. La validación mínima es `npm run typecheck` y `npm run build:web`; para UI o red hay que ejecutar el juego y probar el flujo real. No afirmes que existen tests automáticos.

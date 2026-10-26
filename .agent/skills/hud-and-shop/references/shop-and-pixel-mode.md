@@ -112,11 +112,12 @@ Texturas:
 
 - Las texturas de canvas del exterior usan `NearestFilter`.
 - Los degradados radiales suaves (glow de nodos, polvo) son intencionados; no los fuerces a nearest.
+- Los carteles usan titular dominante, mipmaps y anisotropía para sobrevivir a la minificación. La lectura garantizada a distancia va por `Environment.raycastSign()` → `Hud.updateAim()` → `aim-panel` con `kind='sign'`: texto DOM nítido, fuera del canvas pixelado.
 
 ## Prueba visual
 
 1. Menú: pixel mode activo y legible.
-2. Superficie: pixel mode; la tolva y los carteles se leen.
+2. Superficie: pixel mode; la tolva se lee y los carteles se leen apuntándolos con el panel de apuntado.
 3. Descenso por debajo de -1.25: resolución completa y linterna.
 4. Vuelta a superficie: pixel mode de nuevo.
 5. Tienda y pausa: pixel mode, sin filtro sobre el HUD si no corresponde.

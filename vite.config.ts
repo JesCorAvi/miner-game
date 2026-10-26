@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+  // Relativa: sirve igual en GitHub Pages (/repo/), en preview y bajo carbon://.
   base: './',
   server: {
     port: 5173,

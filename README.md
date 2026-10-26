@@ -2,7 +2,7 @@
 
 Juego de minería 3D en primera persona para **navegador** y **Windows**, con excavación orgánica, cuotas diarias, tienda nocturna y cooperativo online de 1 a 4 operarios mediante WebRTC. El bucle temprano exige volver a la superficie y depositar la carga en una tolva corporativa: lo que no llega arriba no cuenta. Todo el arte, las partículas, los avatares y el audio se generan por código; no se usan texturas, modelos ni sonidos externos.
 
-El **exterior** (superficie, oficina nocturna y presentación) usa una dirección de arte **pixel art** y natural: render interno de baja resolución con escalado *nearest-neighbor*, cuantización de color, cielo atmosférico con nubes procedurales, montañas y bosque low-poly, y un ciclo día-noche que va de mañana a noche durante el turno. El **interior del pozo** mantiene el estilo 3D orgánico low-poly.
+El **exterior** (superficie, oficina nocturna y presentación) usa una dirección de arte **pixel art** y natural: render interno de baja resolución con escalado *nearest-neighbor*, cuantización de color, cielo atmosférico con nubes procedurales, montañas y bosque low-poly, y un ciclo día-noche que va de mañana a noche durante el turno. El **interior del pozo** mantiene el estilo 3D orgánico low-poly. Los carteles de la superficie tienen tipografía de gran formato y, al apuntarlos, muestran su lectura en un panel nítido con la distancia: se pueden leer desde el otro extremo del claro sin perder el pixelado.
 
 ## Características
 
@@ -33,7 +33,7 @@ El **exterior** (superficie, oficina nocturna y presentación) usa una direcció
 | --- | --- |
 | `WASD` | Desplazamiento |
 | `Shift` | Correr |
-| Ratón | Mirar |
+| Ratón | Mirar; apuntar a un cartel muestra su lectura y distancia en el panel de apuntado |
 | Clic izquierdo | Excavar / usar herramienta / lanzar granada |
 | `E` | Depositar carga en la tolva o colocar una escalera/puente |
 | `R` | Alternar escalera vertical / puente horizontal |
@@ -74,6 +74,16 @@ npm run build:web
 ```
 
 La salida queda en `dist/`.
+
+### GitHub Pages
+
+El repositorio incluye el flujo `.github/workflows/deploy-pages.yml`, que compila y publica `dist/` en GitHub Pages al hacer push a `main` (o al lanzarlo manualmente).
+
+1. En GitHub, abre **Settings → Pages**.
+2. En **Build and deployment → Source**, selecciona **GitHub Actions**.
+3. Haz push a `main` y espera a que termine el workflow **Publicar en GitHub Pages**.
+
+La URL será `https://<usuario>.github.io/<repositorio>/`. `vite.config.ts` mantiene `base: './'`, así que los assets funcionan igual en un subdirectorio de Pages, en `npm run preview` y bajo `carbon://` en Electron. La página se sirve por HTTPS, que es lo que necesitan PeerJS, el portapapeles y el pointer lock; también se publica `.nojekyll` por si el artefacto se sirve desde una rama.
 
 ## Multijugador
 
