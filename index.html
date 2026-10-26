@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Carbon Magnate: minería 3D con excavación orgánica, cuotas corporativas y cooperativo P2P. Todos los recursos son procedurales."
+    />
+    <meta name="theme-color" content="#07090b" />
+    <title>Carbon Magnate</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game-canvas" aria-label="Pozo minero tridimensional de Carbon Magnate"></canvas>
+      <div class="screen-vignette" aria-hidden="true"></div>
+      <div class="screen-scanlines" aria-hidden="true"></div>
+      <div id="screen-fade" class="screen-fade" aria-hidden="true"></div>
+
+      <section id="hud" class="hud is-hidden" aria-label="Interfaz de juego">
+        <header class="hud-top">
+          <div class="hud-identity">
+            <div class="brand-chip">
+              <span class="brand-chip-core" aria-hidden="true"></span>
+              <span>
+                <small>CARBON</small>
+                <strong>MAGNATE</strong>
+              </span>
+            </div>
+            <div class="depth-readout">
+              <span class="depth-label">PROFUNDIDAD</span>
+              <strong id="hud-depth">0 m</strong>
+              <span id="hud-layer" class="layer-name">ARCILLA OCRE</span>
+            </div>
+          </div>
+
+          <div id="quota-card" class="quota-card">
+            <div class="quota-heading">
+              <span><span id="hud-day">DÍA 01</span> · <span id="hud-objective-kind">CUOTA OBLIGATORIA</span></span>
+              <strong id="hud-time">01:30</strong>
+            </div>
+            <div class="quota-title">
+              <span>CARBÓN DEPOSITADO</span>
+              <span id="hud-carbon">0 / 40 t</span>
+            </div>
+            <div class="progress-track">
+              <span id="hud-quota-fill" class="progress-fill"></span>
+            </div>
+            <div class="quota-meta">
+              <span id="hud-quota-status">EN EXTRACCIÓN</span>
+              <span id="hud-quota-hint">OBJETIVO DEL EQUIPO</span>
+            </div>
+          </div>
+
+          <div class="hud-side">
+            <div class="resource-card wallet-card">
+              <span class="resource-label">FONDOS CORPORATIVOS</span>
+              <strong id="hud-money">$ 0</strong>
+              <span id="hud-income" class="resource-sub">Minerales cobrados · bonus al cerrar</span>
+            </div>
+            <div id="hud-online" class="online-chip" hidden>EN RED · 1/4</div>
+            <div class="status-row">
+              <span id="hud-save" class="save-chip">GUARDADO AUTO</span>
+              <button id="hud-mute" class="mute-button" type="button" aria-label="Silenciar audio">SONIDO: ON</button>
+            </div>
+          </div>
+        </header>
+
+        <div id="objective-hint" class="objective-hint">
+          <span class="objective-label">DIRECTIVA</span>
+          <span id="objective-text">Desciende con cuidado, extrae carbón y vuelve a la tolva para que cuente.</span>
+        </div>
+
+        <div id="crosshair" class="crosshair" aria-hidden="true">
+          <span class="crosshair-line crosshair-top"></span>
+          <span class="crosshair-line crosshair-right"></span>
+          <span class="crosshair-line crosshair-bottom"></span>
+          <span class="crosshair-line crosshair-left"></span>
+          <span class="crosshair-dot"></span>
+        </div>
+
+        <div id="aim-panel" class="aim-panel" hidden>
+          <div class="aim-heading">
+            <span id="aim-type">VETA</span>
+            <span id="aim-status">ACTIVA</span>
+          </div>
+          <div class="aim-bar"><span id="aim-fill"></span></div>
+          <span id="aim-detail">0 / 0</span>
+        </div>
+
+        <div id="interaction-prompt" class="interaction-prompt" hidden>
+          <kbd id="interaction-key">E</kbd>
+          <span id="interaction-text">DEPOSITAR CARGA</span>
+        </div>
+
+        <div id="cargo-card" class="cargo-card">
+          <div class="cargo-heading">
+            <span class="section-label">MOCHILA</span>
+            <strong id="hud-cargo-weight">PESO: 0.0 / 40 kg</strong>
+          </div>
+          <div class="cargo-weight-track"><span id="hud-cargo-weight-fill"></span></div>
+          <div class="cargo-footer">
+            <span id="hud-hopper">TOLVA: 0 / 40 t</span>
+          </div>
+        </div>
+
+        <div class="jet-card" id="jet-card">
+          <div class="jet-copy">
+            <span class="section-label">JETPACK INDUSTRIAL</span>
+            <strong id="hud-fuel-value">BLOQUEADO</strong>
+          </div>
+          <div class="jet-track"><span id="hud-fuel-fill"></span></div>
+          <span id="hud-jet-hint" class="jet-hint"><kbd>ESPACIO</kbd> desbloquea el jetpack en la oficina nocturna</span>
+        </div>
+
+        <div id="inventory-hotbar" class="inventory-hotbar" aria-label="Hotbar de herramientas y objetos"></div>
+
+        <section id="inventory-panel" class="inventory-panel" hidden aria-label="Inventario">
+          <header class="inventory-head">
+            <span class="section-label">INVENTARIO</span>
+            <span id="inventory-weight" class="inventory-weight">PESO: 0.0 / 40 kg</span>
+          </header>
+          <div id="inventory-summary" class="inventory-summary">PIEZAS: 0 · 0 t · $ 0</div>
+          <div id="inventory-grid" class="inventory-grid"></div>
+          <footer class="inventory-foot">
+            <span><kbd>TAB</kbd> / <kbd>I</kbd> CERRAR · <kbd>1-9</kbd> HOTBAR</span>
+            <span>STACK MÁX. 64</span>
+          </footer>
+        </section>
+
+        <div class="bottom-hints">
+          <span><kbd>WASD</kbd> MOVER</span>
+          <span><kbd>CLIC</kbd> EXCAVAR / LANZAR</span>
+          <span><kbd>E</kbd> DEPOSITAR / ESCALERA</span>
+          <span><kbd>W</kbd> SUBIR ESCALERA</span>
+          <span><kbd>TAB</kbd> INVENTARIO</span>
+          <span><kbd>ESPACIO</kbd> SALTO</span>
+          <span><kbd>SHIFT</kbd> CORRER</span>
+          <span><kbd>1-9</kbd> HOTBAR</span>
+          <span><kbd>ESC</kbd> PAUSA</span>
+        </div>
+
+        <div id="toast-stack" class="toast-stack" aria-live="polite"></div>
+        <div id="float-layer" class="float-layer" aria-hidden="true"></div>
+        <div id="hud-banner" class="hud-banner" hidden>
+          <span id="hud-banner-kicker">TURNO INICIADO</span>
+          <strong id="hud-banner-text">DÍA 01</strong>
+        </div>
+      </section>
+
+      <section id="menu-overlay" class="overlay menu-overlay" aria-label="Menú principal">
+        <div class="pixel-sky" aria-hidden="true">
+          <span class="pixel-moon"></span>
+          <span class="pixel-cloud cloud-a"></span>
+          <span class="pixel-cloud cloud-b"></span>
+          <span class="pixel-cloud cloud-c"></span>
+          <span class="pixel-skyline skyline-back"></span>
+          <span class="pixel-skyline skyline-front"></span>
+        </div>
+        <div class="menu-topbar">
+          <span>MAGNATE OS // TERMINAL DE OPERACIONES</span>
+          <span class="menu-top-status">SECTOR PROFUNDO 07 <span id="menu-clock">--:--</span></span>
+        </div>
+        <main class="menu-layout">
+          <div class="menu-hero">
+            <span class="eyebrow">DIVISIÓN MINERA DE EXTRACCIÓN PROFUNDA</span>
+            <canvas
+              id="pixel-logo"
+              class="pixel-logo"
+              width="700"
+              height="218"
+              role="img"
+              aria-label="Carbon Magnate"
+            ></canvas>
+            <p class="menu-lead">
+              Desciende con cuidado, extrae la veta y vuelve a la tolva de superficie.
+              Lo que no llegue arriba no cuenta para la cuota.
+            </p>
+
+            <div class="menu-name-row">
+              <label for="player-name">NOMBRE DE OPERARIO</label>
+              <input
+                id="player-name"
+                class="field"
+                type="text"
+                maxlength="16"
+                autocomplete="off"
+                spellcheck="false"
+                value="Operario"
+              />
+            </div>
+
+            <div class="menu-actions">
+              <button id="start-continue" class="button primary large" type="button" hidden>
+                CONTINUAR EXPEDIENTE
+              </button>
+              <button id="start-new" class="button primary large" type="button">
+                NUEVA OPERACIÓN
+              </button>
+            </div>
+            <p id="save-summary" class="menu-save-summary">Sin expediente activo.</p>
+
+            <div class="menu-online-block">
+              <div class="menu-section-head">
+                <span class="section-label">COOPERATIVO ONLINE · 1–4 OPERARIOS</span>
+                <span class="live-dot"></span>
+              </div>
+              <div class="menu-online-actions">
+                <button id="create-room" class="button secondary" type="button">CREAR SALA</button>
+                <div class="join-inline">
+                  <input
+                    id="join-code"
+                    class="field code-field"
+                    type="text"
+                    maxlength="6"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="CÓDIGO"
+                  />
+                  <button id="join-room" class="button secondary" type="button">UNIRSE</button>
+                </div>
+              </div>
+              <p id="menu-error" class="form-error" role="alert"></p>
+              <p class="fine-print">
+                WebRTC P2P: navegador y ejecutable Windows se conectan con el mismo código de 6 caracteres.
+              </p>
+            </div>
+
+            <div class="menu-controls">
+              <span><kbd>WASD</kbd> MOVER</span>
+              <span><kbd>CLIC</kbd> MINAR</span>
+              <span><kbd>E</kbd> DEPOSITAR / ESCALERA</span>
+              <span><kbd>ESPACIO</kbd> SALTO / JETPACK</span>
+              <span><kbd>1–5</kbd> ARMAS</span>
+              <span><kbd>ESC</kbd> PAUSA</span>
+            </div>
+          </div>
+
+          <aside class="pixel-panel menu-dossier">
+            <div class="panel-corners" aria-hidden="true"></div>
+            <header class="dossier-head">
+              <span>EXPEDIENTE DE OPERACIÓN</span>
+              <span>CM-07</span>
+            </header>
+            <div class="dossier-warning">
+              <span class="warning-mark">!</span>
+              <div>
+                <strong>CUOTA INCUMPLIDA = DESPIDO INMEDIATO</strong>
+                <p>No hay reintentos. Cada amanecer regenera el pozo y sube la exigencia de la junta.</p>
+              </div>
+            </div>
+            <div class="dossier-block">
+              <span class="section-label">PROTOCOLO DE SUPERVIVENCIA</span>
+              <ol>
+                <li><span>01</span> Desciende con escaleras y fractura vetas.</li>
+                <li><span>02</span> Vuelve arriba y deposita la carga en la tolva.</li>
+                <li><span>03</span> Reinvierte en arsenal, jetpack y plantilla.</li>
+                <li><span>04</span> Cubre la cuota antes del cierre del turno.</li>
+              </ol>
+            </div>
+            <div class="dossier-block">
+              <span class="section-label">INFORME GEOLÓGICO</span>
+              <div class="layer-list">
+                <span><i style="--layer-color:#d79353"></i> 0–25 m · Arcilla ocre</span>
+                <span><i style="--layer-color:#9aa8a3"></i> 25–55 m · Pizarra gris</span>
+                <span><i style="--layer-color:#df7150"></i> 55–85 m · Basalto magmático</span>
+                <span><i style="--layer-color:#82c8e0"></i> 85–120 m · Abismo cristalino</span>
+              </div>
+            </div>
+            <div class="dossier-footer">
+              <span class="live-dot"></span>
+              EXTERIOR PIXEL ART · SUBSUELO 3D ORGÁNICO
+            </div>
+          </aside>
+        </main>
+        <footer class="menu-footer">
+          <span>AUDIO PROCEDURAL · WEB AUDIO 3D</span>
+          <span>TIERRA, CRISTAL Y CÓDIGO · SIN ACTIVOS EXTERNOS</span>
+          <span>BUILD 2.0 // HYBRID ENGINE</span>
+        </footer>
+      </section>
+
+      <section id="lobby-overlay" class="overlay modal-overlay" hidden aria-label="Lobby cooperativo">
+        <div class="pixel-shell lobby-shell">
+          <div class="panel-corners" aria-hidden="true"></div>
+          <header class="shell-head">
+            <div>
+              <span class="eyebrow">ENLACE PRIVADO // HOST AUTORITATIVO</span>
+              <h2>SALA CORPORATIVA</h2>
+            </div>
+            <span id="lobby-role" class="role-chip">ANFITRIÓN</span>
+          </header>
+          <div class="lobby-grid">
+            <section class="lobby-code-panel">
+              <span class="section-label">CÓDIGO DE SALA</span>
+              <strong id="lobby-code" class="room-code">------</strong>
+              <div class="button-row">
+                <button id="copy-code" class="button ghost small" type="button">COPIAR CÓDIGO</button>
+                <button id="copy-link" class="button ghost small" type="button">COPIAR ENLACE</button>
+              </div>
+              <p id="lobby-status" class="transport-status">Conectando al servicio P2P…</p>
+              <p class="fine-print">
+                Comparte el código. Los operarios pueden entrar desde navegador o desde el .exe.
+              </p>
+            </section>
+
+            <section class="lobby-roster-panel">
+              <span class="section-label">OPERARIOS EN LÍNEA <span id="lobby-count">1/4</span></span>
+              <div id="lobby-roster" class="roster-list"></div>
+              <p id="lobby-error" class="form-error" role="alert"></p>
+            </section>
+          </div>
+          <footer class="shell-foot">
+            <button id="lobby-leave" class="button danger" type="button">ABANDONAR SALA</button>
+            <div class="lobby-host-actions">
+              <span id="lobby-waiting" class="waiting-label" hidden>ESPERANDO AL ANFITRIÓN…</span>
+              <button id="lobby-start" class="button primary" type="button">INICIAR TURNO</button>
+            </div>
+          </footer>
+        </div>
+      </section>
+
+      <section id="shop-overlay" class="overlay modal-overlay shop-overlay" hidden aria-label="Oficina nocturna">
+        <div class="pixel-shell shop-shell">
+          <div class="panel-corners" aria-hidden="true"></div>
+          <header class="shop-topbar">
+            <div class="shop-cash">
+              <span class="section-label">CAJA DISPONIBLE</span>
+              <strong id="shop-money">$ 0</strong>
+              <span id="shop-victory-chip" class="victory-chip" hidden>VICTORIA CORPORATIVA</span>
+            </div>
+            <div class="shop-next-quota">
+              <span class="section-label">PRÓXIMA CUOTA</span>
+              <strong id="shop-carbon">40 t</strong>
+              <span id="shop-carbon-detail" class="shop-quota-detail">ENTREGADO 0 / 40 t</span>
+            </div>
+            <div class="shop-profile">
+              <span id="shop-profile-day" class="shop-profile-day">DÍA 01</span>
+              <strong>OPERARIO DE EXTRACCIÓN</strong>
+              <span id="shop-profile-mode">MODO LOCAL</span>
+            </div>
+            <div class="shop-savebox">
+              <span id="shop-connection" class="save-chip">LOCAL</span>
+              <span class="shop-save-note">EXPEDIENTE GUARDADO</span>
+            </div>
+          </header>
+
+          <nav class="shop-tabs" role="tablist" aria-label="Secciones de la oficina">
+            <button id="shop-tab-employees" class="shop-tab" type="button" role="tab" data-shop-tab="employees">
+              EMPLEADOS <span class="shop-tab-count" data-shop-count="employees">0</span>
+            </button>
+            <button id="shop-tab-equipment" class="shop-tab" type="button" role="tab" data-shop-tab="equipment">
+              EQUIPO <span class="shop-tab-count" data-shop-count="equipment">0</span>
+            </button>
+            <button id="shop-tab-bonuses" class="shop-tab" type="button" role="tab" data-shop-tab="bonuses">
+              MEJORAS <span class="shop-tab-count" data-shop-count="bonuses">0</span>
+            </button>
+            <button id="shop-tab-inventory" class="shop-tab" type="button" role="tab" data-shop-tab="inventory">
+              INVENTARIO <span class="shop-tab-count" data-shop-count="inventory">0</span>
+            </button>
+          </nav>
+
+          <div class="shop-body">
+            <section class="shop-board">
+              <header class="shop-board-head">
+                <div>
+                  <span class="eyebrow">OFICINA CORPORATIVA // CIERRE DE TURNO</span>
+                  <h2 id="shop-title">INFORME DE EXTRACCIÓN</h2>
+                  <p id="shop-subtitle">La junta revisa el carbón entregado.</p>
+                </div>
+              </header>
+              <div id="shop-content" class="shop-content" role="tabpanel"></div>
+            </section>
+
+            <aside class="shop-side">
+              <span class="section-label">REGISTRO DEL TURNO</span>
+              <div class="shop-ledger">
+                <div><span>NÓMINA VIVA</span><strong id="shop-payroll">0</strong></div>
+                <div><span>DÍAS COMPLETADOS</span><strong id="shop-days">0</strong></div>
+                <div><span>VETAS FRACTURADAS</span><strong id="shop-nodes">0</strong></div>
+                <div><span>COFRES ABIERTOS</span><strong id="shop-chests">0</strong></div>
+              </div>
+              <span class="section-label">MEJORAS PASIVAS DEL ESCUADRÓN</span>
+              <div id="shop-passives" class="passive-list"></div>
+              <div class="shop-loadout-summary" id="shop-loadout-summary"></div>
+              <div class="shop-side-note">
+                <span class="warning-mark">!</span>
+                <p>Las mejoras compradas aquí permanecen durante todo el expediente. El carbón se reinicia cada día.</p>
+              </div>
+            </aside>
+          </div>
+
+          <footer class="shop-foot">
+            <div class="shop-foot-left">
+              <button id="shop-menu" class="button ghost small" type="button">ABANDONAR EXPEDIENTE</button>
+            </div>
+            <div class="shop-foot-actions">
+              <span id="shop-wait-host" class="waiting-label" hidden>ESPERANDO AL ANFITRIÓN…</span>
+              <button id="shop-next" class="button primary" type="button">INICIAR DÍA 02</button>
+            </div>
+          </footer>
+        </div>
+      </section>
+
+      <section id="day-summary-overlay" class="overlay modal-overlay day-summary-overlay" hidden aria-label="Liquidación del turno">
+        <div class="pixel-shell day-summary-shell">
+          <div class="panel-corners" aria-hidden="true"></div>
+          <header class="day-summary-head">
+            <span class="eyebrow">CIERRE DE TURNO // LIQUIDACIÓN</span>
+            <h2 id="day-summary-title">DÍA 01 COMPLETADO</h2>
+            <p id="day-summary-subtitle">La junta revisa el carbón entregado.</p>
+          </header>
+          <div class="day-summary-body">
+            <section class="day-summary-lines-wrap">
+              <div class="day-summary-columns">
+                <span>CONCEPTO</span>
+                <span>IMPORTE</span>
+              </div>
+              <div id="day-summary-lines" class="day-summary-lines"></div>
+            </section>
+            <aside class="day-summary-side">
+              <div class="summary-stat">
+                <span>CARBÓN ENTREGADO</span>
+                <strong id="day-summary-carbon">0 / 40 t</strong>
+              </div>
+              <div class="summary-stat">
+                <span>RENDIMIENTO</span>
+                <strong id="day-summary-performance">100%</strong>
+              </div>
+              <div class="summary-stat">
+                <span>BONUS DE TURNO</span>
+                <strong id="day-summary-bonus">$ 0</strong>
+              </div>
+              <div class="summary-total">
+                <span>TOTAL ACREDITADO</span>
+                <strong id="day-summary-total">$ 0</strong>
+              </div>
+              <div class="summary-stat summary-bank">
+                <span>CAJA ACTUAL</span>
+                <strong id="day-summary-money">$ 0</strong>
+              </div>
+            </aside>
+          </div>
+          <footer class="day-summary-foot">
+            <span class="summary-note">Los minerales se abonan en la tolva; el bonus se acredita al cerrar el turno.</span>
+            <button id="day-summary-continue" class="button primary" type="button">CONTINUAR A LA OFICINA</button>
+          </footer>
+        </div>
+      </section>
+
+      <section id="pause-overlay" class="overlay modal-overlay" hidden aria-label="Juego en pausa">
+        <div class="pixel-panel compact-panel">
+          <div class="panel-corners" aria-hidden="true"></div>
+          <span class="eyebrow">SIMULACIÓN SUSPENDIDA</span>
+          <h2>PAUSA OPERATIVA</h2>
+          <p id="pause-detail">El turno está congelado. Vuelve al túnel cuando estés listo.</p>
+          <div class="modal-actions">
+            <button id="pause-resume" class="button primary" type="button">VOLVER AL POZO</button>
+            <button id="pause-leave" class="button danger" type="button">ABANDONAR</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="gameover-overlay" class="overlay modal-overlay" hidden aria-label="Fin de expediente">
+        <div class="pixel-panel compact-panel gameover-panel">
+          <div class="panel-corners" aria-hidden="true"></div>
+          <span id="gameover-kicker" class="eyebrow danger-text">OPERACIÓN CLAUSURADA</span>
+          <h2 id="gameover-title">CUOTA INCUMPLIDA</h2>
+          <p id="gameover-message">La junta ha cerrado el pozo. El expediente queda archivado.</p>
+          <div class="run-stats">
+            <div><span>DÍAS COMPLETADOS</span><strong id="result-days">0</strong></div>
+            <div><span>CARBÓN DEPOSITADO</span><strong id="result-coal">0 t</strong></div>
+            <div><span>CAPITAL GENERADO</span><strong id="result-money">$ 0</strong></div>
+            <div><span>VETAS FRACTURADAS</span><strong id="result-nodes">0</strong></div>
+          </div>
+          <button id="gameover-action" class="button primary" type="button">VOLVER AL MENÚ</button>
+        </div>
+      </section>
+
+      <section id="network-overlay" class="overlay modal-overlay" hidden aria-label="Desconexión">
+        <div class="pixel-panel compact-panel">
+          <div class="panel-corners" aria-hidden="true"></div>
+          <span class="eyebrow danger-text">ENLACE TERMINADO</span>
+          <h2>CONEXIÓN PERDIDA</h2>
+          <p id="network-message">La sesión cooperativa ya no está disponible.</p>
+          <button id="network-action" class="button primary" type="button">VOLVER AL MENÚ</button>
+        </div>
+      </section>
+
+      <section id="fatal-overlay" class="overlay modal-overlay" hidden aria-label="Fallo del motor">
+        <div class="pixel-panel compact-panel">
+          <div class="panel-corners" aria-hidden="true"></div>
+          <span class="eyebrow danger-text">FALLO DE SISTEMA</span>
+          <h2>NO SE PUDO INICIAR EL MOTOR</h2>
+          <p id="fatal-message">El navegador no ha podido crear el contexto WebGL.</p>
+          <button id="fatal-reload" class="button primary" type="button">REINTENTAR</button>
+        </div>
+      </section>
+
+      <div id="loading-overlay" class="loading-overlay" hidden aria-live="polite">
+        <div class="loading-box">
+          <span class="loader-ring" aria-hidden="true"></span>
+          <strong id="loading-text">GENERANDO POZO…</strong>
+          <small>MARCHING CUBES · CAMPO DE DENSIDAD DETERMINISTA</small>
+        </div>
+      </div>
+
+      <noscript>
+        <div class="noscript">Carbon Magnate necesita JavaScript para funcionar.</div>
+      </noscript>
+
+      <svg class="svg-filter-defs" aria-hidden="true" focusable="false">
+        <defs>
+          <filter id="pixel-quantize" color-interpolation-filters="sRGB">
+            <feComponentTransfer>
+              <feFuncR type="discrete" tableValues="0 0.11 0.22 0.33 0.44 0.55 0.66 0.77 0.88 1" />
+              <feFuncG type="discrete" tableValues="0 0.11 0.22 0.33 0.44 0.55 0.66 0.77 0.88 1" />
+              <feFuncB type="discrete" tableValues="0 0.11 0.22 0.33 0.44 0.55 0.66 0.77 0.88 1" />
+            </feComponentTransfer>
+          </filter>
+        </defs>
+      </svg>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,157 @@
+:root {
+  color-scheme: dark;
+  --ink: #f2e7d3;
+  --ink-soft: #d6c9b4;
+  --muted: #879690;
+  --muted-strong: #aab7b1;
+  --coal: #06090a;
+  --coal-2: #0b1112;
+  --panel: rgba(8, 14, 15, 0.92);
+  --panel-lift: rgba(17, 26, 27, 0.96);
+  --line: rgba(201, 219, 210, 0.15);
+  --line-strong: rgba(201, 219, 210, 0.3);
+  --amber: #e2a247;
+  --amber-bright: #ffc66f;
+  --amber-dim: #8d5d28;
+  --cyan: #6edfd5;
+  --cyan-dim: #2f7771;
+  --danger: #e46653;
+  --green: #78ddaa;
+  --violet: #c3a6ff;
+  --display: "Bahnschrift SemiCondensed", "Bahnschrift", "Arial Narrow", sans-serif;
+  --mono: "Cascadia Mono", "Consolas", "Lucida Console", monospace;
+  --body: "Segoe UI", "Trebuchet MS", sans-serif;
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  --pixel-shadow: 0 0 0 3px #070b0c, 0 0 0 6px rgba(225, 165, 74, 0.35);
+  --clip-bevel: polygon(0 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%);
+  --clip-pixel: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 8px calc(100% - 8px), 0 calc(100% - 8px));
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--coal);
+  color: var(--ink);
+  font-family: var(--body);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  user-select: none;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--amber-bright);
+  outline-offset: 3px;
+}
+
+input {
+  user-select: text;
+}
+
+::selection {
+  background: var(--amber);
+  color: #100c06;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #34413e;
+  border: 2px solid #0d1415;
+}
+
+#app,
+#game-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#game-canvas {
+  display: block;
+  background: #060a0b;
+  transition: filter 220ms ease;
+}
+
+#game-canvas.is-pixelated {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: url(#pixel-quantize) saturate(0.94) contrast(1.06);
+}
+
+.svg-filter-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.screen-vignette,
+.screen-scanlines,
+.screen-fade {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.screen-vignette {
+  background:
+    radial-gradient(circle at 50% 46%, transparent 30%, rgba(0, 0, 0, 0.17) 68%, rgba(0, 0, 0, 0.65) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.28), transparent 16%, transparent 76%, rgba(0, 0, 0, 0.44));
+}
+
+.screen-scanlines {
+  opacity: 0.12;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.033) 0,
+    rgba(255, 255, 255, 0.033) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+  mix-blend-mode: overlay;
+}
+
+.screen-fade {
+  z-index: 80;
+  background: #020405;
+  opacity: 0;
+  transition: opacity 260ms ease;
+}
+
+.screen-fade.is-active {
+  opacity: 1;
+}
+

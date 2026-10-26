@@ -1,0 +1,9 @@
+export const FIXED_STEP = 1 / 60;
+export const MAX_FIXED_STEPS = 6;
+export const PLAYER_NET_INTERVAL = 1 / 20;
+export const STAFF_NET_INTERVAL = 0.2;
+export const ECONOMY_INTERVAL = 0.25;
+export const HUD_INTERVAL = 0.1;
+export const AIM_INTERVAL = 0.065;
+export const CARVE_HISTORY_LIMIT = 4000;
+export const AUTOSAVE_INTERVAL = 12;

@@ -1,0 +1,446 @@
+/* ------------------------------------------------------------------ */
+/* Responsive                                                          */
+/* ------------------------------------------------------------------ */
+
+@media (max-width: 1160px) {
+  .hud-top {
+    grid-template-columns: auto minmax(240px, 1fr) auto;
+  }
+
+  .hud-identity .brand-chip {
+    display: none;
+  }
+
+  .menu-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(290px, 0.62fr);
+    gap: 28px;
+  }
+
+  .pixel-logo {
+  display: block;
+  width: min(710px, 100%);
+  height: auto;
+  margin: 10px 0 18px -4px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.4));
+}
+
+.pixel-title {
+    font-size: clamp(3.3rem, 8.6vw, 6.4rem);
+  }
+}
+
+@media (max-width: 920px) {
+  .menu-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .menu-dossier {
+    display: none;
+  }
+
+  .menu-hero {
+    max-width: 670px;
+  }
+
+  .menu-overlay {
+    padding: 18px;
+  }
+
+  .hud-top {
+    grid-template-columns: auto 1fr;
+  }
+
+  .quota-card {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .hud-side {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .hud-side .resource-card {
+    min-height: 43px;
+    min-width: 155px;
+  }
+
+  .hud-side .status-row,
+  .hud-side .online-chip {
+    display: none;
+  }
+
+  .inventory-hotbar {
+    bottom: 36px;
+  }
+
+  .inventory-hotbar .inventory-slot {
+    width: 40px;
+    height: 40px;
+  }
+
+  .bottom-hints {
+    display: none;
+  }
+
+  .jet-card {
+    bottom: 36px;
+    width: 180px;
+  }
+
+  .cargo-card {
+    bottom: 88px;
+    width: 180px;
+    padding: 6px 8px;
+  }
+
+  .cargo-heading .section-label {
+    font-size: 0.42rem;
+  }
+
+  .jet-hint {
+    display: none;
+  }
+
+  .objective-hint {
+    top: 72px;
+    max-width: 75vw;
+  }
+
+  .shop-topbar {
+    grid-template-columns: minmax(130px, 0.7fr) minmax(130px, 0.7fr) minmax(150px, 1fr) auto;
+  }
+
+  .shop-cash,
+  .shop-next-quota,
+  .shop-profile,
+  .shop-savebox {
+    padding: 10px 12px;
+  }
+
+  .shop-body {
+    display: block;
+    overflow: auto;
+  }
+
+  .shop-board {
+    min-height: auto;
+    overflow: visible;
+  }
+
+  .shop-content {
+    overflow: visible;
+  }
+
+  .shop-side {
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+
+  .day-summary-body {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: auto;
+  }
+
+  .day-summary-side {
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+
+  .lobby-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shop-shell {
+    height: 94vh;
+  }
+}
+
+@media (max-width: 620px) {
+  .menu-overlay {
+    padding: 13px;
+  }
+
+  .pixel-logo {
+  display: block;
+  width: min(710px, 100%);
+  height: auto;
+  margin: 10px 0 18px -4px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.4));
+}
+
+.pixel-title {
+    font-size: clamp(2.7rem, 13vw, 4.3rem);
+  }
+
+  .menu-topbar > :last-child,
+  .menu-footer {
+    display: none;
+  }
+
+  .menu-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .menu-actions .button {
+    width: 100%;
+  }
+
+  .menu-name-row {
+    display: block;
+  }
+
+  .menu-name-row label {
+    display: block;
+    margin-bottom: 5px;
+  }
+
+  .menu-online-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .join-inline {
+    flex: none;
+  }
+
+  .join-inline .code-field {
+    max-width: none;
+  }
+
+  .hud-top {
+    top: 9px;
+    right: 10px;
+    left: 10px;
+    gap: 6px;
+  }
+
+  .hud-identity {
+    display: none;
+  }
+
+  .quota-card {
+    grid-column: 1 / -1;
+    padding: 7px 10px;
+  }
+
+  .hud-side {
+    grid-column: 1 / -1;
+  }
+
+  .hud-side .resource-card {
+    display: block;
+    min-width: 132px;
+    min-height: 34px;
+    padding: 5px 8px;
+  }
+
+  .hud-side .resource-label,
+  .hud-side .resource-sub {
+    display: none;
+  }
+
+  .hud-side .resource-card strong {
+    font-size: 0.82rem;
+  }
+
+  .objective-hint {
+    top: 74px;
+    left: 10px;
+    max-width: 86vw;
+  }
+
+  .jet-card {
+    left: 10px;
+    bottom: 30px;
+    width: 138px;
+    padding: 7px;
+  }
+
+  .cargo-card {
+    left: 10px;
+    bottom: 82px;
+    width: 138px;
+    padding: 5px 7px;
+  }
+
+  .cargo-heading .section-label,
+  .cargo-money {
+    display: none;
+  }
+
+  .cargo-footer {
+    font-size: 0.38rem;
+  }
+
+  .jet-copy .section-label {
+    display: none;
+  }
+
+  .inventory-hotbar {
+    right: 8px;
+    bottom: 24px;
+    left: auto;
+    gap: 2px;
+    padding: 2px;
+    transform: none;
+  }
+
+  .inventory-hotbar .inventory-slot {
+    width: 34px;
+    height: 34px;
+  }
+
+  .aim-panel {
+    width: 56vw;
+  }
+
+  .shop-overlay {
+    padding: 0;
+  }
+
+  .shop-shell {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .shop-topbar {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .shop-profile {
+    border-top: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+  }
+
+  .shop-savebox {
+    border-top: 1px solid var(--line);
+  }
+
+  .shop-save-note {
+    display: none;
+  }
+
+  .shop-tabs {
+    padding: 0 6px;
+  }
+
+  .shop-tab {
+    min-height: 38px;
+    padding: 7px 9px;
+    font-size: 0.55rem;
+  }
+
+  .shop-tab-count {
+    min-width: 16px;
+    height: 15px;
+    font-size: 0.47rem;
+  }
+
+  .shop-board-head {
+    padding: 12px;
+  }
+
+  .shop-board-head p {
+    font-size: 0.68rem;
+  }
+
+  .shop-content,
+  .shop-side {
+    padding: 12px;
+  }
+
+  .shop-grid-tab {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shop-foot {
+    flex-wrap: wrap;
+    padding: 9px;
+  }
+
+  .shop-foot-left .button {
+    display: none;
+  }
+
+  .shop-foot-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .day-summary-overlay {
+    padding: 0;
+  }
+
+  .day-summary-shell {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .day-summary-head {
+    padding: 14px 12px 12px;
+  }
+
+  .day-summary-head p {
+    font-size: 0.68rem;
+  }
+
+  .day-summary-lines-wrap,
+  .day-summary-side {
+    padding: 12px;
+  }
+
+  .day-summary-foot {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+  }
+
+  .summary-note {
+    max-width: none;
+  }
+
+  .day-summary-foot .button {
+    width: 100%;
+  }
+
+  .lobby-grid {
+    padding: 12px;
+  }
+
+  .shell-head,
+  .shell-foot {
+    padding: 12px;
+  }
+
+  .room-code {
+    font-size: 2.5rem;
+  }
+
+  .toast-stack {
+    right: 10px;
+    bottom: 90px;
+    width: 74vw;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
