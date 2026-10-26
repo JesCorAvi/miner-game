@@ -23,7 +23,7 @@ import type {
   WeaponId,
 } from '../types';
 
-export const PROTOCOL_VERSION = 10;
+export const PROTOCOL_VERSION = 11;
 export const MAX_MESSAGE_LENGTH = 512 * 1024;
 const WORLD_BOUND = SAFE_ZONE_HALF + 1;
 const FX_BOUND = SAFE_ZONE_HALF + 2;
@@ -345,7 +345,13 @@ function parseLadder(value: unknown): NetworkLadderState | null {
   const nz = bounded(value.nz, -1, 1);
   const height = bounded(value.height, 1, 8);
   const id = typeof value.id === 'string' ? value.id.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) : '';
-  const orientation = value.orientation === 'horizontal' ? 'horizontal' : value.orientation === 'vertical' ? 'vertical' : null;
+  const orientation =
+    value.orientation === 'horizontal' ||
+    value.orientation === 'vertical' ||
+    value.orientation === 'diagonal-up' ||
+    value.orientation === 'diagonal-down'
+      ? value.orientation
+      : null;
   const anchorId =
     typeof value.anchorId === 'string'
       ? value.anchorId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64)

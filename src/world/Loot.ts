@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { MAX_PELLETS, PIT_HALF } from '../config';
 import { hashString, mulberry32 } from '../core/Rng';
-import type { DaySaleLine, MineralId } from '../types';
+import type { DaySaleLine, MineralDefinition, MineralId } from '../types';
 import type { ResourceNode } from './Resources';
 import type { Terrain } from './Terrain';
 interface Pellet {
@@ -57,11 +57,38 @@ function makePelletGeometry(): THREE.OctahedronGeometry {
   return geometry;
 }
 
+function makeGlowTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const context = canvas.getContext('2d');
+  if (context) {
+    const gradient = context.createRadialGradient(32, 32, 0, 32, 32, 31);
+    gradient.addColorStop(0, 'rgba(255,255,255,0.95)');
+    gradient.addColorStop(0.18, 'rgba(255,255,255,0.65)');
+    gradient.addColorStop(0.5, 'rgba(255,255,255,0.16)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 64, 64);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 export class LootField {
   readonly group = new THREE.Group();
   private readonly mesh: THREE.InstancedMesh;
-  private readonly material: THREE.MeshBasicMaterial;
+  private readonly material: THREE.MeshStandardMaterial;
   private readonly geometry: THREE.BufferGeometry;
+  private readonly emissiveAttribute: THREE.InstancedBufferAttribute;
+  private readonly glowGeometry = new THREE.BufferGeometry();
+  private readonly glowMaterial: THREE.PointsMaterial;
+  private readonly glowTexture: THREE.CanvasTexture;
+  private readonly glowPositions: Float32Array;
+  private readonly glowColors: Float32Array;
+  private readonly glowPositionAttribute: THREE.BufferAttribute;
+  private readonly glowColorAttribute: THREE.BufferAttribute;
   private readonly pellets: Pellet[] = [];
   private readonly dummy = new THREE.Object3D();
   private readonly normal = new THREE.Vector3();
@@ -72,10 +99,42 @@ export class LootField {
   constructor() {
     this.group.name = 'loot-field';
     this.geometry = makePelletGeometry();
-    this.material = new THREE.MeshBasicMaterial({
-      vertexColors: true,
-      toneMapped: false,
+    // Misma receta que la veta: color base por instancia + emisivo por
+    // instancia + flatShading. El emisivo no existe como atributo estándar
+    // de instancing, así que se inyecta en el shader del material.
+    this.material = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.42,
+      metalness: 0.45,
+      flatShading: true,
     });
+    this.material.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nattribute vec3 instanceEmissive;\nvarying vec3 vInstanceEmissive;',
+        )
+        .replace(
+          '#include <begin_vertex>',
+          '#include <begin_vertex>\nvInstanceEmissive = instanceEmissive;',
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nvarying vec3 vInstanceEmissive;',
+        )
+        .replace(
+          '#include <emissivemap_fragment>',
+          '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vInstanceEmissive;',
+        );
+    };
+    this.material.customProgramCacheKey = () => 'loot-instance-emissive';
+    this.emissiveAttribute = new THREE.InstancedBufferAttribute(
+      new Float32Array(MAX_PELLETS * 3),
+      3,
+    );
+    this.emissiveAttribute.setUsage(THREE.DynamicDrawUsage);
+    this.geometry.setAttribute('instanceEmissive', this.emissiveAttribute);
     this.mesh = new THREE.InstancedMesh(this.geometry, this.material, MAX_PELLETS);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.frustumCulled = false;
@@ -115,7 +174,39 @@ export class LootField {
     if (this.mesh.instanceColor) {
       this.mesh.instanceColor.needsUpdate = true;
     }
+    this.emissiveAttribute.needsUpdate = true;
     this.group.add(this.mesh);
+
+    this.glowPositions = new Float32Array(MAX_PELLETS * 3);
+    for (let index = 0; index < MAX_PELLETS; index += 1) {
+      this.glowPositions[index * 3 + 1] = -999;
+    }
+    this.glowColors = new Float32Array(MAX_PELLETS * 3);
+    this.glowPositionAttribute = new THREE.BufferAttribute(this.glowPositions, 3);
+    this.glowPositionAttribute.setUsage(THREE.DynamicDrawUsage);
+    this.glowColorAttribute = new THREE.BufferAttribute(this.glowColors, 3);
+    this.glowColorAttribute.setUsage(THREE.DynamicDrawUsage);
+    this.glowGeometry.setAttribute('position', this.glowPositionAttribute);
+    this.glowGeometry.setAttribute('color', this.glowColorAttribute);
+    this.glowTexture = makeGlowTexture();
+    this.glowMaterial = new THREE.PointsMaterial({
+      map: this.glowTexture,
+      size: 0.55,
+      transparent: true,
+      opacity: 0.75,
+      vertexColors: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      sizeAttenuation: true,
+    });
+    const glow = new THREE.Points(this.glowGeometry, this.glowMaterial);
+    glow.name = 'loot-glow';
+    glow.frustumCulled = false;
+    this.group.add(glow);
+  }
+
+  private setPelletEmissive(index: number, color: THREE.Color): void {
+    this.emissiveAttribute.setXYZ(index, color.r, color.g, color.b);
   }
 
   spawnFromNode(node: ResourceNode, terrain: Terrain, dropSeed: number): number {
@@ -136,6 +227,11 @@ export class LootField {
     const moneyRemainder = totalMoney - baseMoney * count;
     terrain.getNormal(node.x, node.y, node.z, this.normal);
     const normal = this.normal.clone();
+    const baseColor = new THREE.Color(mineral.color);
+    const emissiveColor = new THREE.Color(mineral.emissive).multiplyScalar(
+      mineral.family === 'coal' ? 1.35 : 1.65,
+    );
+    const glowColor = new THREE.Color(mineral.glow);
     let spawned = 0;
     for (let index = 0; index < count; index += 1) {
       const slot = this.findSlot();
@@ -176,13 +272,20 @@ export class LootField {
       pellet.weight = mineral.weight;
       pellet.mineral = mineral.id;
       pellet.blockedUntil = 0;
-      pellet.color.setHex(mineral.glow);
-      pellet.color.multiplyScalar(0.8 + random() * 0.5);
+      pellet.color.copy(baseColor).multiplyScalar(0.84 + random() * 0.32);
       this.mesh.setColorAt(slot, pellet.color);
+      this.setPelletEmissive(slot, emissiveColor);
+      this.glowColorAttribute.setXYZ(slot, glowColor.r, glowColor.g, glowColor.b);
+      this.glowPositionAttribute.setXYZ(slot, pellet.x, pellet.y, pellet.z);
       spawned += 1;
     }
     if (this.mesh.instanceColor) {
       this.mesh.instanceColor.needsUpdate = true;
+    }
+    if (spawned > 0) {
+      this.emissiveAttribute.needsUpdate = true;
+      this.glowColorAttribute.needsUpdate = true;
+      this.glowPositionAttribute.needsUpdate = true;
     }
     return spawned;
   }
@@ -191,7 +294,7 @@ export class LootField {
    * Fragmentos que salen al golpear (no romper) una veta. Su valor se descuenta
    * del lote de rotura local para no duplicar el yield del nodo.
    */
-  spawnNodeHitChips(node: ResourceNode, terrain: Terrain, color: number): number {
+  spawnNodeHitChips(node: ResourceNode, terrain: Terrain): number {
     if (!node.mineral || node.broken) {
       return 0;
     }
@@ -209,12 +312,11 @@ export class LootField {
       new THREE.Vector3(node.x, node.y, node.z),
       terrain.getNormal(node.x, node.y, node.z),
       terrain,
-      node.mineral.id,
+      node.mineral,
       allowed,
       carbonEach,
       moneyEach,
       0.06,
-      color,
     );
     if (spawned > 0) {
       ledger.carbon = Math.min(node.mineral.carbonYield, ledger.carbon + carbonEach * spawned);
@@ -229,15 +331,18 @@ export class LootField {
     position: THREE.Vector3,
     normal: THREE.Vector3,
     terrain: Terrain,
-    mineral: MineralId,
+    mineral: MineralDefinition,
     count: number,
     carbonEach: number,
     moneyEach: number,
     weightEach: number,
-    color: number,
   ): number {
     const direction = normal.clone().normalize();
-    const baseColor = new THREE.Color(color);
+    const baseColor = new THREE.Color(mineral.color);
+    const emissiveColor = new THREE.Color(mineral.emissive).multiplyScalar(
+      mineral.family === 'coal' ? 1.35 : 1.65,
+    );
+    const glowColor = new THREE.Color(mineral.glow);
     let spawned = 0;
     for (let index = 0; index < count; index += 1) {
       const slot = this.findSlot();
@@ -275,14 +380,22 @@ export class LootField {
       pellet.carbon = carbonEach;
       pellet.money = moneyEach;
       pellet.weight = weightEach;
-      pellet.mineral = mineral;
+      pellet.mineral = mineral.id;
       pellet.blockedUntil = 0;
-      pellet.color.copy(baseColor).multiplyScalar(0.85 + Math.random() * 0.45);
+      pellet.color.copy(baseColor).multiplyScalar(0.84 + Math.random() * 0.32);
       this.mesh.setColorAt(slot, pellet.color);
+      this.setPelletEmissive(slot, emissiveColor);
+      this.glowColorAttribute.setXYZ(slot, glowColor.r, glowColor.g, glowColor.b);
+      this.glowPositionAttribute.setXYZ(slot, pellet.x, pellet.y, pellet.z);
       spawned += 1;
     }
-    if (spawned > 0 && this.mesh.instanceColor) {
-      this.mesh.instanceColor.needsUpdate = true;
+    if (spawned > 0) {
+      if (this.mesh.instanceColor) {
+        this.mesh.instanceColor.needsUpdate = true;
+      }
+      this.emissiveAttribute.needsUpdate = true;
+      this.glowColorAttribute.needsUpdate = true;
+      this.glowPositionAttribute.needsUpdate = true;
     }
     return spawned;
   }
@@ -400,11 +513,13 @@ export class LootField {
       this.dummy.scale.setScalar(pellet.scale);
       this.dummy.updateMatrix();
       this.mesh.setMatrixAt(index, this.dummy.matrix);
+      this.glowPositionAttribute.setXYZ(index, pellet.x, pellet.y, pellet.z);
       matricesChanged = true;
     }
 
     if (matricesChanged) {
       this.mesh.instanceMatrix.needsUpdate = true;
+      this.glowPositionAttribute.needsUpdate = true;
     }
   }
 
@@ -445,6 +560,12 @@ export class LootField {
     this.dummy.updateMatrix();
     this.mesh.setMatrixAt(index, this.dummy.matrix);
     this.mesh.instanceMatrix.needsUpdate = true;
+    this.emissiveAttribute.setXYZ(index, 0, 0, 0);
+    this.emissiveAttribute.needsUpdate = true;
+    this.glowColorAttribute.setXYZ(index, 0, 0, 0);
+    this.glowColorAttribute.needsUpdate = true;
+    this.glowPositionAttribute.setXYZ(index, 0, -999, 0);
+    this.glowPositionAttribute.needsUpdate = true;
   }
 
   /**
@@ -498,11 +619,15 @@ export class LootField {
     return collected;
   }
 
-  getNearestPellet(position: THREE.Vector3, maxDistance: number): THREE.Vector3 | null {
+  getNearestPellet(
+    position: THREE.Vector3,
+    maxDistance: number,
+    maxWeight = Number.POSITIVE_INFINITY,
+  ): THREE.Vector3 | null {
     let bestDistance = maxDistance * maxDistance;
     let result: THREE.Vector3 | null = null;
     for (const pellet of this.pellets) {
-      if (!pellet.active) {
+      if (!pellet.active || pellet.weight > maxWeight + 1e-6) {
         continue;
       }
       const dx = pellet.x - position.x;
@@ -541,9 +666,15 @@ export class LootField {
         this.dummy.scale.setScalar(0);
         this.dummy.updateMatrix();
         this.mesh.setMatrixAt(index, this.dummy.matrix);
+        this.emissiveAttribute.setXYZ(index, 0, 0, 0);
+        this.glowColorAttribute.setXYZ(index, 0, 0, 0);
+        this.glowPositionAttribute.setXYZ(index, 0, -999, 0);
       }
     }
     this.mesh.instanceMatrix.needsUpdate = true;
+    this.emissiveAttribute.needsUpdate = true;
+    this.glowColorAttribute.needsUpdate = true;
+    this.glowPositionAttribute.needsUpdate = true;
     this.totalCollected = 0;
     this.cursor = 0;
     this.chipLedger.clear();
@@ -555,5 +686,8 @@ export class LootField {
     this.mesh.dispose();
     this.geometry.dispose();
     this.material.dispose();
+    this.glowGeometry.dispose();
+    this.glowMaterial.dispose();
+    this.glowTexture.dispose();
   }
 }

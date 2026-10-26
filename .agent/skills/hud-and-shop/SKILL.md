@@ -49,7 +49,7 @@ La presentación separa dos espacios: exterior/menús/oficina en pixel art (`#ga
 | HUD fijo en partida | Elemento dentro de `#hud` (no overlay) | `index.html` + `HudViewData` + `updateHud()` |
 | Tarjeta de tienda | `ShopItemView` + `renderShopItems()` | `src/ui/shopView.ts` + `Shop.buildShopItems()` |
 | Sección de tienda | Pestaña `ShopTab` en `renderShopItems()` | `src/ui/shopView.ts` (Empleados → Equipo → Mejoras → Inventario) |
-| Prompt contextual | `interaction-prompt` + `HudPrompt` | `Interaction.updateInteractionState()` + `UI.updateHud()`; `E` coloca/deposita y `R` alterna escalera/puente |
+| Prompt contextual | `interaction-prompt` + `HudPrompt` | `Interaction.updateInteractionState()` + `UI.updateHud()`; `E` deposita, clic izquierdo coloca y clic derecho abre el dial central de escalera |
 | Aviso temporal | `toast-stack` + `notify()` | `UI.ts` |
 | Aviso flotante 3D | `float-layer` + `spawnFloat()` | `UI.ts` |
 | Banner de fase | `hud-banner` + `showBanner()` | `UI.ts` |

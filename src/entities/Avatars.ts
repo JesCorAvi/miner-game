@@ -6,6 +6,7 @@ import type {
   RosterEntry,
   WeaponId,
 } from '../types';
+import type { Terrain } from '../world/Terrain';
 
 interface ToolRig {
   group: THREE.Group;
@@ -517,11 +518,13 @@ const STAFF_COLORS = ['#8a9b92', '#75d5c8', '#e8b05b', '#bfa6ff'] as const;
 
 export class StaffAvatars {
   private readonly scene: THREE.Scene;
+  private readonly terrain: Terrain;
   private readonly rigs = new Map<string, AvatarRig>();
   private elapsed = 0;
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Scene, terrain: Terrain) {
     this.scene = scene;
+    this.terrain = terrain;
   }
 
   applyStates(states: readonly NetworkStaffState[]): void {
@@ -555,6 +558,15 @@ export class StaffAvatars {
       rig.moving = true;
       rig.mining = state.kind === 'miner' && state.active;
       rig.jetpack = state.active;
+      // Los NPC no deben verse atravesando la roca: si su cuerpo entra en
+      // sólido, se ocultan hasta que vuelven a un hueco abierto.
+      const x = state.x;
+      const y = state.y;
+      const z = state.z;
+      rig.root.visible =
+        !this.terrain.isSolid(x, y + 0.1, z) &&
+        !this.terrain.isSolid(x, y + 0.85, z) &&
+        !this.terrain.isSolid(x, y + 1.55, z);
       if (rig.root.userData.rank !== state.rank || rig.root.userData.kind !== state.kind) {
         rig.root.userData.rank = state.rank;
         rig.root.userData.kind = state.kind;

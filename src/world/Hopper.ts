@@ -3,8 +3,8 @@ import { HOPPER_POSITION, SURFACE_DECK_Y } from '../config';
 import { mulberry32 } from '../core/Rng';
 
 // El cartel de la tolva comparte el problema de los carteles grandes: con el
-// render exterior a ~620 px, la letra pequeña desaparece. Titular dominante,
-// pocas líneas y mipmaps para que se lea desde la zona segura.
+// render exterior a ~900 px como máximo, la letra pequeña desaparece. Titular
+// dominante, pocas líneas y mipmaps para que se lea desde la zona segura.
 function makeSignTexture(): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 512;

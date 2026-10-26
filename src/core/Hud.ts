@@ -221,7 +221,7 @@ export function computeObjective(game: Game): string {
     if (game.cargoCoal > 0 || game.cargoMoney > 0) {
       return 'La tolva está a tu derecha, en la zona segura. Pulsa E junto a ella para depositar.';
     }
-    return 'Desciende por el pozo central. Compra el jetpack más adelante; por ahora vuelve con escaleras (E).';
+    return 'Desciende por el pozo central. Compra el jetpack más adelante; por ahora vuelve con escaleras (CLIC IZQ).';
   }
   if (game.aim?.node) {
     return `Veta detectada: ${game.aim.node.mineral?.name ?? 'cofre'}. Fractúrala, recoge la carga y vuelve arriba.`;

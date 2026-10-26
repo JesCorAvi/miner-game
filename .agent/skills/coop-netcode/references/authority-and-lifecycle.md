@@ -9,7 +9,7 @@
 
 ## Handshake
 
-1. Host: `PeerNetwork.host()` reserva un Peer ID `carbon-magnate-v10-<código>` y crea el roster con él mismo como host.
+1. Host: `PeerNetwork.host()` reserva un Peer ID `carbon-magnate-v11-<código>` y crea el roster con él mismo como host.
 2. Cliente: `PeerNetwork.join()` abre un Peer anónimo y conecta al host con `{ reliable: true }`.
 3. Cliente envía `hello { name }`.
 4. Host valida `hello`, añade al roster y responde `welcome { selfId, hostId, roster }`.

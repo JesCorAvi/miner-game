@@ -94,6 +94,29 @@
           <span id="interaction-text">DEPOSITAR CARGA</span>
         </div>
 
+        <div id="ladder-dial" class="ladder-dial" hidden role="dialog" aria-label="Selector de orientación de escalera">
+          <div class="ladder-dial-panel">
+            <span class="ladder-dial-label">ORIENTACIÓN DE ESCALERA</span>
+            <div class="ladder-dial-ring">
+              <span class="ladder-dial-option dial-top" data-ladder-orientation="vertical">
+                <b>V</b> VERTICAL
+              </span>
+              <span class="ladder-dial-option dial-right" data-ladder-orientation="diagonal-up">
+                <b>↗</b> RAMPA ↑
+              </span>
+              <span class="ladder-dial-option dial-bottom" data-ladder-orientation="horizontal">
+                <b>—</b> PUENTE
+              </span>
+              <span class="ladder-dial-option dial-left" data-ladder-orientation="diagonal-down">
+                <b>↘</b> RAMPA ↓
+              </span>
+              <strong id="ladder-dial-core" class="ladder-dial-core">V</strong>
+              <span id="ladder-dial-cursor" class="ladder-dial-cursor" aria-hidden="true"></span>
+            </div>
+            <span class="ladder-dial-hint">MUEVE EL RATÓN · CLIC IZQ CONFIRMA · CLIC DER CANCELA</span>
+          </div>
+        </div>
+
         <div id="cargo-card" class="cargo-card">
           <div class="cargo-heading">
             <span class="section-label">MOCHILA</span>
@@ -131,11 +154,12 @@
 
         <div class="bottom-hints">
           <span><kbd>WASD</kbd> MOVER</span>
-          <span><kbd>CLIC</kbd> EXCAVAR / LANZAR</span>
-          <span><kbd>E</kbd> DEPOSITAR / ESCALERA</span>
+          <span><kbd>CLIC IZQ</kbd> EXCAVAR / COLOCAR</span>
+          <span><kbd>CLIC DER</kbd> DIAL DE ESCALERA</span>
+          <span><kbd>E</kbd> DEPOSITAR</span>
           <span><kbd>W</kbd> SUBIR ESCALERA</span>
           <span><kbd>TAB</kbd> INVENTARIO</span>
-          <span><kbd>ESPACIO</kbd> SALTO</span>
+          <span><kbd>ESPACIO</kbd> SALTO / SOLTAR</span>
           <span><kbd>SHIFT</kbd> CORRER</span>
           <span><kbd>1-9</kbd> HOTBAR</span>
           <span><kbd>ESC</kbd> PAUSA</span>
@@ -229,9 +253,10 @@
 
             <div class="menu-controls">
               <span><kbd>WASD</kbd> MOVER</span>
-              <span><kbd>CLIC</kbd> MINAR</span>
-              <span><kbd>E</kbd> DEPOSITAR / ESCALERA</span>
-              <span><kbd>ESPACIO</kbd> SALTO / JETPACK</span>
+              <span><kbd>CLIC IZQ</kbd> MINAR / COLOCAR</span>
+              <span><kbd>CLIC DER</kbd> DIAL DE ESCALERA</span>
+              <span><kbd>E</kbd> DEPOSITAR</span>
+              <span><kbd>ESPACIO</kbd> SALTO / SOLTAR ESCALERA</span>
               <span><kbd>1–5</kbd> ARMAS</span>
               <span><kbd>ESC</kbd> PAUSA</span>
             </div>

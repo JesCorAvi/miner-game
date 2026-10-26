@@ -3,6 +3,7 @@ import type {
   EmployeeKind,
   GrenadeDefinition,
   GrenadeTierId,
+  LadderOrientation,
   LayerDefinition,
   Loadout,
   MineralDefinition,
@@ -50,9 +51,21 @@ export const LADDER_PACK_SIZE = 4;
 export const LADDER_COST = 30;
 export const LADDER_HEIGHT = 4.4;
 export const LADDER_REACH = 5.5;
+export const LADDER_ORIENTATION_ORDER: readonly LadderOrientation[] = [
+  'vertical',
+  'diagonal-up',
+  'horizontal',
+  'diagonal-down',
+];
+export const LADDER_ORIENTATION_LABELS: Record<LadderOrientation, string> = {
+  vertical: 'ESCALERA',
+  'diagonal-up': 'RAMPA ASCENDENTE',
+  horizontal: 'PUENTE',
+  'diagonal-down': 'RAMPA DESCENDENTE',
+};
 export const COLLECTOR_CONVERSION_COST = 150;
 export const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-export const PEER_ID_PREFIX = 'carbon-magnate-v10-';
+export const PEER_ID_PREFIX = 'carbon-magnate-v11-';
 
 export const LAYERS: readonly LayerDefinition[] = [
   {

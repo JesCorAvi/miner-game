@@ -9,9 +9,9 @@ import { mulberry32 } from '../core/Rng';
 import { buildLandscape } from './Landscape';
 import { SkyCycle } from './SkyCycle';
 
-// La superficie se renderiza a ~620 px de ancho: si el título es pequeño, la
-// cuantización y el escalado lo convierten en ruido. Los carteles usan un
-// titular que ocupa casi todo el panel y mipmaps para sobrevivir a la distancia.
+// La superficie se renderiza a ~900 px de ancho como máximo: si el título es
+// pequeño, la cuantización y el escalado lo convierten en ruido. Los carteles
+// usan un titular que ocupa casi todo el panel y mipmaps para sobrevivir lejos.
 function fitTextSize(
   context: CanvasRenderingContext2D,
   text: string,

@@ -129,6 +129,10 @@ export class Game {
   ladderCounter = 0;
   ladderOrientation: LadderOrientation = 'vertical';
   ladderPlacementEnabled = false;
+  ladderDialOpen = false;
+  ladderDialPointerX = 0;
+  ladderDialPointerY = 0;
+  ladderDialStartOrientation: LadderOrientation = 'vertical';
   dayMoneyBase = 0;
   dayLedger: DayLedger = emptyDayLedger();
   dayReport: DayReport | null = null;
@@ -196,8 +200,12 @@ export class Game {
       onMute: () => this.toggleMute(),
       onPauseRequest: () => this.pauseGame(),
       onInteract: () => this.handleInteract(),
+      onPlaceLadder: () => this.tryPlaceLadderOnClick(),
       onToggleLadder: () => this.toggleLadderOrientation(),
       onToggleLadderPlacement: () => this.toggleLadderPlacement(),
+      onLadderDialStart: () => this.openLadderDial(),
+      onLadderDialMove: (dx, dy) => this.moveLadderDial(dx, dy),
+      onLadderDialEnd: (commit) => this.closeLadderDial(commit),
       onToggleInventory: () => this.toggleInventory(),
     });
 
@@ -216,7 +224,7 @@ export class Game {
     this.player.setLoadout(this.run.loadout);
     this.tools = new ToolView(this.camera);
     this.remoteAvatars = new RemotePlayerAvatars(this.scene);
-    this.staffAvatars = new StaffAvatars(this.scene);
+    this.staffAvatars = new StaffAvatars(this.scene, this.terrain);
     this.staffManager = new StaffManager({
       onCarve: (event) => this.carveFromStaff(event),
       onAttackNode: (node, damage) => this.staffAttackNode(node, damage),
@@ -741,6 +749,14 @@ export class Game {
     Interaction.handleInteract(this);
   }
 
+  tryPlaceLadderOnClick(): boolean {
+    if (this.phase !== 'playing' || !this.ladderPlacementEnabled) {
+      return false;
+    }
+    Interaction.placeLadder(this);
+    return true;
+  }
+
   toggleLadderOrientation(): void {
     Session.toggleLadderOrientation(this);
   }
@@ -749,10 +765,23 @@ export class Game {
     Session.toggleLadderPlacement(this);
   }
 
+  openLadderDial(): boolean {
+    return Session.openLadderDial(this);
+  }
+
+  moveLadderDial(dx: number, dy: number): void {
+    Session.moveLadderDial(this, dx, dy);
+  }
+
+  closeLadderDial(commit: boolean): void {
+    Session.closeLadderDial(this, commit);
+  }
+
   toggleInventory(): void {
     if (this.phase !== 'playing') {
       return;
     }
+    this.closeLadderDial(false);
     if (this.inventoryOpen) {
       this.closeInventory();
       this.paused = false;

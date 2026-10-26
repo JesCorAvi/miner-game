@@ -98,7 +98,7 @@ const usePixel = this.phase !== 'playing' || this.player.getEyePosition().y > -1
   - `#game-canvas.is-pixelated`
   - `document.body.is-outside-pixel`
 - `applyRenderResolution()`:
-  - Pixel: `ratio = clamp(620 / width, 0.19, 0.5)`.
+  - Pixel: `ratio = clamp(900 / width, 0.19, 0.75)`.
   - Interior: `min(devicePixelRatio, 1.75)`.
 - `handleResize()` recalcula la resolución.
 

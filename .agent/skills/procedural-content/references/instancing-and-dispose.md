@@ -15,6 +15,7 @@
 
 - `LootField` crea un único `InstancedMesh` de `MAX_PELLETS`.
 - Cada pepita tiene slot, estado, física local y color de instancia.
+- La pepita copia la receta de la veta: color base por `setColorAt()`/`instanceColor`, emisivo por instancia inyectado en el shader y halo `Points` con `mineral.glow`. No actives `vertexColors` en el material si la geometría no tiene atributo `color`: el shader multiplicaría por negro.
 - `spawnFromNode()` reutiliza slots libres (`findSlot`) y escribe matrices/colores.
 - `update()` integra gravedad/colisiones y aplica el imán; no crea objetos por frame.
 - `dispose()` libera mesh, geometría y material.

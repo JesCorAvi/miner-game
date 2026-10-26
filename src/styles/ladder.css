@@ -1,0 +1,208 @@
+/* Selector radial de orientación de escalera (clic derecho). */
+.ladder-dial {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(3, 8, 8, 0.14) 0,
+    rgba(3, 8, 8, 0.48) 52%,
+    rgba(3, 8, 8, 0.68) 100%
+  );
+}
+
+.ladder-dial[hidden] {
+  display: none;
+}
+
+.ladder-dial-panel {
+  position: relative;
+  width: 312px;
+  height: 312px;
+  filter: drop-shadow(0 16px 38px rgba(0, 0, 0, 0.55));
+  animation: ladder-dial-in 130ms ease-out;
+}
+
+.ladder-dial-label {
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  color: var(--amber-bright);
+  font-family: var(--mono);
+  font-size: 0.52rem;
+  letter-spacing: 0.18em;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.ladder-dial-ring {
+  position: absolute;
+  inset: 34px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 44%, rgba(20, 32, 31, 0.96), rgba(5, 11, 12, 0.92));
+  box-shadow:
+    inset 0 0 32px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(226, 162, 71, 0.08);
+}
+
+.ladder-dial-ring::before {
+  content: '';
+  position: absolute;
+  inset: 28px;
+  border: 1px dashed rgba(201, 219, 210, 0.18);
+  border-radius: 50%;
+}
+
+.ladder-dial-ring::after {
+  content: '';
+  position: absolute;
+  inset: 58px;
+  border: 1px solid rgba(226, 162, 71, 0.12);
+  border-radius: 50%;
+}
+
+.ladder-dial-option {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid rgba(201, 219, 210, 0.16);
+  background: rgba(6, 12, 13, 0.82);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.46rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+  white-space: nowrap;
+  transition:
+    color 90ms ease,
+    border-color 90ms ease,
+    background 90ms ease,
+    box-shadow 90ms ease;
+}
+
+.ladder-dial-option b {
+  color: var(--amber);
+  font-family: var(--display);
+  font-size: 0.72rem;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.ladder-dial-option.is-active {
+  border-color: var(--amber);
+  background: rgba(226, 162, 71, 0.16);
+  color: #fff4dc;
+  box-shadow: 0 0 16px rgba(226, 162, 71, 0.24);
+  text-shadow: 0 0 8px rgba(226, 162, 71, 0.45);
+}
+
+.ladder-dial-option.is-active b {
+  color: var(--amber-bright);
+}
+
+.dial-top {
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.dial-right {
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+}
+
+.dial-bottom {
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.dial-left {
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+}
+
+.ladder-dial-core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  color: var(--amber-bright);
+  font-family: var(--display);
+  font-size: 1.8rem;
+  font-weight: 400;
+  transform: translate(-50%, -50%);
+  text-shadow: 0 0 16px rgba(226, 162, 71, 0.4);
+}
+
+.ladder-dial-cursor {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 15px;
+  height: 15px;
+  border: 2px solid var(--amber-bright);
+  border-radius: 50%;
+  background: rgba(255, 244, 220, 0.14);
+  box-shadow: 0 0 14px rgba(226, 162, 71, 0.75);
+  transform: translate(-50%, -50%) translate(var(--dial-x, 0px), var(--dial-y, 0px));
+  transition: transform 55ms linear;
+}
+
+.ladder-dial-hint {
+  position: absolute;
+  bottom: -30px;
+  left: 50%;
+  color: var(--muted-strong);
+  font-family: var(--mono);
+  font-size: 0.43rem;
+  letter-spacing: 0.1em;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+body.is-ladder-dial #crosshair,
+body.is-ladder-dial #aim-panel,
+body.is-ladder-dial #interaction-prompt {
+  opacity: 0;
+}
+
+@keyframes ladder-dial-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-height: 620px), (max-width: 620px) {
+  .ladder-dial-panel {
+    width: 256px;
+    height: 256px;
+  }
+
+  .ladder-dial-ring {
+    inset: 30px;
+  }
+
+  .ladder-dial-option {
+    padding: 3px 6px;
+    font-size: 0.4rem;
+  }
+
+  .ladder-dial-hint {
+    bottom: -24px;
+    font-size: 0.38rem;
+  }
+}

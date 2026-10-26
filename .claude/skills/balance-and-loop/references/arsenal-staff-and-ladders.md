@@ -64,9 +64,10 @@ maxJetpackFuel(loadout) =
 
 - `STARTING_LADDERS = 8`; `LADDER_PACK_SIZE = 4`; `LADDER_COST = 30`; `COLLECTOR_CONVERSION_COST = 150`.
 - `LADDER_HEIGHT = 4.4`; `LADDER_REACH = 5.5`.
-- Colocación con `E` y fantasma; `R` alterna vertical/puente. Se consume una unidad del stock de equipo.
-- Anclaje obligatorio: pared, suelo u otra escalera. Verticales se apilan sobre la cima; horizontales se prolongan desde el extremo.
-- Escalada vertical: `W`/`Espacio` sube, `S` baja, `A`/`D` suelta; `tryMantle()` busca borde aterrizable. Las horizontales son plataformas transitables.
+- Colocación con clic izquierdo y fantasma (`G`); clic derecho abre un **dial central** con `vertical`, `diagonal-up` (rampa ascendente), `horizontal` (puente) y `diagonal-down` (rampa descendente). El movimiento del ratón resalta la opción, el clic izquierdo confirma y `Esc`/otro clic derecho cancela; `R` cicla como alternativa; `E` solo deposita. Se consume una unidad del stock de equipo.
+- Anclaje obligatorio: pared, suelo u otra escalera; ninguna escalera puede quedar flotando. Verticales se apilan sobre la cima; horizontales se prolongan desde el extremo, se anclan a la cima o a **cualquier altura apuntada** de una vertical (`findNearestTop`/`findVerticalPoint`/`findNearest`/`findNearestEnd`). Las diagonales son rampas transitables de 45°: `findDiagonalLink()` les da prioridad para enlazar su extremo con una escalera cercana (cima, tramo o punta); si no hay, apoyan el extremo inferior (ascendente) o superior (descendente) en el suelo. Se rechazan rampas sin apoyo y las que atraviesan roca o la plataforma segura. Al coronar se permanece en el filo, sin plataforma añadida; desde ahí se sigue construyendo hacia arriba o a los lados. Se permiten cruces, esquinas y uniones en T; solo se rechaza que dos puentes discurran casi en la misma línea y se pisen.
+- El manto solo acepta apoyos entre 0,35 m por debajo y 0,45 m por encima de los pies; así una escalera larga no teletransporta al jugador a una repisa inferior.
+- Escalada: `W` sube por la cara desde la que te acercas, `S` baja, `A`/`D` suelta y `Space` suelta y salta desde cualquier altura; en la cima, `tryMantle` o sube a un puente superior. Las horizontales y las rampas diagonales son transitables.
 - Las colocadas se limpian al cargar el siguiente día; el stock comprado persiste.
 - `MAX_LADDERS = 80` en `Ladders.ts`.
 
@@ -86,7 +87,7 @@ maxJetpackFuel(loadout) =
 - **Todo contrato nuevo es minero becario** (`kind: 'miner'`, `rank: 0`).
 - Ascenso: sube `rank`, conserva `id` y `kind`.
 - Reconversión a recolector: cuesta 150, conserva `id` y `rank`, cambia `kind`.
-- Los mineros buscan y golpean nodos; los recolectores no pican. Vuelan hasta cada pepita suelta, cargan hasta `COLLECTOR_CARRY_WEIGHT` (20 kg, media mochila inicial) y, al agotar el racimo cercano o llenarse, vuelven a la tolva para depositar.
+- Los mineros buscan y golpean nodos; nacen en la superficie, comprueban cápsula y se ajustan al suelo para no incrustarse en la roca. Los recolectores no pican: vuelan hasta cada pepita que quepa en su peso restante, cargan hasta `COLLECTOR_CARRY_WEIGHT` (20 kg, media mochila inicial) y, al agotar el racimo cercano, llenarse o no encontrar objetivos recogibles, vuelven a la tolva. Entran y salen del pozo por la boca para no atravesar la plataforma; bajo tierra el vuelo sigue siendo directo (sin navmesh) y `StaffAvatars` oculta el rig mientras el cuerpo esté dentro de roca.
 - Los clientes no simulan plantilla; solo interpolan `NetworkStaffState` a 5 Hz.
 
 ## Pautas de ajuste

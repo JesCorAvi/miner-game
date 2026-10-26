@@ -1,6 +1,7 @@
 @import './styles/base.css';
 @import './styles/primitives.css';
 @import './styles/hud.css';
+@import './styles/ladder.css';
 @import './styles/menu.css';
 @import './styles/shop.css';
 @import './styles/responsive.css';

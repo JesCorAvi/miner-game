@@ -76,9 +76,10 @@ interface HudViewData {
 | Online | `hud-online` | `onlineActive`, jugadores, host |
 | Muteo | `hud-mute` | `audio.isMuted()` |
 | Guardado | `hud-save` | `setSaved()` |
-| Prompt | `interaction-prompt`, `interaction-key`, `interaction-text` | `E` coloca/deposita; `R` alterna escalera/puente; `G` muestra/oculta el fantasma |
+| Prompt | `interaction-prompt`, `interaction-key`, `interaction-text` | `E` deposita; clic izquierdo coloca y clic derecho gira escaleras; `G` muestra/oculta el fantasma |
 | Objetivo | `objective-text`, `objective-hint`, `hud-objective-kind` | `computeObjective()` |
 | Apuntado | `aim-panel`, `aim-type`, `aim-status`, `aim-detail`, `aim-fill` | veta/cofre/terreno; `kind='sign'` muestra la lectura de un cartel en DOM |
+| Dial de escalera | `ladder-dial`, `ladder-dial-core`, `ladder-dial-cursor`, `[data-ladder-orientation]` | `UI.showLadderDial()`/`updateLadderDial()`/`hideLadderDial()`; dial central que se elige con el ratón, clic izquierdo confirma y clic derecho/`Esc` cancela |
 
 ## Overlays y estados
 
@@ -101,7 +102,7 @@ Los métodos de ocultado deben ser idempotentes. `hideAll` no existe: cada trans
 `Interaction.updateInteractionState()` decide:
 
 - Cerca de la tolva y con carga: `E · DEPOSITAR CARGA`.
-- Con `G` activo, stock y un anclaje válido: `E · COLOCAR ESCALERA/PUENTE · R CAMBIAR · G OCULTAR`; si el fantasma es inválido, muestra el motivo. Con `G` inactivo no hay fantasma ni prompt de escalera.
+- Con `G` activo, stock y un anclaje válido: `CLIC IZQ · COLOCAR ... · CLIC DER DIAL · G OCULTAR`; si el fantasma es inválido, muestra el motivo. Clic derecho abre el dial central de cuatro orientaciones; el ratón mueve el cursor virtual y resalta la opción, el clic izquierdo confirma y otro clic derecho o `Esc` cancela. Con `G` inactivo no hay fantasma ni prompt de escalera.
 - Sin acción: `prompt = null`.
 
 `handleInteract()` replica la misma prioridad. Si cambias el radio o el texto, actualiza ambos métodos y la referencia.

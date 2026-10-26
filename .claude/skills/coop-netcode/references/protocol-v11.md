@@ -1,10 +1,10 @@
-# Protocolo v10
+# Protocolo v11
 
 ## Constantes
 
-- `PROTOCOL_VERSION = 10` en `src/network/Protocol.ts`.
+- `PROTOCOL_VERSION = 11` en `src/network/Protocol.ts`.
 - `MAX_MESSAGE_LENGTH = 512 * 1024`.
-- `PEER_ID_PREFIX = 'carbon-magnate-v10-'` en `src/config.ts`.
+- `PEER_ID_PREFIX = 'carbon-magnate-v11-'` en `src/config.ts`.
 - El mundo mide 48 × 48 × 120 m (`PIT_HALF = 24`); las cotas de posición se derivan de `PIT_HALF`.
 - Código de sala: 6 caracteres de `ROOM_ALPHABET` (sin `0/O/1/I`).
 - Topología estrella: cliente ↔ host. Sin servidor dedicado ni migración de host.
@@ -21,7 +21,7 @@
 | `node_break` | `id`, `dropSeed` | Rotura predicha | `dropSeed` uint32, `id` 96 chars |
 | `deposit` | `coal`, `money`, `lines: DaySaleLine[]` | `E` junto a la tolva | enteros 0..1.000.000; `lines` ≤32, mineral válido, importes acotados |
 | `grenade_use` | `tier` | Cliente lanza una granada | `tier` ∈ frag/charge/breach/seismic |
-| `ladder_place` | `ladder: NetworkLadderState` | Colocación | `x/z ±(PIT_HALF-0.3)`, `y -119..7`, `n ±1`, `height 1..8`, `orientation` vertical/horizontal, `anchorId` 64 chars, `id` 64 chars |
+| `ladder_place` | `ladder: NetworkLadderState` | Colocación | `x/z ±(PIT_HALF-0.3)`, `y -119..7`, `n ±1`, `height 1..8`, `orientation` `vertical`/`horizontal`/`diagonal-up`/`diagonal-down`, `anchorId` 64 chars, `id` 64 chars |
 | `fx` | `fx: FxWire` | Disparo, rayo, explosión, impacto | cotas por tipo |
 | `purchase` | `itemId` | Clic en la tienda | string ≤64 chars |
 
@@ -82,7 +82,7 @@ interface DaySnapshot {
 }
 ```
 
-Topes del parser: 4 jugadores, 16 estados de staff, 200 escaleras, 5.000 carves, 2.000 entradas de `nodeHp`. La v10 retira la arcilla y los escombros de roca del loot, hace que el carbón aporte dinero además de cuota y cambia la IA del recolector; la generación baja a ~7.800 vetas. La v9 añade la composición `deposit.lines` y `day_result.report` (bonus de rendimiento y desglose), y el snapshot incluye `dayReport` para late-join en tienda.
+Topes del parser: 4 jugadores, 16 estados de staff, 200 escaleras, 5.000 carves, 2.000 entradas de `nodeHp`. La v11 añade `diagonal-up`/`diagonal-down` al estado de escalera. La v10 retira la arcilla y los escombros de roca del loot, hace que el carbón aporte dinero además de cuota y cambia la IA del recolector; la generación baja a ~7.800 vetas. La v9 añade la composición `deposit.lines` y `day_result.report` (bonus de rendimiento y desglose), y el snapshot incluye `dayReport` para late-join en tienda.
 
 ## Validación
 

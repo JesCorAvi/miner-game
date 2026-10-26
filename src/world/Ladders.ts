@@ -5,6 +5,11 @@ import type { NetworkLadderState } from '../types';
 
 const MAX_LADDERS = 80;
 const LADDER_TOP_OFFSET = 0.08;
+const DIAGONAL_RUN = Math.SQRT1_2;
+
+function isDiagonalOrientation(orientation: NetworkLadderState['orientation']): boolean {
+  return orientation === 'diagonal-up' || orientation === 'diagonal-down';
+}
 
 function combine(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
   const merged = mergeGeometries(parts, false);
@@ -66,6 +71,16 @@ export interface LadderAnchor {
   ladder: NetworkLadderState;
 }
 
+export interface LadderDiagonalLink {
+  x: number;
+  y: number;
+  z: number;
+  nx: number;
+  nz: number;
+  anchorId: string;
+  distance: number;
+}
+
 export class Ladders {
   readonly group = new THREE.Group();
   private readonly ladders = new Map<string, NetworkLadderState>();
@@ -114,7 +129,14 @@ export class Ladders {
     if (this.ladders.size >= MAX_LADDERS || this.ladders.has(ladder.id)) {
       return false;
     }
-    const orientation = ladder.orientation === 'horizontal' ? 'horizontal' : 'vertical';
+    const orientation: NetworkLadderState['orientation'] =
+      ladder.orientation === 'horizontal'
+        ? 'horizontal'
+        : ladder.orientation === 'diagonal-up'
+          ? 'diagonal-up'
+          : ladder.orientation === 'diagonal-down'
+            ? 'diagonal-down'
+            : 'vertical';
     const clean: NetworkLadderState = {
       id: ladder.id.slice(0, 64),
       x: ladder.x,
@@ -147,12 +169,32 @@ export class Ladders {
         ladder.z + ladder.nz * ladder.height * 0.5,
       );
       mesh.rotation.set(0, Math.atan2(ladder.nx, ladder.nz), 0);
+      mesh.quaternion.setFromEuler(mesh.rotation);
       mesh.scale.set(1, 1, ladder.height / LADDER_HEIGHT);
-    } else {
+      return;
+    }
+    if (ladder.orientation === 'vertical') {
       mesh.position.set(ladder.x, ladder.y, ladder.z);
       mesh.rotation.set(0, Math.atan2(ladder.nx, ladder.nz), 0);
+      mesh.quaternion.setFromEuler(mesh.rotation);
       mesh.scale.set(1, ladder.height / LADDER_HEIGHT, 1);
+      return;
     }
+    const sign = ladder.orientation === 'diagonal-up' ? 1 : -1;
+    const slopeX = ladder.nx * DIAGONAL_RUN;
+    const slopeY = sign * DIAGONAL_RUN;
+    const slopeZ = ladder.nz * DIAGONAL_RUN;
+    // La geometría vertical crece desde y=0, no está centrada: la rampa debe
+    // nacer en su punto de anclaje, igual que la escalera vertical. Si se
+    // coloca en el punto medio, la malla queda media eslora más arriba y el
+    // fantasma aparece flotando lejos de la escalera o del suelo.
+    mesh.position.set(ladder.x, ladder.y, ladder.z);
+    const xAxis = new THREE.Vector3(-ladder.nz, 0, ladder.nx).normalize();
+    const yAxis = new THREE.Vector3(slopeX, slopeY, slopeZ).normalize();
+    const zAxis = new THREE.Vector3().crossVectors(xAxis, yAxis).normalize();
+    const basis = new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis);
+    mesh.quaternion.setFromRotationMatrix(basis);
+    mesh.scale.set(1, ladder.height / LADDER_HEIGHT, 1);
   }
 
   fromSnapshot(ladders: readonly NetworkLadderState[]): void {
@@ -174,7 +216,112 @@ export class Ladders {
     return [...this.ladders.values()];
   }
 
-  findNearest(position: THREE.Vector3): NetworkLadderState | null {
+  /**
+   * Cima vertical más cercana a los pies del jugador. Permite colocar un
+   * puente encima sin tener que mirar exactamente el punto de la cima.
+   */
+  findNearestTop(position: THREE.Vector3, maxDistance: number): NetworkLadderState | null {
+    let best: NetworkLadderState | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (const ladder of this.ladders.values()) {
+      if (ladder.orientation !== 'vertical') {
+        continue;
+      }
+      const top = ladder.y + ladder.height;
+      const verticalDistance = Math.abs(position.y - top);
+      if (verticalDistance > 0.75) {
+        continue;
+      }
+      const horizontal = Math.hypot(position.x - ladder.x, position.z - ladder.z);
+      if (horizontal > maxDistance) {
+        continue;
+      }
+      const score = horizontal + verticalDistance * 0.4;
+      if (score < bestScore) {
+        bestScore = score;
+        best = ladder;
+      }
+    }
+    return best;
+  }
+
+  /** Extremo de puente más cercano a los pies, para continuar desde ahí. */
+  findNearestEnd(position: THREE.Vector3, maxDistance: number): NetworkLadderState | null {
+    let best: NetworkLadderState | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (const ladder of this.ladders.values()) {
+      if (ladder.orientation !== 'horizontal') {
+        continue;
+      }
+      const top = ladder.y + LADDER_TOP_OFFSET;
+      const verticalDistance = Math.abs(position.y - top);
+      if (verticalDistance > 0.75) {
+        continue;
+      }
+      const endX = ladder.x + ladder.nx * ladder.height;
+      const endZ = ladder.z + ladder.nz * ladder.height;
+      const horizontal = Math.hypot(position.x - endX, position.z - endZ);
+      if (horizontal > maxDistance) {
+        continue;
+      }
+      const score = horizontal + verticalDistance * 0.4;
+      if (score < bestScore) {
+        bestScore = score;
+        best = ladder;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Distancia real de un punto a la geometría de una escalera. Sirve para
+   * comprobar que un tramo anclado a otra escalera la toca de verdad.
+   */
+  contactDistance(id: string, x: number, y: number, z: number): number {
+    const ladder = this.ladders.get(id);
+    if (!ladder) {
+      return Number.POSITIVE_INFINITY;
+    }
+    if (ladder.orientation === 'vertical') {
+      const top = ladder.y + ladder.height;
+      const closestY = THREE.MathUtils.clamp(y, ladder.y, top);
+      return Math.hypot(x - ladder.x, y - closestY, z - ladder.z);
+    }
+    let ax = ladder.x;
+    let ay = ladder.y;
+    let az = ladder.z;
+    let bx = ladder.x + ladder.nx * ladder.height;
+    let by = ladder.y;
+    let bz = ladder.z + ladder.nz * ladder.height;
+    if (isDiagonalOrientation(ladder.orientation)) {
+      const sign = ladder.orientation === 'diagonal-up' ? 1 : -1;
+      const run = ladder.height * DIAGONAL_RUN;
+      bx = ladder.x + ladder.nx * run;
+      by = ladder.y + sign * run;
+      bz = ladder.z + ladder.nz * run;
+    } else {
+      ay += 0.04;
+      by += 0.04;
+    }
+    const dx = bx - ax;
+    const dy = by - ay;
+    const dz = bz - az;
+    const lengthSq = dx * dx + dy * dy + dz * dz;
+    if (lengthSq < 1e-6) {
+      return Math.hypot(x - ax, y - ay, z - az);
+    }
+    const t = THREE.MathUtils.clamp(
+      ((x - ax) * dx + (y - ay) * dy + (z - az) * dz) / lengthSq,
+      0,
+      1,
+    );
+    return Math.hypot(x - (ax + dx * t), y - (ay + dy * t), z - (az + dz * t));
+  }
+
+  findNearest(
+    position: THREE.Vector3,
+    allowAboveTop = false,
+  ): NetworkLadderState | null {
     let best: NetworkLadderState | null = null;
     let bestDistance = Number.POSITIVE_INFINITY;
     for (const ladder of this.ladders.values()) {
@@ -182,7 +329,8 @@ export class Ladders {
         continue;
       }
       const top = ladder.y + ladder.height;
-      if (position.y < ladder.y - 0.75 || position.y > top - 0.02) {
+      const upper = allowAboveTop ? top + 0.35 : top - 0.02;
+      if (position.y < ladder.y - 0.75 || position.y > upper) {
         continue;
       }
       const horizontal = Math.hypot(position.x - ladder.x, position.z - ladder.z);
@@ -223,6 +371,238 @@ export class Ladders {
     return best;
   }
 
+  /** Punto de una vertical más cercano a la mirada (para anclar un puente). */
+  findVerticalPoint(
+    origin: THREE.Vector3,
+    direction: THREE.Vector3,
+    maxDistance: number,
+  ): { ladder: NetworkLadderState; y: number; distance: number } | null {
+    this.ray.set(origin, direction.clone().normalize());
+    let best: { ladder: NetworkLadderState; y: number; distance: number } | null = null;
+    for (const ladder of this.ladders.values()) {
+      if (ladder.orientation !== 'vertical') {
+        continue;
+      }
+      const top = ladder.y + ladder.height;
+      for (let y = ladder.y; y <= top + 0.01; y += 0.2) {
+        const point = new THREE.Vector3(ladder.x, y, ladder.z);
+        this.ray.closestPointToPoint(point, this.closest);
+        const along = this.closest.distanceTo(origin);
+        if (along <= 0.2 || along > maxDistance) {
+          continue;
+        }
+        if (this.closest.distanceTo(point) > 1.05) {
+          continue;
+        }
+        if (!best || along < best.distance) {
+          best = { ladder, y, distance: along };
+        }
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Punto de una escalera cercana donde apoyar una rampa diagonal.
+   * Se prefieren los extremos reales (cima de vertical, punta de puente o
+   * rampa) y, si no hay, cualquier altura de una vertical. La rampa resultante
+   * siempre comparte su extremo con la escalera, nunca queda flotando.
+   */
+  findDiagonalLink(
+    position: THREE.Vector3,
+    aim: THREE.Vector3,
+    maxDistance = 2.2,
+  ): LadderDiagonalLink | null {
+    const aimLength = Math.hypot(aim.x, aim.z);
+    const aimX = aimLength >= 0.08 ? aim.x / aimLength : 0;
+    const aimZ = aimLength >= 0.08 ? aim.z / aimLength : 0;
+    let best: LadderDiagonalLink | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+
+    const consider = (
+      x: number,
+      y: number,
+      z: number,
+      outX: number,
+      outZ: number,
+      anchorId: string,
+      score: number,
+    ): void => {
+      let nx = outX;
+      let nz = outZ;
+      const outLength = Math.hypot(nx, nz);
+      if (outLength < 1e-4) {
+        nx = aimX;
+        nz = aimZ;
+      } else {
+        nx /= outLength;
+        nz /= outLength;
+      }
+      if (aimLength >= 0.08 && nx * aimX + nz * aimZ > 0.05) {
+        nx = aimX;
+        nz = aimZ;
+      }
+      if (score >= bestScore) {
+        return;
+      }
+      bestScore = score;
+      best = { x, y, z, nx, nz, anchorId, distance: score };
+    };
+
+    for (const ladder of this.ladders.values()) {
+      if (ladder.orientation === 'vertical') {
+        const top = ladder.y + ladder.height;
+        if (position.y < ladder.y - 0.9 || position.y > top + 0.9) {
+          continue;
+        }
+        const horizontal = Math.hypot(position.x - ladder.x, position.z - ladder.z);
+        if (horizontal > maxDistance) {
+          continue;
+        }
+        const offset =
+          (position.x - ladder.x) * ladder.nx +
+          (position.z - ladder.z) * ladder.nz;
+        let side: 1 | -1;
+        if (Math.abs(offset) > 0.08) {
+          side = offset >= 0 ? 1 : -1;
+        } else if (aimLength >= 0.08) {
+          side = ladder.nx * aimX + ladder.nz * aimZ >= 0 ? 1 : -1;
+        } else {
+          side = 1;
+        }
+        const anchorY = Math.max(
+          ladder.y + 0.04,
+          Math.min(top - 0.02, position.y),
+        );
+        consider(
+          ladder.x,
+          anchorY,
+          ladder.z,
+          ladder.nx * side,
+          ladder.nz * side,
+          ladder.id,
+          horizontal + Math.abs(anchorY - position.y) * 0.3,
+        );
+        continue;
+      }
+
+      if (ladder.orientation === 'horizontal') {
+        const y = ladder.y + LADDER_TOP_OFFSET;
+        const ends: Array<{ x: number; z: number; outX: number; outZ: number }> = [
+          { x: ladder.x, z: ladder.z, outX: -ladder.nx, outZ: -ladder.nz },
+          {
+            x: ladder.x + ladder.nx * ladder.height,
+            z: ladder.z + ladder.nz * ladder.height,
+            outX: ladder.nx,
+            outZ: ladder.nz,
+          },
+        ];
+        for (const end of ends) {
+          const distance = Math.hypot(
+            position.x - end.x,
+            position.y - y,
+            position.z - end.z,
+          );
+          if (distance > maxDistance) {
+            continue;
+          }
+          consider(
+            end.x,
+            y,
+            end.z,
+            end.outX,
+            end.outZ,
+            ladder.id,
+            distance,
+          );
+        }
+        // También se puede enganchar una rampa al costado del puente, no
+        // solo a sus dos puntas, para que acercarse baste.
+        const dx = ladder.nx * ladder.height;
+        const dz = ladder.nz * ladder.height;
+        const lengthSq = dx * dx + dz * dz;
+        const t =
+          lengthSq > 1e-6
+            ? THREE.MathUtils.clamp(
+                ((position.x - ladder.x) * dx + (position.z - ladder.z) * dz) /
+                  lengthSq,
+                0,
+                1,
+              )
+            : 0;
+        const sideX = ladder.x + dx * t;
+        const sideZ = ladder.z + dz * t;
+        const sideDistance = Math.hypot(
+          position.x - sideX,
+          position.y - y,
+          position.z - sideZ,
+        );
+        if (sideDistance <= maxDistance) {
+          const perpX = -ladder.nz;
+          const perpZ = ladder.nx;
+          const offset =
+            (position.x - sideX) * perpX + (position.z - sideZ) * perpZ;
+          let side: 1 | -1;
+          if (Math.abs(offset) > 0.08) {
+            side = offset >= 0 ? 1 : -1;
+          } else if (aimLength >= 0.08) {
+            side = perpX * aimX + perpZ * aimZ >= 0 ? 1 : -1;
+          } else {
+            side = 1;
+          }
+          consider(
+            sideX,
+            y,
+            sideZ,
+            perpX * side,
+            perpZ * side,
+            ladder.id,
+            sideDistance,
+          );
+        }
+        continue;
+      }
+
+      const sign = ladder.orientation === 'diagonal-up' ? 1 : -1;
+      const run = ladder.height * DIAGONAL_RUN;
+      const farX = ladder.x + ladder.nx * run;
+      const farY = ladder.y + sign * run;
+      const farZ = ladder.z + ladder.nz * run;
+      const low =
+        sign > 0
+          ? { x: ladder.x, y: ladder.y, z: ladder.z }
+          : { x: farX, y: farY, z: farZ };
+      const high =
+        sign > 0
+          ? { x: farX, y: farY, z: farZ }
+          : { x: ladder.x, y: ladder.y, z: ladder.z };
+      const ends = [
+        { point: low, other: high },
+        { point: high, other: low },
+      ];
+      for (const end of ends) {
+        const distance = Math.hypot(
+          position.x - end.point.x,
+          position.y - end.point.y,
+          position.z - end.point.z,
+        );
+        if (distance > maxDistance) {
+          continue;
+        }
+        consider(
+          end.point.x,
+          end.point.y,
+          end.point.z,
+          end.point.x - end.other.x,
+          end.point.z - end.other.z,
+          ladder.id,
+          distance,
+        );
+      }
+    }
+    return best;
+  }
+
   findAnchor(
     origin: THREE.Vector3,
     direction: THREE.Vector3,
@@ -232,6 +612,9 @@ export class Ladders {
     let best: LadderAnchor | null = null;
     let bestDistance = Number.POSITIVE_INFINITY;
     for (const ladder of this.ladders.values()) {
+      if (isDiagonalOrientation(ladder.orientation)) {
+        continue;
+      }
       const point =
         ladder.orientation === 'horizontal'
           ? new THREE.Vector3(
@@ -262,6 +645,35 @@ export class Ladders {
     return best;
   }
 
+  private diagonalSupportAt(
+    ladder: NetworkLadderState,
+    x: number,
+    z: number,
+    radius: number,
+  ): number | null {
+    const sign = ladder.orientation === 'diagonal-up' ? 1 : -1;
+    const run = ladder.height * DIAGONAL_RUN;
+    const endX = ladder.x + ladder.nx * run;
+    const endZ = ladder.z + ladder.nz * run;
+    const dx = endX - ladder.x;
+    const dz = endZ - ladder.z;
+    const lengthSq = dx * dx + dz * dz;
+    const t =
+      lengthSq > 1e-6
+        ? THREE.MathUtils.clamp(
+            ((x - ladder.x) * dx + (z - ladder.z) * dz) / lengthSq,
+            0,
+            1,
+          )
+        : 0;
+    const closestX = ladder.x + dx * t;
+    const closestZ = ladder.z + dz * t;
+    if (Math.hypot(x - closestX, z - closestZ) > 0.32 + radius) {
+      return null;
+    }
+    return ladder.y + sign * run * t;
+  }
+
   findHorizontalTop(
     x: number,
     z: number,
@@ -271,6 +683,16 @@ export class Ladders {
   ): number | null {
     let support: number | null = null;
     for (const ladder of this.ladders.values()) {
+      if (isDiagonalOrientation(ladder.orientation)) {
+        const top = this.diagonalSupportAt(ladder, x, z, radius);
+        if (top === null || top < feetY - 0.1 || top > feetY + maxStep) {
+          continue;
+        }
+        if (support === null || top > support) {
+          support = top;
+        }
+        continue;
+      }
       if (ladder.orientation !== 'horizontal') {
         continue;
       }
@@ -308,6 +730,16 @@ export class Ladders {
   ): number | null {
     let support: number | null = null;
     for (const ladder of this.ladders.values()) {
+      if (isDiagonalOrientation(ladder.orientation)) {
+        const top = this.diagonalSupportAt(ladder, x, z, radius);
+        if (top === null || oldY < top - 0.12 || nextY > top + 0.12) {
+          continue;
+        }
+        if (support === null || top > support) {
+          support = top;
+        }
+        continue;
+      }
       if (ladder.orientation !== 'horizontal') {
         continue;
       }
@@ -341,40 +773,16 @@ export class Ladders {
       if (ladder.id === candidate.anchorId) {
         continue;
       }
+      // Las rampas diagonales se pueden cruzar libremente con otros tramos.
+      if (
+        isDiagonalOrientation(ladder.orientation) ||
+        isDiagonalOrientation(candidate.orientation)
+      ) {
+        continue;
+      }
+      // Las escaleras de distinta orientación pueden cruzarse (T, andamio);
+      // solo se rechazan solapamientos entre tramos del mismo tipo.
       if (ladder.orientation !== candidate.orientation) {
-        if (candidate.orientation === 'vertical') {
-          const horizontalTop = ladder.y + LADDER_TOP_OFFSET;
-          if (
-            horizontalTop >= candidate.y - 0.1 &&
-            horizontalTop <= candidate.y + candidate.height + 0.1 &&
-            pointSegmentDistance(
-              candidate.x,
-              candidate.z,
-              ladder.x,
-              ladder.z,
-              ladder.x + ladder.nx * ladder.height,
-              ladder.z + ladder.nz * ladder.height,
-            ) < 0.45
-          ) {
-            return true;
-          }
-        } else {
-          const candidateTop = candidate.y + LADDER_TOP_OFFSET;
-          if (
-            candidateTop >= ladder.y - 0.1 &&
-            candidateTop <= ladder.y + ladder.height + 0.1 &&
-            pointSegmentDistance(
-              ladder.x,
-              ladder.z,
-              candidate.x,
-              candidate.z,
-              candidate.x + candidate.nx * candidate.height,
-              candidate.z + candidate.nz * candidate.height,
-            ) < 0.45
-          ) {
-            return true;
-          }
-        }
         continue;
       }
       if (candidate.orientation === 'vertical') {
@@ -393,15 +801,7 @@ export class Ladders {
         if (Math.abs(ladder.y - candidate.y) > 0.25) {
           continue;
         }
-        const ax = ladder.x;
-        const az = ladder.z;
-        const bx = ladder.x + ladder.nx * ladder.height;
-        const bz = ladder.z + ladder.nz * ladder.height;
-        const cx = candidate.x;
-        const cz = candidate.z;
-        const dx = candidate.x + candidate.nx * candidate.height;
-        const dz = candidate.z + candidate.nz * candidate.height;
-        if (segmentsNear(ax, az, bx, bz, cx, cz, dx, dz, 0.45)) {
+        if (horizontalLaddersOverlap(ladder, candidate)) {
           return true;
         }
       }
@@ -454,39 +854,44 @@ export class Ladders {
   }
 }
 
-function segmentsNear(
-  ax: number,
-  az: number,
-  bx: number,
-  bz: number,
-  cx: number,
-  cz: number,
-  dx: number,
-  dz: number,
-  threshold: number,
+/**
+ * Solo rechaza dos puentes que discurren casi en la misma línea y se pisan.
+ * Los que comparten punta en ángulo (T, esquina) o se cruzan se permiten.
+ */
+function horizontalLaddersOverlap(
+  a: NetworkLadderState,
+  b: NetworkLadderState,
 ): boolean {
-  return (
-    pointSegmentDistance(ax, az, cx, cz, dx, dz) < threshold ||
-    pointSegmentDistance(bx, bz, cx, cz, dx, dz) < threshold ||
-    pointSegmentDistance(cx, cz, ax, az, bx, bz) < threshold ||
-    pointSegmentDistance(dx, dz, ax, az, bx, bz) < threshold
-  );
-}
-
-function pointSegmentDistance(
-  px: number,
-  pz: number,
-  ax: number,
-  az: number,
-  bx: number,
-  bz: number,
-): number {
-  const dx = bx - ax;
-  const dz = bz - az;
-  const lengthSq = dx * dx + dz * dz;
-  if (lengthSq < 1e-6) {
-    return Math.hypot(px - ax, pz - az);
+  const ax = a.x;
+  const az = a.z;
+  const bx = a.x + a.nx * a.height;
+  const bz = a.z + a.nz * a.height;
+  const cx = b.x;
+  const cz = b.z;
+  const dx = b.x + b.nx * b.height;
+  const dz = b.z + b.nz * b.height;
+  const abx = bx - ax;
+  const abz = bz - az;
+  const cdx = dx - cx;
+  const cdz = dz - cz;
+  const lengthAB = Math.hypot(abx, abz);
+  const lengthCD = Math.hypot(cdx, cdz);
+  if (lengthAB < 1e-4 || lengthCD < 1e-4) {
+    return true;
   }
-  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / lengthSq));
-  return Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
+  const angle = Math.abs(abx * cdz - abz * cdx) / (lengthAB * lengthCD);
+  if (angle > 0.35) {
+    return false;
+  }
+  const distance = Math.abs(abx * (cz - az) - abz * (cx - ax)) / lengthAB;
+  if (distance > 0.35) {
+    return false;
+  }
+  const ux = abx / lengthAB;
+  const uz = abz / lengthAB;
+  const tc = (cx - ax) * ux + (cz - az) * uz;
+  const td = (dx - ax) * ux + (dz - az) * uz;
+  const overlap =
+    Math.min(lengthAB, Math.max(tc, td)) - Math.max(0, Math.min(tc, td));
+  return overlap > 0.45;
 }

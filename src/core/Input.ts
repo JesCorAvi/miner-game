@@ -5,8 +5,12 @@ export interface InputActions {
   onMute: () => void;
   onPauseRequest: () => void;
   onInteract: () => void;
+  onPlaceLadder: () => boolean;
   onToggleLadder: () => void;
   onToggleLadderPlacement: () => void;
+  onLadderDialStart: () => boolean;
+  onLadderDialMove: (dx: number, dy: number) => void;
+  onLadderDialEnd: (commit: boolean) => void;
   onToggleInventory: () => void;
 }
 
@@ -29,6 +33,7 @@ export class InputController {
   private locked = false;
   private inventoryOpen = false;
   private attackHeld = false;
+  private ladderDialOpen = false;
   private lookX = 0;
   private lookY = 0;
   private readonly handleKeyDown: (event: KeyboardEvent) => void;
@@ -49,6 +54,17 @@ export class InputController {
 
     this.handleKeyDown = (event) => {
       if (!this.enabled) {
+        return;
+      }
+      if (this.ladderDialOpen) {
+        if (event.code === 'Escape') {
+          event.preventDefault();
+          if (!event.repeat) {
+            this.finishLadderDial(false);
+          }
+        } else if (event.code === 'Tab') {
+          event.preventDefault();
+        }
         return;
       }
       if (
@@ -118,6 +134,10 @@ export class InputController {
       if (!this.enabled || !this.locked) {
         return;
       }
+      if (this.ladderDialOpen) {
+        this.actions.onLadderDialMove(event.movementX, event.movementY);
+        return;
+      }
       this.lookX += event.movementX;
       this.lookY += event.movementY;
     };
@@ -125,8 +145,25 @@ export class InputController {
       if (!this.enabled || !this.locked) {
         return;
       }
+      if (this.ladderDialOpen) {
+        if (event.button === 0) {
+          this.finishLadderDial(true);
+        } else if (event.button === 2) {
+          this.finishLadderDial(false);
+        }
+        return;
+      }
       if (event.button === 0) {
+        if (this.actions.onPlaceLadder()) {
+          return;
+        }
         this.attackHeld = true;
+      } else if (event.button === 2) {
+        if (this.actions.onLadderDialStart()) {
+          this.ladderDialOpen = true;
+          this.keys.clear();
+          this.attackHeld = false;
+        }
       }
     };
     this.handleMouseUp = (event) => {
@@ -135,7 +172,7 @@ export class InputController {
       }
     };
     this.handleWheel = (event) => {
-      if (!this.enabled || !this.locked) {
+      if (!this.enabled || !this.locked || this.ladderDialOpen) {
         return;
       }
       event.preventDefault();
@@ -162,6 +199,7 @@ export class InputController {
       }
       this.locked = locked;
       if (!locked) {
+        this.finishLadderDial(false);
         this.keys.clear();
         this.attackHeld = false;
         this.lookX = 0;
@@ -178,6 +216,7 @@ export class InputController {
       }
     };
     this.handleBlur = () => {
+      this.finishLadderDial(false);
       this.keys.clear();
       this.attackHeld = false;
     };
@@ -198,6 +237,7 @@ export class InputController {
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
     if (!enabled) {
+      this.finishLadderDial(false);
       this.keys.clear();
       this.attackHeld = false;
       this.inventoryOpen = false;
@@ -205,6 +245,14 @@ export class InputController {
         document.exitPointerLock();
       }
     }
+  }
+
+  private finishLadderDial(commit: boolean): void {
+    if (!this.ladderDialOpen) {
+      return;
+    }
+    this.ladderDialOpen = false;
+    this.actions.onLadderDialEnd(commit);
   }
 
   setInventoryOpen(open: boolean): void {
@@ -244,7 +292,7 @@ export class InputController {
   }
 
   getMovement(): { forward: number; right: number } {
-    if (!this.enabled) {
+    if (!this.enabled || this.ladderDialOpen) {
       return { forward: 0, right: 0 };
     }
     let forward = 0;
@@ -265,11 +313,16 @@ export class InputController {
   }
 
   isAttacking(): boolean {
-    return this.enabled && this.locked && this.attackHeld;
+    return this.enabled && this.locked && !this.ladderDialOpen && this.attackHeld;
   }
 
   isJetpackHeld(): boolean {
-    return this.enabled && this.locked && this.keys.has('Space');
+    return (
+      this.enabled &&
+      this.locked &&
+      !this.ladderDialOpen &&
+      this.keys.has('Space')
+    );
   }
 
   isSprinting(): boolean {

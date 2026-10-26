@@ -9,7 +9,13 @@ import {
   maxJetpackFuel,
 } from '../config';
 import type { InventoryItem } from '../core/Inventory';
-import type { DayReport, RosterEntry, RunStats, SaveSummary } from '../types';
+import type {
+  DayReport,
+  LadderOrientation,
+  RosterEntry,
+  RunStats,
+  SaveSummary,
+} from '../types';
 import { formatDepth, formatMoney, formatNumber, formatPercent, formatTime } from './format';
 import { itemIconUrl } from './ItemIcon';
 import { InventoryView } from './InventoryView';
@@ -18,6 +24,13 @@ import { renderShopItems } from './shopView';
 import type { ShopTab, ShopViewData } from './shopView';
 
 export type { ShopViewData } from './shopView';
+
+const LADDER_DIAL_CORES: Record<LadderOrientation, string> = {
+  vertical: 'V',
+  'diagonal-up': '↗',
+  horizontal: '—',
+  'diagonal-down': '↘',
+};
 
 export interface UIActions {
   startSolo: () => void;
@@ -216,6 +229,11 @@ export class UI {
   private readonly interactionPrompt = required<HTMLElement>('interaction-prompt');
   private readonly interactionKey = required<HTMLElement>('interaction-key');
   private readonly interactionText = required<HTMLElement>('interaction-text');
+  private readonly ladderDial = required<HTMLElement>('ladder-dial');
+  private readonly ladderDialCore = required<HTMLElement>('ladder-dial-core');
+  private readonly ladderDialCursor = required<HTMLElement>('ladder-dial-cursor');
+  private readonly ladderDialOptions =
+    this.ladderDial.querySelectorAll<HTMLElement>('[data-ladder-orientation]');
   private readonly cargoCard = required<HTMLElement>('cargo-card');
   private readonly cargoWeight = required<HTMLElement>('hud-cargo-weight');
   private readonly cargoWeightFill = required<HTMLElement>('hud-cargo-weight-fill');
@@ -493,6 +511,7 @@ export class UI {
 
   hideHud(): void {
     this.hud.classList.add('is-hidden');
+    this.hideLadderDial();
   }
 
   updateHud(data: HudViewData): void {
@@ -593,6 +612,28 @@ export class UI {
     setText(this.aimStatus, aim.status);
     setText(this.aimDetail, aim.detail);
     this.aimFill.style.width = `${Math.max(0, Math.min(1, aim.ratio)) * 100}%`;
+  }
+
+  showLadderDial(orientation: LadderOrientation, x = 0, y = 0): void {
+    this.ladderDial.hidden = false;
+    document.body.classList.add('is-ladder-dial');
+    this.updateLadderDial(orientation, x, y);
+  }
+
+  updateLadderDial(orientation: LadderOrientation, x: number, y: number): void {
+    setText(this.ladderDialCore, LADDER_DIAL_CORES[orientation]);
+    this.ladderDialOptions.forEach((option) => {
+      const active = option.dataset.ladderOrientation === orientation;
+      option.classList.toggle('is-active', active);
+      option.setAttribute('aria-current', active ? 'true' : 'false');
+    });
+    this.ladderDialCursor.style.setProperty('--dial-x', `${x}px`);
+    this.ladderDialCursor.style.setProperty('--dial-y', `${y}px`);
+  }
+
+  hideLadderDial(): void {
+    this.ladderDial.hidden = true;
+    document.body.classList.remove('is-ladder-dial');
   }
 
   setObjective(text: string): void {
@@ -1070,6 +1111,7 @@ export class UI {
   dispose(): void {
     window.clearInterval(this.clockTimer);
     window.clearTimeout(this.bannerTimeout);
+    document.body.classList.remove('is-ladder-dial');
     this.inventoryView.dispose();
     for (const item of this.floats) {
       item.element.remove();

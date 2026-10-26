@@ -210,7 +210,11 @@ export interface NetworkPlayerState {
   mining: boolean;
 }
 
-export type LadderOrientation = 'vertical' | 'horizontal';
+export type LadderOrientation =
+  | 'vertical'
+  | 'horizontal'
+  | 'diagonal-up'
+  | 'diagonal-down';
 
 export interface NetworkLadderState {
   id: string;

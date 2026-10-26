@@ -69,6 +69,7 @@ export class Player {
   private lastLandingTime = -10;
   private elapsed = 0;
   private activeLadderId: string | null = null;
+  private activeLadderSide: 1 | -1 = 1;
   private ladderCooldown = 0;
   private jumpSuppressUntil = 0;
 
@@ -131,6 +132,7 @@ export class Player {
     this.grounded = false;
     this.jetpackActive = false;
     this.activeLadderId = null;
+    this.activeLadderSide = 1;
     this.ladderCooldown = 0;
     this.updateCamera();
   }
@@ -149,6 +151,7 @@ export class Player {
     this.grounded = true;
     this.jetpackActive = false;
     this.activeLadderId = null;
+    this.activeLadderSide = 1;
     this.updateCamera();
   }
 
@@ -293,6 +296,7 @@ export class Player {
           this.lastLandingTime = this.elapsed;
         }
         this.velocity.y = 0;
+        this.snapToTerrainSurface();
         if (!wasGrounded) {
           this.stepDistance = 0.6;
         }
@@ -343,20 +347,22 @@ export class Player {
 
   private updateLadderClimb(dt: number): boolean {
     const movement = this.input.getMovement();
-    const wantsUp = movement.forward > 0.1 || this.input.isJetpackHeld();
+    const jumping = this.input.isJetpackHeld();
+    const wantsUp = movement.forward > 0.1;
     const wantsDown = movement.forward < -0.1;
     const strafing = Math.abs(movement.right) > 0.1;
 
     if (!this.activeLadderId) {
-      if (this.ladderCooldown > 0 || strafing || (!wantsUp && !wantsDown)) {
+      if (this.ladderCooldown > 0 || strafing || jumping || (!wantsUp && !wantsDown)) {
         return false;
       }
-      const nearest = this.ladders.findNearest(this.position);
+      const nearest = this.ladders.findNearest(this.position, wantsDown);
       if (!nearest) {
         return false;
       }
       this.activeLadderId = nearest.id;
-      this.setLadderAttachment(nearest, true, dt);
+      this.activeLadderSide = this.getLadderSide(nearest);
+      this.setLadderAttachment(nearest, true, dt, this.activeLadderSide);
       return true;
     }
 
@@ -378,7 +384,13 @@ export class Player {
       return false;
     }
 
-    this.setLadderAttachment(ladder, false, dt);
+    // Space suelta la escalera y salta desde cualquier altura.
+    if (jumping) {
+      this.jumpOffLadder(ladder);
+      return false;
+    }
+
+    this.setLadderAttachment(ladder, false, dt, this.activeLadderSide);
     if (wantsUp) {
       this.position.y = Math.min(ladderTop, this.position.y + CLIMB_SPEED * dt);
     } else if (wantsDown) {
@@ -390,10 +402,19 @@ export class Player {
     this.grounded = false;
 
     if (wantsUp && this.position.y >= ladderTop - 0.02) {
+      const bridgeTop = this.ladders.findHorizontalTop(
+        this.position.x,
+        this.position.z,
+        this.position.y,
+        PLAYER_RADIUS,
+        0.45,
+      );
+      if (bridgeTop !== null && bridgeTop >= this.position.y - 0.1) {
+        this.standOnTopSupport(bridgeTop);
+        return true;
+      }
       if (this.tryMantle(ladder)) {
-        this.activeLadderId = null;
-        this.ladderCooldown = 0.35;
-        this.jumpSuppressUntil = this.elapsed + 0.25;
+        this.standOnTopSupport(this.position.y);
         return true;
       }
       const above = this.ladders.findNearest(
@@ -401,7 +422,8 @@ export class Player {
       );
       if (above && above.id !== ladder.id) {
         this.activeLadderId = above.id;
-        this.setLadderAttachment(above, true, dt);
+        this.activeLadderSide = this.getLadderSide(above);
+        this.setLadderAttachment(above, true, dt, this.activeLadderSide);
         return true;
       }
     }
@@ -409,7 +431,8 @@ export class Player {
       const below = this.ladders.findBelow(this.position, ladder);
       if (below) {
         this.activeLadderId = below.id;
-        this.setLadderAttachment(below, true, dt);
+        this.activeLadderSide = this.getLadderSide(below);
+        this.setLadderAttachment(below, true, dt, this.activeLadderSide);
         return true;
       }
       this.activeLadderId = null;
@@ -420,14 +443,17 @@ export class Player {
     this.clampSafeHorizontal();
     return true;
   }
-
+  private getLadderSide(ladder: NetworkLadderState): 1 | -1 {
+    return (this.position.x - ladder.x) * ladder.nx + (this.position.z - ladder.z) * ladder.nz < 0 ? -1 : 1;
+  }
   private setLadderAttachment(
     ladder: NetworkLadderState,
     immediate: boolean,
     dt: number,
+    side: 1 | -1,
   ): void {
-    const targetX = ladder.x + ladder.nx * LADDER_OFFSET;
-    const targetZ = ladder.z + ladder.nz * LADDER_OFFSET;
+    const targetX = ladder.x + ladder.nx * LADDER_OFFSET * side;
+    const targetZ = ladder.z + ladder.nz * LADDER_OFFSET * side;
     if (immediate) {
       this.position.x = targetX;
       this.position.z = targetZ;
@@ -436,7 +462,24 @@ export class Player {
       this.position.z = THREE.MathUtils.damp(this.position.z, targetZ, 18, dt);
     }
   }
-
+  private standOnTopSupport(top: number): void {
+    this.position.y = top;
+    this.velocity.set(0, 0, 0);
+    this.horizontalVelocity.set(0, 0, 0);
+    this.grounded = true;
+    this.activeLadderId = null;
+    this.ladderCooldown = 0.25;
+    this.jumpSuppressUntil = this.elapsed + 0.25;
+  }
+  private jumpOffLadder(ladder: NetworkLadderState): void {
+    this.activeLadderId = null;
+    this.ladderCooldown = 0.3;
+    this.velocity.set(0, JUMP_SPEED, 0);
+    this.horizontalVelocity.set(ladder.nx * 2.4 * this.activeLadderSide, 0, ladder.nz * 2.4 * this.activeLadderSide);
+    this.grounded = false;
+    this.jetpackActive = false;
+    this.jumpSuppressUntil = this.elapsed + 0.25;
+  }
   private tryMantle(ladder: NetworkLadderState): boolean {
     const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
     const inward = new THREE.Vector3(-ladder.nx, 0, -ladder.nz);
@@ -481,7 +524,7 @@ export class Player {
         }
         if (
           supportY > this.position.y + 0.45 ||
-          supportY < this.position.y - 2.5
+          supportY < this.position.y - 0.35
         ) {
           continue;
         }
@@ -543,6 +586,24 @@ export class Player {
     }
   }
 
+  // Corrige la penetración del suelo; sin esto la gravedad hunde al jugador.
+  private snapToTerrainSurface(): void {
+    const originY = this.position.y + STEP_HEIGHT;
+    const hit = this.terrain.raycast(
+      new THREE.Vector3(this.position.x, originY, this.position.z),
+      new THREE.Vector3(0, -1, 0),
+      STEP_HEIGHT + 0.45,
+    );
+    if (!hit) {
+      return;
+    }
+    const targetY = originY - hit.distance + 0.01;
+    if (targetY >= this.position.y - 0.35 && targetY <= this.position.y + STEP_HEIGHT) {
+      this.position.y = targetY;
+      this.velocity.y = 0;
+    }
+  }
+
   private stickToGround(): void {
     if (this.jetpackActive || this.velocity.y > 0.3) {
       return;
@@ -593,7 +654,8 @@ export class Player {
       return;
     }
     const outside = this.isOutsidePit(candidateX, candidateZ);
-    if (outside && this.position.y < SAFE_FLOOR_Y - 0.08) {
+    const stepToSafeFloor = SAFE_FLOOR_Y - this.position.y;
+    if (outside && stepToSafeFloor > STEP_HEIGHT) {
       if (dx !== 0) {
         this.horizontalVelocity.x *= 0.15;
       }
@@ -610,10 +672,15 @@ export class Player {
         PLAYER_RADIUS,
         PLAYER_HEIGHT,
       ) ||
-      (outside && this.position.y >= SAFE_FLOOR_Y - 0.08)
+      outside
     ) {
       this.position.x = candidateX;
       this.position.z = candidateZ;
+      if (outside && this.position.y < SAFE_FLOOR_Y) {
+        this.position.y = SAFE_FLOOR_Y;
+        this.velocity.y = Math.max(0, this.velocity.y);
+        this.grounded = true;
+      }
       return;
     }
     if (!this.grounded && this.velocity.y > 0.5) {
@@ -753,7 +820,8 @@ export class Player {
       return;
     }
     this.activeLadderId = id;
-    this.setLadderAttachment(ladder, true, 0);
+    this.activeLadderSide = this.getLadderSide(ladder);
+    this.setLadderAttachment(ladder, true, 0, this.activeLadderSide);
   }
 
   getPosition(): THREE.Vector3 {

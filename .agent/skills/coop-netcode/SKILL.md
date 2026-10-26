@@ -1,6 +1,6 @@
 ---
 name: coop-netcode
-description: "Protocolo v10, snapshots, depósitos, escaleras, granadas, compras y autoridad del anfitrión en el cooperativo P2P de Carbon Magnate. Úsala al cambiar mensajes, frecuencias, late-join o el flujo host/cliente."
+description: "Protocolo v11, snapshots, depósitos, escaleras, granadas, compras y autoridad del anfitrión en el cooperativo P2P de Carbon Magnate. Úsala al cambiar mensajes, frecuencias, late-join o el flujo host/cliente."
 ---
 
 # Coop Netcode
@@ -9,7 +9,7 @@ description: "Protocolo v10, snapshots, depósitos, escaleras, granadas, compras
 
 El cooperativo de Carbon Magnate es una topología estrella sobre PeerJS/WebRTC: los clientes solo hablan con el anfitrión, que agrega estados y retransmite. El host es autoritativo para semilla, cuota, reloj, fin de día, compras, cofres y plantilla. Los clientes predicen excavación, daño visual y colocación de escaleras, pero el host valida y difunde el estado compartido.
 
-El contrato vive en `src/network/Protocol.ts` (`PROTOCOL_VERSION = 10`, `MAX_MESSAGE_LENGTH = 512 KiB`), el transporte en `PeerNetwork.ts`, los callbacks/snapshots/ticks en `src/core/NetworkBridge.ts` y los handlers de mensajes en `src/core/NetworkMessages.ts`.
+El contrato vive en `src/network/Protocol.ts` (`PROTOCOL_VERSION = 11`, `MAX_MESSAGE_LENGTH = 512 KiB`), el transporte en `PeerNetwork.ts`, los callbacks/snapshots/ticks en `src/core/NetworkBridge.ts` y los handlers de mensajes en `src/core/NetworkMessages.ts`.
 
 ## When to Use
 
@@ -33,7 +33,7 @@ El contrato vive en `src/network/Protocol.ts` (`PROTOCOL_VERSION = 10`, `MAX_MES
 3. **Define el contrato.** Tag, dirección, campos mínimos, validación y tamaño.
 4. **Implementa ambos lados.** `parseClientMessage`/`parseHostMessage`, `NetworkMessages.handleClientMessage`/`handleHostMessage`, `NetworkBridge.buildSnapshot`/`DayCycle.loadSnapshot`.
 5. **Cubre el late-join.** Si el estado puede existir antes de que un cliente termine de cargar, debe entrar en `DaySnapshot`.
-6. **Sube la versión si cambia la forma del mensaje o la generación compartida (incluido el recuento/colocación de vetas).** Actualiza `PROTOCOL_VERSION` y `PEER_ID_PREFIX` (`carbon-magnate-v10-`) a la vez.
+6. **Sube la versión si cambia la forma del mensaje o la generación compartida (incluido el recuento/colocación de vetas).** Actualiza `PROTOCOL_VERSION` y `PEER_ID_PREFIX` (`carbon-magnate-v11-`) a la vez.
 7. **Audita.** `node .claude/skills/coop-netcode/scripts/audit-netcode.mjs`.
 8. **Prueba con dos ventanas.** Crear/unirse, late-join, carve, nodo, escalera, depósito, compra y cambio de día.
 
@@ -70,7 +70,7 @@ El contrato vive en `src/network/Protocol.ts` (`PROTOCOL_VERSION = 10`, `MAX_MES
 - **Host autoritativo.** El cliente no cierra el día (`DayCycle.finishDay`), no avanza (`DayCycle.startNextDay`) y no escribe expediente (`DayCycle.saveRun`).
 - **Nunca se envían mallas, posiciones de fragmentos ni el array completo de nodos por tick.** Viajan carves, IDs, `dropSeed`, estados agregados, depósitos, escaleras y compras. El inventario de slots es local; el `deposit` sigue siendo agregado.
 - **Carga local hasta el depósito.** `onLootCollected()` apila en `Inventory` y sincroniza los agregados locales; `applyTeamDeposit()` acredita cuota/dinero/estadísticas en el host. El cliente envía la composición agregada por mineral (`lines`), no la disposición de slots. Las granadas son consumibles: `grenade_use` descuenta el tier y `economy` reparte el stock.
-- **Escaleras de equipo.** El cliente descuenta localmente y envía `ladder_place` con `orientation` (`vertical`/`horizontal`) y `anchorId`; el host valida stock, añade y difunde `ladder_placed` + `economy`. Las colocadas no se guardan.
+- **Escaleras de equipo.** El cliente descuenta localmente y envía `ladder_place` con `orientation` (`vertical`/`horizontal`/`diagonal-up`/`diagonal-down`) y `anchorId`; el host valida stock, añade y difunde `ladder_placed` + `economy`. Las colocadas no se guardan.
 - **Compras por solicitud.** El cliente envía `purchase`; el host aplica, descuenta y difunde `shop_state`.
 - **Cofres.** El host elige la pasiva determinista, la aplica y difunde `passive` con el loadout completo.
 - **Snapshots completos.** `NetworkBridge.buildSnapshot()` incluye `dayMoneyBase`, `loadout`, `stats`, `carveHistory`, `brokenNodes`, `nodeHp`, `players`, `staff` y `ladders`.
@@ -100,7 +100,7 @@ El contrato vive en `src/network/Protocol.ts` (`PROTOCOL_VERSION = 10`, `MAX_MES
 
 ## References
 
-- `references/protocol-v10.md` — catálogo de mensajes, DTOs, validadores y snapshot.
+- `references/protocol-v11.md` — catálogo de mensajes, DTOs, validadores y snapshot.
 - `references/authority-and-lifecycle.md` — handshake, depósito, escaleras, compras, desconexión y late-join.
 
 ## Related Skills

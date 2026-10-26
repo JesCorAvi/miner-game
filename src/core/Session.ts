@@ -1,6 +1,12 @@
-import { WEAPON_ORDER, dayDuration, quotaForDay } from '../config';
+import {
+  LADDER_ORIENTATION_LABELS,
+  LADDER_ORIENTATION_ORDER,
+  WEAPON_ORDER,
+  dayDuration,
+  quotaForDay,
+} from '../config';
 import { PeerNetwork } from '../network/PeerNetwork';
-import type { Loadout, WeaponId } from '../types';
+import type { LadderOrientation, Loadout, WeaponId } from '../types';
 import { randomSeed } from './Rng';
 import { cloneLoadout, cloneStats, defaultRun } from './RunState';
 import type { Game } from './Game';
@@ -192,6 +198,7 @@ export function returnToMenu(game: Game): void {
   game.input.unlock();
   game.tools.setVisible(false);
   game.player.headlamp.visible = false;
+  closeLadderDial(game, false);
   game.paused = false;
   game.phase = 'menu';
   game.ui.hideHud();
@@ -218,6 +225,7 @@ export function pauseGame(game: Game): void {
   if (game.phase !== 'playing') {
     return;
   }
+  closeLadderDial(game, false);
   if (game.input.isLocked()) {
     game.input.unlock();
   } else {
@@ -264,6 +272,7 @@ export function handleLockChange(game: Game, locked: boolean): void {
 export function toggleLadderPlacement(game: Game): void {
   game.ladderPlacementEnabled = !game.ladderPlacementEnabled;
   if (!game.ladderPlacementEnabled) {
+    closeLadderDial(game, false);
     game.ladders.clearGhost();
   }
   game.audio.playUi();
@@ -278,15 +287,96 @@ export function toggleLadderPlacement(game: Game): void {
 }
 
 export function toggleLadderOrientation(game: Game): void {
+  if (game.ladderDialOpen) {
+    return;
+  }
+  const index = LADDER_ORIENTATION_ORDER.indexOf(game.ladderOrientation);
   game.ladderOrientation =
-    game.ladderOrientation === 'vertical' ? 'horizontal' : 'vertical';
+    LADDER_ORIENTATION_ORDER[(index + 1) % LADDER_ORIENTATION_ORDER.length];
   game.audio.playUi();
-  game.ui.notify(
-    game.ladderOrientation === 'horizontal'
-      ? 'MODO PUENTE · apunta al suelo, a una pared o al extremo de otra escalera.'
-      : 'MODO ESCALERA · apunta a una pared, al suelo o a la cima de otra escalera.',
-    'info',
+  game.ui.notify(`ORIENTACIÓN · ${LADDER_ORIENTATION_LABELS[game.ladderOrientation]}`, 'info');
+  game.lastHudSignature = '';
+  game.updateHud();
+}
+
+const DIAL_DEADZONE = 18;
+const DIAL_RADIUS = 104;
+
+export function openLadderDial(game: Game): boolean {
+  if (
+    game.phase !== 'playing' ||
+    !game.ladderPlacementEnabled ||
+    game.run.loadout.ladders <= 0 ||
+    game.ladderDialOpen
+  ) {
+    return false;
+  }
+  game.ladderDialOpen = true;
+  game.ladderDialStartOrientation = game.ladderOrientation;
+  game.ladderDialPointerX = 0;
+  game.ladderDialPointerY = 0;
+  game.ui.showLadderDial(game.ladderOrientation, 0, 0);
+  game.audio.playUi();
+  return true;
+}
+
+export function moveLadderDial(game: Game, dx: number, dy: number): void {
+  if (!game.ladderDialOpen) {
+    return;
+  }
+  game.ladderDialPointerX = Math.max(
+    -DIAL_RADIUS,
+    Math.min(DIAL_RADIUS, game.ladderDialPointerX + dx),
   );
+  game.ladderDialPointerY = Math.max(
+    -DIAL_RADIUS,
+    Math.min(DIAL_RADIUS, game.ladderDialPointerY + dy),
+  );
+  const pointerLength = Math.hypot(
+    game.ladderDialPointerX,
+    game.ladderDialPointerY,
+  );
+  if (pointerLength >= DIAL_DEADZONE) {
+    // Las opciones están arriba, derecha, abajo e izquierda del dial.
+    const scores: Array<[LadderOrientation, number]> = [
+      ['vertical', -game.ladderDialPointerY],
+      ['diagonal-up', game.ladderDialPointerX],
+      ['horizontal', game.ladderDialPointerY],
+      ['diagonal-down', -game.ladderDialPointerX],
+    ];
+    let bestOrientation = game.ladderOrientation;
+    let bestScore = Number.NEGATIVE_INFINITY;
+    for (const [orientation, score] of scores) {
+      if (score > bestScore + 0.001) {
+        bestScore = score;
+        bestOrientation = orientation;
+      }
+    }
+    if (bestOrientation !== game.ladderOrientation) {
+      game.ladderOrientation = bestOrientation;
+      game.audio.playUi();
+      game.lastHudSignature = '';
+    }
+  }
+  game.ui.updateLadderDial(
+    game.ladderOrientation,
+    game.ladderDialPointerX,
+    game.ladderDialPointerY,
+  );
+}
+
+export function closeLadderDial(game: Game, commit: boolean): void {
+  if (!game.ladderDialOpen) {
+    return;
+  }
+  game.ladderDialOpen = false;
+  game.ladderDialPointerX = 0;
+  game.ladderDialPointerY = 0;
+  if (!commit) {
+    game.ladderOrientation = game.ladderDialStartOrientation;
+  }
+  game.ui.hideLadderDial();
+  game.audio.playUi();
   game.lastHudSignature = '';
   game.updateHud();
 }

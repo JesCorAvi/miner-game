@@ -3,6 +3,7 @@ import {
   HOPPER_INTERACT_RADIUS,
   HOPPER_POSITION,
   LADDER_HEIGHT,
+  LADDER_ORIENTATION_LABELS,
   LADDER_REACH,
   PIT_HALF,
   SAFE_ZONE_HALF,
@@ -19,6 +20,13 @@ import type { CollectedLoot } from '../world/Loot';
 import { formatMoney, formatNumber } from '../ui/format';
 import { roundCoordinate } from './RunState';
 import type { Game } from './Game';
+import {
+  footingHeight,
+  isDiagonalOrientation,
+  isSurfaceFooting,
+  validateLadderCandidate,
+  type LadderCandidate,
+} from './LadderSupport';
 
 export function staffCollect(game: Game, collected: CollectedLoot, count: number): void {
   if (!game.isAuthority()) {
@@ -189,16 +197,6 @@ export function discardCargo(game: Game, reason: string): void {
   game.ui.notify(reason, 'danger');
 }
 
-export interface LadderCandidate {
-  state: NetworkLadderState;
-  valid: boolean;
-  reason: string;
-}
-
-function clampLadderXZ(value: number): number {
-  return THREE.MathUtils.clamp(value, -PIT_HALF + 0.4, PIT_HALF - 0.4);
-}
-
 function makeLadderState(
   x: number,
   y: number,
@@ -210,9 +208,9 @@ function makeLadderState(
 ): NetworkLadderState {
   return {
     id: 'pending',
-    x: roundCoordinate(clampLadderXZ(x), 3),
+    x: roundCoordinate(x, 3),
     y: roundCoordinate(y, 3),
-    z: roundCoordinate(clampLadderXZ(z), 3),
+    z: roundCoordinate(z, 3),
     nx: roundCoordinate(nx, 3),
     nz: roundCoordinate(nz, 3),
     height: LADDER_HEIGHT,
@@ -221,10 +219,18 @@ function makeLadderState(
   };
 }
 
-function horizontalAim(direction: THREE.Vector3): { nx: number; nz: number } {
+function ladderLabel(orientation: LadderOrientation): string {
+  return LADDER_ORIENTATION_LABELS[orientation];
+}
+
+function horizontalAim(
+  direction: THREE.Vector3,
+  fallbackYaw = 0,
+): { nx: number; nz: number } {
   const length = Math.hypot(direction.x, direction.z);
   if (length < 0.08) {
-    return { nx: 0, nz: -1 };
+    // Al mirar casi en vertical, la rampa sigue el rumbo del jugador.
+    return { nx: -Math.sin(fallbackYaw), nz: -Math.cos(fallbackYaw) };
   }
   return { nx: direction.x / length, nz: direction.z / length };
 }
@@ -250,68 +256,6 @@ function deckPoint(
   return { x, z };
 }
 
-function pointSegmentDistance(
-  px: number,
-  pz: number,
-  ax: number,
-  az: number,
-  bx: number,
-  bz: number,
-): number {
-  const dx = bx - ax;
-  const dz = bz - az;
-  const lengthSq = dx * dx + dz * dz;
-  if (lengthSq < 1e-6) {
-    return Math.hypot(px - ax, pz - az);
-  }
-  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / lengthSq));
-  return Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
-}
-
-function intersectsMinerals(game: Game, state: NetworkLadderState): boolean {
-  const endX = state.x + state.nx * state.height;
-  const endZ = state.z + state.nz * state.height;
-  const top = state.y + state.height;
-  for (const node of game.resources.nodes) {
-    if (node.broken) {
-      continue;
-    }
-    if (state.orientation === 'vertical') {
-      if (node.y + node.radius < state.y || node.y - node.radius > top) {
-        continue;
-      }
-      if (Math.hypot(node.x - state.x, node.z - state.z) < node.radius + 0.12) {
-        return true;
-      }
-    } else {
-      if (Math.abs(node.y - (state.y + 0.04)) > node.radius + 0.35) {
-        continue;
-      }
-      if (
-        pointSegmentDistance(node.x, node.z, state.x, state.z, endX, endZ) <
-        node.radius + 0.12
-      ) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-function validateLadderCandidate(game: Game, state: NetworkLadderState): LadderCandidate {
-  const top = state.orientation === 'vertical' ? state.y + state.height : state.y + 0.08;
-  if (state.y < -119 || top > 8) {
-    return { state, valid: false, reason: 'FUERA DE LOS LÍMITES DEL POZO' };
-  }
-  if (game.ladders.overlaps(state)) {
-    return { state, valid: false, reason: 'SE SOLAPA CON OTRA ESCALERA' };
-  }
-  if (intersectsMinerals(game, state)) {
-    return { state, valid: false, reason: 'MINERAL EN MEDIO' };
-  }
-  return { state, valid: true, reason: '' };
-}
-
 export function findLadderCandidate(game: Game): LadderCandidate | null {
   if (game.run.loadout.ladders <= 0 || game.phase !== 'playing') {
     return null;
@@ -319,6 +263,172 @@ export function findLadderCandidate(game: Game): LadderCandidate | null {
   const orientation = game.ladderOrientation;
   const origin = game.player.getEyePosition();
   const direction = game.player.getAimDirection();
+  const yaw = game.player.getLookAngles().yaw;
+
+  if (isDiagonalOrientation(orientation)) {
+    const p = game.player.getPosition();
+    // Una rampa cerca de otra escalera se enlaza a ella antes que al suelo.
+    const link = game.ladders.findDiagonalLink(p, direction);
+    if (link) {
+      return validateLadderCandidate(
+        game,
+        makeLadderState(
+          link.x,
+          link.y,
+          link.z,
+          link.nx,
+          link.nz,
+          orientation,
+          link.anchorId,
+        ),
+      );
+    }
+    const { nx, nz } = horizontalAim(direction, yaw);
+    const footY = footingHeight(game, p.x, p.y, p.z) ?? p.y + 0.02;
+    if (isSurfaceFooting(game, p.x, footY, p.z)) {
+      return validateLadderCandidate(
+        game,
+        makeLadderState(p.x, footY, p.z, nx, nz, orientation, 'ground'),
+      );
+    }
+    // Sin suelo bajo los pies, una pared vertical puede sostener el extremo.
+    const wall = game.terrain.raycast(origin, direction, LADDER_REACH);
+    if (wall) {
+      const horizontal = Math.hypot(wall.normal.x, wall.normal.z);
+      if (horizontal >= 0.2 && wall.normal.y <= 0.72) {
+        const wx = wall.normal.x / horizontal;
+        const wz = wall.normal.z / horizontal;
+        return validateLadderCandidate(
+          game,
+          makeLadderState(
+            wall.x + wx * 0.02,
+            wall.y,
+            wall.z + wz * 0.02,
+            wx,
+            wz,
+            orientation,
+            'wall',
+          ),
+        );
+      }
+    }
+    return validateLadderCandidate(
+      game,
+      makeLadderState(p.x, footY, p.z, nx, nz, orientation, 'ground'),
+    );
+  }
+
+  // Desde una cima o un extremo se puede continuar sin apuntar al punto exacto.
+  if (orientation === 'vertical') {
+    const top = game.ladders.findNearestTop(game.player.getPosition(), 1.4);
+    if (top) {
+      return validateLadderCandidate(
+        game,
+        makeLadderState(
+          top.x,
+          top.y + top.height,
+          top.z,
+          top.nx,
+          top.nz,
+          'vertical',
+          top.id,
+        ),
+      );
+    }
+    const end = game.ladders.findNearestEnd(game.player.getPosition(), 1.4);
+    if (end) {
+      return validateLadderCandidate(
+        game,
+        makeLadderState(
+          end.x + end.nx * end.height,
+          end.y + 0.08,
+          end.z + end.nz * end.height,
+          -end.nx,
+          -end.nz,
+          'vertical',
+          end.id,
+        ),
+      );
+    }
+  }
+  if (orientation === 'horizontal') {
+    const end = game.ladders.findNearestEnd(game.player.getPosition(), 1.4);
+    if (end) {
+      const horizontalLength = Math.hypot(direction.x, direction.z);
+      const useAim = horizontalLength >= 0.08;
+      const nx = useAim ? direction.x / horizontalLength : end.nx;
+      const nz = useAim ? direction.z / horizontalLength : end.nz;
+      return validateLadderCandidate(
+        game,
+        makeLadderState(
+          end.x + end.nx * end.height,
+          end.y,
+          end.z + end.nz * end.height,
+          nx,
+          nz,
+          'horizontal',
+          end.id,
+        ),
+      );
+    }
+  }
+
+  if (orientation === 'horizontal') {
+    // Puente a la altura apuntada de una vertical (mitad o cualquier punto).
+    const hit = game.ladders.findVerticalPoint(
+      origin,
+      direction,
+      LADDER_REACH + LADDER_HEIGHT,
+    );
+    if (hit) {
+      const ladder = hit.ladder;
+      const p = game.player.getPosition();
+      const side =
+        (p.x - ladder.x) * ladder.nx + (p.z - ladder.z) * ladder.nz >= 0 ? 1 : -1;
+      const horizontalLength = Math.hypot(direction.x, direction.z);
+      const outward =
+        direction.x * ladder.nx * side + direction.z * ladder.nz * side;
+      const useAim = horizontalLength >= 0.08 && outward > -0.2;
+      const nx = useAim ? direction.x / horizontalLength : ladder.nx * side;
+      const nz = useAim ? direction.z / horizontalLength : ladder.nz * side;
+      return validateLadderCandidate(
+        game,
+        makeLadderState(
+          ladder.x,
+          hit.y - 0.08,
+          ladder.z,
+          nx,
+          nz,
+          'horizontal',
+          ladder.id,
+        ),
+      );
+    }
+  }
+
+  if (orientation === 'horizontal') {
+    // Puente a cualquier altura de una vertical: se ancla al tramo actual.
+    const vertical = game.ladders.findNearest(game.player.getPosition());
+    if (vertical) {
+      const horizontalLength = Math.hypot(direction.x, direction.z);
+      const useAim = horizontalLength >= 0.08;
+      const nx = useAim ? direction.x / horizontalLength : vertical.nx;
+      const nz = useAim ? direction.z / horizontalLength : vertical.nz;
+      return validateLadderCandidate(
+        game,
+        makeLadderState(
+          vertical.x,
+          game.player.getPosition().y - 0.08,
+          vertical.z,
+          nx,
+          nz,
+          'horizontal',
+          vertical.id,
+        ),
+      );
+    }
+  }
+
   const anchor = game.ladders.findAnchor(origin, direction, LADDER_REACH + LADDER_HEIGHT);
   if (anchor && orientation === 'vertical' && anchor.kind === 'vertical-top') {
     const ladder = anchor.ladder;
@@ -350,8 +460,51 @@ export function findLadderCandidate(game: Game): LadderCandidate | null {
       ),
     );
   }
+  if (anchor && orientation === 'horizontal' && anchor.kind === 'vertical-top') {
+    const ladder = anchor.ladder;
+    const horizontalLength = Math.hypot(direction.x, direction.z);
+    const useAim = horizontalLength >= 0.08;
+    const nx = useAim ? direction.x / horizontalLength : ladder.nx;
+    const nz = useAim ? direction.z / horizontalLength : ladder.nz;
+    return validateLadderCandidate(
+      game,
+      makeLadderState(
+        ladder.x,
+        ladder.y + ladder.height - 0.08,
+        ladder.z,
+        nx,
+        nz,
+        'horizontal',
+        ladder.id,
+      ),
+    );
+  }
   if (anchor) {
     return null;
+  }
+
+  // Puente sobre una escalera vertical sin apuntar a la cima: el jugador
+  // está de pie encima y solo necesita mirar en la dirección del puente.
+  if (orientation === 'horizontal') {
+    const top = game.ladders.findNearestTop(game.player.getPosition(), 1.4);
+    if (top) {
+      const horizontalLength = Math.hypot(direction.x, direction.z);
+      const useAim = horizontalLength >= 0.08;
+      const nx = useAim ? direction.x / horizontalLength : top.nx;
+      const nz = useAim ? direction.z / horizontalLength : top.nz;
+      return validateLadderCandidate(
+        game,
+        makeLadderState(
+          top.x,
+          top.y + top.height - 0.08,
+          top.z,
+          nx,
+          nz,
+          'horizontal',
+          top.id,
+        ),
+      );
+    }
   }
 
   const hit = game.terrain.raycast(origin, direction, LADDER_REACH);
@@ -374,7 +527,7 @@ export function findLadderCandidate(game: Game): LadderCandidate | null {
         ),
       );
     }
-    const { nx, nz } = horizontalAim(direction);
+    const { nx, nz } = horizontalAim(direction, yaw);
     return validateLadderCandidate(
       game,
       makeLadderState(
@@ -405,9 +558,9 @@ export function findLadderCandidate(game: Game): LadderCandidate | null {
     return validateLadderCandidate(
       game,
       makeLadderState(
-        hit.x + nx * 0.16,
+        hit.x + nx * 0.06,
         game.player.getPosition().y - 0.05,
-        hit.z + nz * 0.16,
+        hit.z + nz * 0.06,
         nx,
         nz,
         'vertical',
@@ -417,7 +570,7 @@ export function findLadderCandidate(game: Game): LadderCandidate | null {
   }
 
   if (onGround) {
-    const { nx, nz } = horizontalAim(direction);
+    const { nx, nz } = horizontalAim(direction, yaw);
     return validateLadderCandidate(
       game,
       makeLadderState(hit.x, hit.y + 0.02, hit.z, nx, nz, 'horizontal', 'ground'),
@@ -432,9 +585,9 @@ export function findLadderCandidate(game: Game): LadderCandidate | null {
   return validateLadderCandidate(
     game,
     makeLadderState(
-      hit.x + nx * 0.2,
-      game.player.getPosition().y - 0.05,
-      hit.z + nz * 0.2,
+      hit.x + nx * 0.03,
+      hit.y - 0.04,
+      hit.z + nz * 0.03,
       nx,
       nz,
       'horizontal',
@@ -460,7 +613,10 @@ export function placeLadder(game: Game): void {
   const candidate = findLadderCandidate(game);
   if (!candidate) {
     game.audio.playError();
-    game.ui.notify('Apunta al suelo, a una pared o al extremo de otra escalera.', 'danger');
+    game.ui.notify(
+      'Apunta al suelo, a una pared o a otra escalera. Las rampas necesitan un extremo apoyado.',
+      'danger',
+    );
     return;
   }
   if (!candidate.valid) {
@@ -477,6 +633,10 @@ export function placeLadder(game: Game): void {
   }
   game.run.loadout.ladders -= 1;
   game.syncEquipmentInventory();
+  // Colocar con G no debe desactivar el modo tras el primer tramo.
+  if (game.run.loadout.ladders > 0) {
+    game.ladderPlacementEnabled = true;
+  }
   if (game.player.isClimbing() && ladder.orientation === 'vertical') {
     game.player.switchClimbingLadder(ladder.id);
   }
@@ -488,7 +648,7 @@ export function placeLadder(game: Game): void {
   );
   game.ui.spawnFloat(
     new THREE.Vector3(ladder.x, ladder.y + 1.9, ladder.z),
-    `${ladder.orientation === 'horizontal' ? 'PUENTE' : 'ESCALERA'} · QUEDAN ${game.run.loadout.ladders}`,
+    `${ladderLabel(ladder.orientation)} · QUEDAN ${game.run.loadout.ladders}`,
     'amber',
   );
   game.nearHopper = false;
@@ -525,12 +685,7 @@ export function handleInteract(game: Game): void {
   }
   if (isNearHopper(game)) {
     depositCargo(game);
-    return;
   }
-  if (!game.ladderPlacementEnabled) {
-    return;
-  }
-  placeLadder(game);
 }
 
 export function updateInteractionState(game: Game): void {
@@ -564,11 +719,11 @@ export function updateInteractionState(game: Game): void {
     game.interactionPrompt = null;
     return;
   }
-  const mode = game.ladderOrientation === 'horizontal' ? 'PUENTE' : 'ESCALERA';
+  const mode = ladderLabel(game.ladderOrientation);
   game.interactionPrompt = {
-    key: 'E',
+    key: 'CLIC IZQ',
     text: candidate.valid
-      ? `COLOCAR ${mode} · R CAMBIAR · G OCULTAR · QUEDAN ${game.run.loadout.ladders}`
-      : `${candidate.reason} · R CAMBIAR · G OCULTAR`,
+      ? `COLOCAR ${mode} · CLIC DER DIAL · G OCULTAR · QUEDAN ${game.run.loadout.ladders}`
+      : `${candidate.reason} · CLIC DER DIAL · G OCULTAR`,
   };
 }

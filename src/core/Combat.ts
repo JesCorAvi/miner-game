@@ -442,11 +442,7 @@ function firePickaxe(game: Game): void {
   if (target.node) {
     const metallic = isHardOreNode(target.node);
     const impactPoint = target.point ?? game.player.getPosition();
-    game.loot.spawnNodeHitChips(
-      target.node,
-      game.terrain,
-      target.node.mineral?.glow ?? 0xffc891,
-    );
+    game.loot.spawnNodeHitChips(target.node, game.terrain);
     damageNodeLocally(game, target.node, damage, target.point, target.normal);
     game.audio.playPickaxe(
       impactPoint,

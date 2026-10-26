@@ -212,9 +212,11 @@ if (
 }
 if (
   !protocol.includes("value.orientation === 'horizontal'") ||
-  !protocol.includes("value.orientation === 'vertical'")
+  !protocol.includes("value.orientation === 'vertical'") ||
+  !protocol.includes("value.orientation === 'diagonal-up'") ||
+  !protocol.includes("value.orientation === 'diagonal-down'")
 ) {
-  fail('parseLadder(): debe validar orientation vertical/horizontal');
+  fail('parseLadder(): debe validar orientation vertical/horizontal/diagonal');
 }
 if (!protocol.includes('bounded(parsed.dmg, 1, 500)')) {
   warn('parseClientMessage(node_hit): el daño del cliente debería acotarse');

@@ -30,11 +30,18 @@ export function updatePixelMode(game: Game, force = false): void {
   applyRenderResolution(game);
 }
 
+// 900 px internos conservan el aspecto pixelado pero dan detalle suficiente a
+// los carteles lejanos. El tope de 0,75 evita perder el efecto en ventanas
+// pequeñas; el mínimo mantiene un suelo de definición en pantallas enormes.
+const PIXEL_MODE_WIDTH = 900;
+const PIXEL_MODE_MIN_RATIO = 0.19;
+const PIXEL_MODE_MAX_RATIO = 0.75;
+
 export function applyRenderResolution(game: Game): void {
   const width = Math.max(1, window.innerWidth);
   const height = Math.max(1, window.innerHeight);
   const ratio = game.pixelMode
-    ? THREE.MathUtils.clamp(620 / width, 0.19, 0.5)
+    ? THREE.MathUtils.clamp(PIXEL_MODE_WIDTH / width, PIXEL_MODE_MIN_RATIO, PIXEL_MODE_MAX_RATIO)
     : Math.min(window.devicePixelRatio || 1, 1.75);
   game.renderer.setPixelRatio(ratio);
   game.renderer.setSize(width, height, false);

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {
   COLLECTOR_CARRY_WEIGHT,
   HOPPER_POSITION,
+  PIT_HALF,
   SAFE_ZONE_HALF,
   SURFACE_DECK_Y,
   employeeRankMultiplier,
@@ -42,6 +43,7 @@ interface StaffEntity {
   retargetCooldown: number;
   collectCooldown: number;
   collectorPhase: CollectorPhase;
+  seekWithoutCollect: number;
   cargo: CollectorCargo;
   moving: boolean;
 }
@@ -64,6 +66,12 @@ const COLLECTOR_PICKUP_INTERVAL = 0.28;
 const COLLECTOR_HOPPER_RADIUS = 2.4;
 const COLLECTOR_FLY_BOUND = SAFE_ZONE_HALF - 0.5;
 const COLLECTOR_MAX_Y = SURFACE_DECK_Y + 4;
+const COLLECTOR_RETURN_TIMEOUT = 6;
+const PIT_OPENING_MARGIN = 1;
+const PIT_MOUTH_Y = SURFACE_DECK_Y + 1.6;
+const COLLECTOR_DECK_CLEARANCE = SURFACE_DECK_Y + 0.35;
+const STAFF_RADIUS = 0.28;
+const STAFF_HEIGHT = 1.55;
 const HOPPER_APPROACH = new THREE.Vector3(
   HOPPER_POSITION.x,
   SURFACE_DECK_Y + 1.5,
@@ -118,7 +126,6 @@ export class StaffManager {
   ): StaffEntity {
     const angle = (index / 6) * Math.PI * 2 + (kind === 'collector' ? 1.7 : 0.2);
     const radius = 0.8 + (index % 3) * 0.4;
-    const depth = 5.5 + (index % 4) * 2.2;
     const position =
       kind === 'collector'
         ? new THREE.Vector3(
@@ -128,7 +135,7 @@ export class StaffManager {
           )
         : new THREE.Vector3(
             Math.cos(angle) * radius,
-            -depth,
+            SURFACE_DECK_Y + 0.02,
             Math.sin(angle) * radius,
           );
     return {
@@ -146,6 +153,7 @@ export class StaffManager {
       retargetCooldown: 0,
       collectCooldown: 0,
       collectorPhase: 'seeking',
+      seekWithoutCollect: 0,
       cargo: {
         carbon: 0,
         money: 0,
@@ -231,7 +239,11 @@ export class StaffManager {
     }
     const cargo = entity.cargo;
     if (entity.collectorPhase === 'returning') {
-      this.flyToward(entity, HOPPER_APPROACH, dt);
+      entity.seekWithoutCollect = 0;
+      // Si viene de bajo tierra, asciende por la boca del pozo antes de
+      // cruzar la plataforma; nunca atraviesa el suelo exterior.
+      const needsMouth = entity.position.y < SURFACE_DECK_Y + 0.1;
+      this.flyToward(entity, needsMouth ? this.pitMouth() : HOPPER_APPROACH, dt);
       const dx = entity.position.x - HOPPER_POSITION.x;
       const dz = entity.position.z - HOPPER_POSITION.z;
       const atHopper =
@@ -248,7 +260,16 @@ export class StaffManager {
       return;
     }
 
-    if (cargo.weight >= COLLECTOR_CARRY_WEIGHT - 1e-6) {
+    const remaining = COLLECTOR_CARRY_WEIGHT - cargo.weight;
+    if (cargo.weight >= COLLECTOR_CARRY_WEIGHT - 1e-6 || remaining <= 1e-6) {
+      this.beginCollectorReturn(entity);
+      return;
+    }
+
+    // Si lleva carga y no encuentra nada recogible en unos segundos, vuelve.
+    // Esto evita el bucle de apuntar a pepitas que ya no caben en la mochila.
+    entity.seekWithoutCollect += dt;
+    if (cargo.count > 0 && entity.seekWithoutCollect >= COLLECTOR_RETURN_TIMEOUT) {
       this.beginCollectorReturn(entity);
       return;
     }
@@ -258,13 +279,21 @@ export class StaffManager {
       // Barre primero el entorno inmediato: cuando el racimo se agota,
       // vuelve a la tolva con la carga parcial. Solo busca en todo el pozo
       // cuando va vacío y necesita encontrar el siguiente objetivo.
-      entity.target = this.loot.getNearestPellet(entity.position, COLLECTOR_LOCAL_RANGE);
+      entity.target = this.loot.getNearestPellet(
+        entity.position,
+        COLLECTOR_LOCAL_RANGE,
+        remaining,
+      );
       if (!entity.target) {
         if (cargo.count > 0) {
           this.beginCollectorReturn(entity);
           return;
         }
-        entity.target = this.loot.getNearestPellet(entity.position, COLLECTOR_SEEK_RANGE);
+        entity.target = this.loot.getNearestPellet(
+          entity.position,
+          COLLECTOR_SEEK_RANGE,
+          remaining,
+        );
       }
     }
 
@@ -273,6 +302,17 @@ export class StaffManager {
       this.wander(entity, dt, true);
       return;
     }
+
+    // Ruta de aproximación: si la pepita está bajo tierra y el recolector
+    // aún no está sobre la boca, primero se coloca encima del hueco.
+    if (
+      target.y < SURFACE_DECK_Y - 0.2 &&
+      !this.isOverPitOpening(entity.position.x, entity.position.z)
+    ) {
+      this.flyToward(entity, this.pitMouth(target), dt);
+      return;
+    }
+
     const distance = entity.position.distanceTo(target);
     if (distance > COLLECTOR_PICKUP_RADIUS) {
       this.flyToward(entity, target, dt);
@@ -283,7 +323,6 @@ export class StaffManager {
     if (entity.collectCooldown > 0) {
       return;
     }
-    const remaining = COLLECTOR_CARRY_WEIGHT - cargo.weight;
     const collected = this.loot.collectNearestWithin(
       entity.position,
       COLLECTOR_PICKUP_RADIUS,
@@ -291,11 +330,10 @@ export class StaffManager {
     );
     if (!collected) {
       entity.target = null;
-      if (
-        cargo.count > 0 &&
-        this.loot.getNearestPellet(entity.position, COLLECTOR_PICKUP_RADIUS)
-      ) {
+      if (cargo.count > 0) {
         this.beginCollectorReturn(entity);
+      } else {
+        entity.retargetCooldown = 0;
       }
       return;
     }
@@ -303,9 +341,24 @@ export class StaffManager {
     entity.collectCooldown = COLLECTOR_PICKUP_INTERVAL;
     entity.target = null;
     entity.retargetCooldown = 0;
+    entity.seekWithoutCollect = 0;
     if (cargo.weight >= COLLECTOR_CARRY_WEIGHT - 1e-6) {
       this.beginCollectorReturn(entity);
     }
+  }
+
+  private isOverPitOpening(x: number, z: number): boolean {
+    const limit = PIT_HALF - PIT_OPENING_MARGIN;
+    return Math.abs(x) <= limit && Math.abs(z) <= limit;
+  }
+
+  private pitMouth(target?: THREE.Vector3): THREE.Vector3 {
+    const limit = PIT_HALF - PIT_OPENING_MARGIN - 0.6;
+    return new THREE.Vector3(
+      target ? THREE.MathUtils.clamp(target.x, -limit, limit) : 0,
+      PIT_MOUTH_Y,
+      target ? THREE.MathUtils.clamp(target.z, -limit, limit) : 0,
+    );
   }
 
   private addCollectorCargo(entity: StaffEntity, collected: CollectedLoot): void {
@@ -331,6 +384,7 @@ export class StaffManager {
   private beginCollectorReturn(entity: StaffEntity): void {
     entity.collectorPhase = 'returning';
     entity.target = HOPPER_APPROACH.clone();
+    entity.seekWithoutCollect = 0;
     entity.moving = false;
   }
 
@@ -356,6 +410,7 @@ export class StaffManager {
     cargo.weight = 0;
     cargo.count = 0;
     cargo.lines.clear();
+    entity.seekWithoutCollect = 0;
   }
 
   private findClosestNode(entity: StaffEntity, claimedNodes: Set<string>): ResourceNode | null {
@@ -431,19 +486,49 @@ export class StaffManager {
       -PIT_LIMIT,
       PIT_LIMIT,
     );
-    if (this.terrain.getDensityAt(nextX, nextY, nextZ) < 0.55) {
+    const free = (x: number, y: number, z: number): boolean =>
+      !this.terrain!.capsuleBlocked(x, y, z, STAFF_RADIUS, STAFF_HEIGHT) &&
+      !this.terrain!.isSolid(x, y + 0.08, z);
+    if (free(nextX, nextY, nextZ)) {
       entity.position.set(nextX, nextY, nextZ);
-    } else if (this.terrain.getDensityAt(nextX, nextY + 1.25, nextZ) < 0.55) {
-      entity.position.set(nextX, nextY + 1.25, nextZ);
+    } else if (free(nextX, nextY + 0.55, nextZ)) {
+      entity.position.set(nextX, nextY + 0.55, nextZ);
+    } else if (free(nextX, nextY + 1.1, nextZ)) {
+      entity.position.set(nextX, nextY + 1.1, nextZ);
     }
+    this.snapStaffToFloor(entity);
     entity.yaw = Math.atan2(-direction.x, -direction.z);
     entity.moving = true;
   }
 
+  /** Evita que el minero quede enterrado hasta la cintura en el suelo. */
+  private snapStaffToFloor(entity: StaffEntity): void {
+    if (!this.terrain) {
+      return;
+    }
+    const originY = entity.position.y + 0.35;
+    const hit = this.terrain.raycast(
+      new THREE.Vector3(entity.position.x, originY, entity.position.z),
+      new THREE.Vector3(0, -1, 0),
+      0.7,
+    );
+    if (!hit) {
+      return;
+    }
+    const floorY = originY - hit.distance + 0.02;
+    const delta = floorY - entity.position.y;
+    if (delta > 0 && delta <= 0.35) {
+      entity.position.y = floorY;
+    } else if (delta < 0 && delta >= -0.1) {
+      entity.position.y = floorY;
+    }
+  }
+
   /**
    * Vuelo directo para el recolector: no consulta densidad ni dispara carves,
-   * así no abre túneles ni «mina» al desplazarse. Solo respeta los límites
-   * exteriores del mundo para no salirse de la zona renderizada.
+   * así no abre túneles ni «mina» al desplazarse. Respeta los límites del
+   * mundo y no baja de la plataforma fuera de la boca del pozo; la entrada y
+   * salida al subsuelo se hacen por `pitMouth()`.
    */
   private flyToward(entity: StaffEntity, target: THREE.Vector3, dt: number): void {
     const direction = new THREE.Vector3().subVectors(target, entity.position);
@@ -454,19 +539,27 @@ export class StaffManager {
     }
     direction.divideScalar(distance);
     const step = Math.min(distance, MOVE_SPEED * entity.efficiency * dt);
-    entity.position.set(
-      THREE.MathUtils.clamp(
-        entity.position.x + direction.x * step,
-        -COLLECTOR_FLY_BOUND,
-        COLLECTOR_FLY_BOUND,
-      ),
-      THREE.MathUtils.clamp(entity.position.y + direction.y * step, -117, COLLECTOR_MAX_Y),
-      THREE.MathUtils.clamp(
-        entity.position.z + direction.z * step,
-        -COLLECTOR_FLY_BOUND,
-        COLLECTOR_FLY_BOUND,
-      ),
+    const nextX = THREE.MathUtils.clamp(
+      entity.position.x + direction.x * step,
+      -COLLECTOR_FLY_BOUND,
+      COLLECTOR_FLY_BOUND,
     );
+    const nextZ = THREE.MathUtils.clamp(
+      entity.position.z + direction.z * step,
+      -COLLECTOR_FLY_BOUND,
+      COLLECTOR_FLY_BOUND,
+    );
+    let nextY = THREE.MathUtils.clamp(
+      entity.position.y + direction.y * step,
+      -117,
+      COLLECTOR_MAX_Y,
+    );
+    // Frontera dura de la plataforma: fuera de la boca del pozo no se baja
+    // del nivel del suelo. La entrada/salida se hace por `pitMouth()`.
+    if (!this.isOverPitOpening(nextX, nextZ) && nextY < COLLECTOR_DECK_CLEARANCE) {
+      nextY = COLLECTOR_DECK_CLEARANCE;
+    }
+    entity.position.set(nextX, nextY, nextZ);
     entity.yaw = Math.atan2(-direction.x, -direction.z);
     entity.moving = true;
   }
