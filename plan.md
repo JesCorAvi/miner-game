@@ -3,6 +3,7 @@
 > **Estado:** jugable y empaquetado, versión `2.0.0`.
 > **Última actualización:** 2026-10-26.
 > **Documentos relacionados:** `README.md` (uso), `CLAUDE.md` (guía operativa para agentes).
+> **Plan de actuación 3D (propuesta, no implementado):** `PLAN_DE_ACTUACION_3D.md`.
 > **Ejecutable actual:** `release/CarbonMagnate-2.0.0-portable.exe`.
 > **Revisión de bucle (2026-10-25):** carga solo al depositar, tolva física, zona segura no minable, escaleras consumibles, jetpack late-game y empleados individuales.
 > **Revisión visual del exterior (2026-10-25):** heightfield FBM, cielo por shader y borde superior del terreno aplanado. El protocolo sube a v6 para invalidar clientes con la generación anterior; guardado v4 sin cambios.
