@@ -170,11 +170,11 @@ const upgradesBlock = extractBlock(config, 'export const UPGRADES');
 if (!upgradesBlock) {
   fail('src/config.ts: no se encuentra UPGRADES');
 } else {
-  for (const id of ['damage', 'speed', 'magnet', 'jetpack', 'dayTime', 'capacity']) {
+  for (const id of ['damage', 'speed', 'magnet', 'jetpack', 'dayTime', 'capacity', 'stack']) {
     if (!upgradesBlock.includes(`${id}:`)) fail(`UPGRADES: falta la mejora «${id}»`);
   }
-  if (!/capacity:\s*\{[^}]*\+20 kg/.test(upgradesBlock)) {
-    warn('UPGRADES.capacity: revisa la mejora de capacidad (+20 kg/nivel)');
+  if (!/capacity:\s*\{[^}]*\+40 kg/.test(upgradesBlock)) {
+    fail('UPGRADES.capacity: debe declarar +40 kg por nivel');
   }
   const jetpackEntry = /jetpack:\s*\{([^}]*)\}/.exec(upgradesBlock);
   if (!jetpackEntry) {

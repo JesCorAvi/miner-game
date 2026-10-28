@@ -4,6 +4,7 @@ import {
   INVENTORY_SLOTS,
   LADDER_STACK_MAX,
   MAX_STACK,
+  maxStackFor,
 } from '../config';
 import type {
   DaySaleLine,
@@ -68,10 +69,10 @@ export interface InventoryAddResult {
   full: boolean;
 }
 
-function maxStack(item: InventoryItem): number {
+function maxStack(item: InventoryItem, mineralLimit = MAX_STACK): number {
   switch (item.kind) {
     case 'mineral':
-      return MAX_STACK;
+      return mineralLimit;
     case 'grenade':
       return GRENADE_STACK_MAX;
     case 'ladder':
@@ -104,6 +105,8 @@ function itemCount(item: InventoryItem): number {
 }
 
 export class Inventory {
+  private mineralStackLimit = MAX_STACK;
+
   readonly slots: Array<InventoryItem | null> = Array.from(
     { length: INVENTORY_SLOTS },
     () => null,
@@ -119,7 +122,7 @@ export class Inventory {
       (item) =>
         item?.kind === 'mineral' &&
         item.mineral === mineral &&
-        item.count < MAX_STACK,
+        item.count < this.mineralStackLimit,
     );
     if (existing >= 0) {
       const item = this.slots[existing];
@@ -167,6 +170,7 @@ export class Inventory {
   }
 
   syncLoadout(loadout: Loadout): void {
+    this.mineralStackLimit = maxStackFor(loadout);
     const owned = new Set<WeaponId>(
       (Object.keys(loadout.weapons) as WeaponId[]).filter(
         (weapon) => loadout.weapons[weapon],
@@ -284,7 +288,7 @@ export class Inventory {
       return true;
     }
     if (sameStack(source, target)) {
-      const room = maxStack(target) - itemCount(target);
+      const room = maxStack(target, this.mineralStackLimit) - itemCount(target);
       if (room <= 0) {
         return false;
       }

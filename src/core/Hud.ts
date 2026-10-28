@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { WEAPONS, layerAtDepth, maxCarryWeight } from '../config';
+import { WEAPONS, layerAtDepth, maxCarryWeight, maxStackFor } from '../config';
 import type { AimViewData, HudViewData } from '../ui/UI';
 import { formatMoney, formatNumber } from '../ui/format';
 import type { Game } from './Game';
@@ -46,6 +46,7 @@ export function updateHud(game: Game): void {
     cargoMoney: game.cargoMoney,
     cargoWeight: game.cargoWeight,
     maxCargoWeight: maxCarryWeight(game.run.loadout),
+    maxStack: maxStackFor(game.run.loadout),
     inventorySlots: game.inventory.snapshot(),
     inventoryCount: inventoryTotals.count,
     inventoryOpen: game.inventoryOpen,
@@ -81,6 +82,7 @@ export function updateHud(game: Game): void {
     data.cargoMoney,
     data.cargoWeight.toFixed(1),
     data.maxCargoWeight,
+    data.maxStack,
     data.inventorySlots
       .map((item) => {
         if (!item) {

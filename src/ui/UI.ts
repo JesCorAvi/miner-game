@@ -69,6 +69,7 @@ export interface HudViewData {
   cargoMoney: number;
   cargoWeight: number;
   maxCargoWeight: number;
+  maxStack: number;
   inventorySlots: Array<InventoryItem | null>;
   inventoryCount: number;
   inventoryOpen: boolean;
@@ -546,6 +547,7 @@ export class UI {
       data.activeHotbarSlot,
       data.cargoWeight,
       data.maxCargoWeight,
+      data.maxStack,
       data.inventoryCount,
       data.cargoCoal,
       data.cargoMoney,

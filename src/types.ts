@@ -184,7 +184,8 @@ export type UpgradeId =
   | 'magnet'
   | 'jetpack'
   | 'dayTime'
-  | 'capacity';
+  | 'capacity'
+  | 'stack';
 
 export type PassiveId = string;
 
@@ -197,6 +198,7 @@ export interface UpgradeLevels {
   jetpack: number;
   dayTime: number;
   capacity: number;
+  stack: number;
 }
 
 export type WeaponUnlocks = Record<WeaponId, boolean>;

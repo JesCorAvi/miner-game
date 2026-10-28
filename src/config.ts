@@ -125,7 +125,8 @@ export const SURFACE_SPAWN = { x: 0, z: 29 } as const;
 export const HOPPER_POSITION = { x: 14, z: 28.5 } as const;
 export const HOPPER_INTERACT_RADIUS = 3.5;
 export const BASE_CARRY_WEIGHT = 40;
-export const CARRY_WEIGHT_PER_LEVEL = 20;
+export const CARRY_WEIGHT_PER_LEVEL = 40;
+export const MAX_STACK_BONUS_PER_LEVEL = 32;
 export const COLLECTOR_CARRY_WEIGHT = BASE_CARRY_WEIGHT / 2;
 export const STARTING_LADDERS = 8;
 export const LADDER_PACK_SIZE = 4;
@@ -334,10 +335,18 @@ export const UPGRADES: Record<UpgradeId, UpgradeDefinition> = {
   capacity: {
     id: 'capacity',
     name: 'Bahía de Carga',
-    description: '+20 kg de capacidad de mochila por nivel.',
+    description: '+40 kg de capacidad de mochila por nivel.',
     baseCost: 160,
     growth: 1.55,
-    max: 6,
+    max: 12,
+  },
+  stack: {
+    id: 'stack',
+    name: 'Compactador de Carga',
+    description: '+32 unidades por stack de mineral.',
+    baseCost: 500,
+    growth: 3.2,
+    max: 12,
   },
 };
 
@@ -568,6 +577,10 @@ export function maxCarryWeight(loadout: Loadout): number {
   return Math.round(base * multiplier);
 }
 
+export function maxStackFor(loadout: Loadout): number {
+  return MAX_STACK + loadout.upgrades.stack * MAX_STACK_BONUS_PER_LEVEL;
+}
+
 export function maxJetpackFuel(loadout: Loadout): number {
   if (loadout.upgrades.jetpack <= 0) {
     return 0;
@@ -600,6 +613,7 @@ export function makeDefaultLoadout(): Loadout {
       jetpack: 0,
       dayTime: 0,
       capacity: 0,
+      stack: 0,
     },
     passives: createDefaultPassives(),
     employees: {

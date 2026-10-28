@@ -93,9 +93,9 @@ function itemCount(item: InventoryItem): number {
   return item.kind === 'tool' ? 0 : item.count;
 }
 
-function maxFor(item: InventoryItem): number {
+function maxFor(item: InventoryItem, mineralLimit: number): number {
   if (item.kind === 'mineral') {
-    return MAX_STACK;
+    return mineralLimit;
   }
   if (item.kind === 'grenade') {
     return GRENADE_STACK_MAX;
@@ -109,7 +109,7 @@ function maxFor(item: InventoryItem): number {
   return 1;
 }
 
-function tooltipFor(item: InventoryItem): string {
+function tooltipFor(item: InventoryItem, mineralLimit: number): string {
   if (item.kind === 'mineral') {
     const mineral = MINERALS[item.mineral];
     const valueParts = [
@@ -117,7 +117,7 @@ function tooltipFor(item: InventoryItem): string {
       item.money > 0 ? formatMoney(item.money) : null,
     ].filter((part): part is string => part !== null);
     const value = valueParts.length > 0 ? valueParts.join(' · ') : 'sin valor';
-    return `${mineral.name} ×${item.count} / ${MAX_STACK}\nPeso del stack: ${item.weight.toFixed(1)} kg\nValor: ${value}`;
+    return `${mineral.name} ×${item.count} / ${mineralLimit}\nPeso del stack: ${item.weight.toFixed(1)} kg\nValor: ${value}`;
   }
   if (item.kind === 'tool') {
     const weapon = WEAPONS[item.weapon];
@@ -143,6 +143,7 @@ export class InventoryView {
   private readonly hotbar: HTMLElement;
   private readonly panel: HTMLElement;
   private readonly weightLabel: HTMLElement;
+  private stackLimit = MAX_STACK;
   private readonly summaryLabel: HTMLElement;
   private readonly actions: InventoryViewActions;
   private readonly hotSlots: SlotDom[] = [];
@@ -186,10 +187,12 @@ export class InventoryView {
     activeHotbarSlot: number,
     weight: number,
     maxWeight: number,
+    mineralStackLimit: number,
     fragmentCount: number,
     carbon: number,
     money: number,
   ): void {
+    this.stackLimit = mineralStackLimit;
     this.weightLabel.textContent = `PESO: ${weight.toFixed(1)} / ${formatNumber(maxWeight)} kg`;
     this.summaryLabel.textContent = `PIEZAS: ${formatNumber(fragmentCount)} · ${formatNumber(carbon)} t · ${formatMoney(money)}`;
     for (let index = 0; index < INVENTORY_SLOTS; index += 1) {
@@ -303,13 +306,13 @@ export class InventoryView {
       dom.root.removeAttribute('aria-label');
       return;
     }
-    const tooltip = tooltipFor(item);
+    const tooltip = tooltipFor(item, this.stackLimit);
     const glow = cssHex(glowFor(item));
     dom.root.classList.remove('is-empty');
     dom.root.classList.toggle('is-tool', item.kind === 'tool');
     dom.root.classList.toggle(
       'is-full',
-      item.kind !== 'tool' && itemCount(item) >= maxFor(item),
+      item.kind !== 'tool' && itemCount(item) >= maxFor(item, this.stackLimit),
     );
     dom.root.style.setProperty('--slot-color', glow);
     dom.root.style.setProperty('--slot-glow', glow);
