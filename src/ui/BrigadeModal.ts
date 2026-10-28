@@ -4,6 +4,7 @@ import {
   brigadeUpgradeCost,
 } from '../entities/Brigades';
 import { formatMoney, formatNumber } from './format';
+import { canAfford, spendMoney } from '../core/Economy';
 
 export class BrigadeModal {
   private readonly container: HTMLElement | null;
@@ -31,30 +32,28 @@ export class BrigadeModal {
     document.getElementById('shop-brigades-btn')?.addEventListener('click', () => this.show());
 
     this.hireMinerBtn?.addEventListener('click', () => {
-      if (this.game.run.money < 450) {
+      if (!canAfford(this.game.run, 450)) {
         this.game.ui.notify('CAPITAL INSUFICIENTE · Se requieren $ 450 para contratar una brigada', 'danger');
         return;
       }
       const sectors = this.game.brigades.getSectors();
       const sectorId = sectors.length > 0 ? sectors[0].id : '';
       const b = this.game.brigades.hireBrigade('miners', sectorId, this.game.seed + Date.now());
-      if (b) {
-        this.game.run.money -= 450;
+      if (b && spendMoney(this.game.run, 450)) {
         this.game.ui.notify(`BRIGADA MINERA CONTRATADA · ${b.name}`, 'positive');
         this.render();
       }
     });
 
     this.hireGathererBtn?.addEventListener('click', () => {
-      if (this.game.run.money < 450) {
+      if (!canAfford(this.game.run, 450)) {
         this.game.ui.notify('CAPITAL INSUFICIENTE · Se requieren $ 450 para contratar una brigada', 'danger');
         return;
       }
       const sectors = this.game.brigades.getSectors();
       const sectorId = sectors.length > 0 ? sectors[0].id : '';
       const b = this.game.brigades.hireBrigade('gatherers', sectorId, this.game.seed + Date.now());
-      if (b) {
-        this.game.run.money -= 450;
+      if (b && spendMoney(this.game.run, 450)) {
         this.game.ui.notify(`BRIGADA DE FLETE CONTRATADA · ${b.name}`, 'positive');
         this.render();
       }
@@ -102,21 +101,19 @@ export class BrigadeModal {
               <div style="font-size: 0.68rem; color: var(--muted);">${formatNumber(b.headcount)} operarios · Rango ${b.rank}/5 · ${b.sectorId ? 'Asignada' : 'En reserva'}</div>
             </div>
             <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
-              <button class="button ghost small" type="button" data-brigade-promote="${b.id}" ${b.rank >= 5 || this.game.run.money < 300 ? 'disabled' : ''}>ASCENDER ($300)</button>
-              <button class="button ghost small" type="button" data-brigade-scale="${b.id}" ${b.headcount >= MAX_BRIGADE_HEADCOUNT || this.game.run.money < scaleCost ? 'disabled' : ''}>AMPLIAR ×10 (${formatMoney(scaleCost)})</button>
+              <button class="button ghost small" type="button" data-brigade-promote="${b.id}" ${b.rank >= 5 || !canAfford(this.game.run, 300) ? 'disabled' : ''}>ASCENDER ($300)</button>
+              <button class="button ghost small" type="button" data-brigade-scale="${b.id}" ${b.headcount >= MAX_BRIGADE_HEADCOUNT || !canAfford(this.game.run, scaleCost) ? 'disabled' : ''}>AMPLIAR ×10 (${formatMoney(scaleCost)})</button>
             </div>
           `;
           row.querySelector(`[data-brigade-promote="${b.id}"]`)?.addEventListener('click', () => {
-            if (this.game.run.money >= 300 && this.game.brigades.promoteBrigade(b.id)) {
-              this.game.run.money -= 300;
+            if (canAfford(this.game.run, 300) && this.game.brigades.promoteBrigade(b.id) && spendMoney(this.game.run, 300)) {
               this.game.ui.notify(`${b.name} ASCENDIDA A RANGO ${b.rank}`, 'positive');
               this.render();
             }
           });
           row.querySelector(`[data-brigade-scale="${b.id}"]`)?.addEventListener('click', () => {
             const cost = brigadeUpgradeCost(b);
-            if (this.game.run.money >= cost && this.game.brigades.upgradeBrigade(b.id)) {
-              this.game.run.money -= cost;
+            if (canAfford(this.game.run, cost) && this.game.brigades.upgradeBrigade(b.id) && spendMoney(this.game.run, cost)) {
               this.game.ui.notify(
                 `${b.name} AMPLIADA · ${formatNumber(b.headcount)} operarios`,
                 'positive',

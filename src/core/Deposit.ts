@@ -9,6 +9,7 @@ import {
 import { PROTOCOL_VERSION } from '../network/Protocol';
 import type { DaySaleLine, DifficultyModifier } from '../types';
 import { formatMoney, formatNumber } from '../ui/format';
+import { addMoney } from './Economy';
 import type { Game } from './Game';
 
 export function isNearHopper(game: Game): boolean {
@@ -62,7 +63,7 @@ export function applyTeamDeposit(
     return;
   }
   game.run.carbon += cleanCoal;
-  game.run.money += cleanMoney;
+  addMoney(game.run, cleanMoney);
   game.run.stats.coalMined += cleanCoal;
   game.run.stats.moneyEarned += cleanMoney;
   if (game.securedAt === null && game.run.carbon >= game.run.quota) {

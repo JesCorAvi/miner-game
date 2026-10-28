@@ -22,6 +22,8 @@ import { clearProjectiles } from './Combat';
 import { buildDayReport, computeFootprintStage } from './DaySettlement';
 import { discardCargo } from './Interaction';
 import { randomSeed } from './Rng';
+import { BigValue } from './BigValue';
+import { addMoney, moneyOf, moneyWire, setMoney } from './Economy';
 import { cloneLoadout, cloneStats } from './RunState';
 import { buildShopView } from './ShopView';
 import { applyPixelMode, updateOfficeCamera } from './View';
@@ -44,7 +46,8 @@ export function beginAuthorityDay(game: Game, broadcastStart = false): void {
   game.ladderCounter = 0;
   game.hopperTripsToday = 0;
   game.resetDaySettlement();
-  game.dayMoneyBase = game.run.money;
+  game.dayMoneyBaseBig = moneyOf(game.run);
+  game.dayMoneyBase = game.dayMoneyBaseBig.toNumber();
   const snapshot: DaySnapshot = {
     phase: 'playing',
     day: game.run.day,
@@ -52,8 +55,10 @@ export function beginAuthorityDay(game: Game, broadcastStart = false): void {
     quota: game.run.quota,
     timeLeft: game.run.timeLeft,
     money: game.run.money,
+    moneyWire: moneyWire(game.run),
     carbon: game.run.carbon,
     dayMoneyBase: game.dayMoneyBase,
+    dayMoneyWire: game.dayMoneyBaseBig.toWire(),
     dayReport: game.dayReport,
     infinite: game.run.infinite,
     mode: game.run.mode ?? 'normal',
@@ -101,6 +106,7 @@ export function loadSnapshot(game: Game, snapshot: DaySnapshot, authority: boole
   game.run = {
     day: snapshot.day,
     money: snapshot.money,
+    moneyBig: BigValue.fromWire(snapshot.moneyWire ?? String(snapshot.money)),
     carbon: snapshot.carbon,
     quota: snapshot.quota,
     timeLeft: snapshot.timeLeft,
@@ -113,7 +119,8 @@ export function loadSnapshot(game: Game, snapshot: DaySnapshot, authority: boole
     platformDepth: snapshot.platformDepth || 0,
   };
   game.seed = snapshot.seed >>> 0;
-  game.dayMoneyBase = snapshot.dayMoneyBase;
+  game.dayMoneyBaseBig = BigValue.fromWire(snapshot.dayMoneyWire ?? String(snapshot.dayMoneyBase));
+  game.dayMoneyBase = game.dayMoneyBaseBig.toNumber();
   game.hopperTripsToday = 0;
   game.resetDaySettlement();
   game.dayReport = snapshot.dayReport;
@@ -224,6 +231,7 @@ export function applyShopSnapshot(game: Game, snapshot: DaySnapshot): void {
   game.run = {
     day: snapshot.day,
     money: snapshot.money,
+    moneyBig: BigValue.fromWire(snapshot.moneyWire ?? String(snapshot.money)),
     carbon: snapshot.carbon,
     quota: snapshot.quota,
     timeLeft: snapshot.timeLeft,
@@ -236,7 +244,8 @@ export function applyShopSnapshot(game: Game, snapshot: DaySnapshot): void {
     platformDepth: snapshot.platformDepth || 0,
   };
   game.seed = snapshot.seed >>> 0;
-  game.dayMoneyBase = snapshot.dayMoneyBase;
+  game.dayMoneyBaseBig = BigValue.fromWire(snapshot.dayMoneyWire ?? String(snapshot.dayMoneyBase));
+  game.dayMoneyBase = game.dayMoneyBaseBig.toNumber();
   game.hopperTripsToday = 0;
   game.resetDaySettlement();
   game.dayReport = snapshot.dayReport;
@@ -286,7 +295,7 @@ export function finishDay(game: Game): void {
     (game.run.mode ?? 'normal') !== 'peaceful' &&
     !game.run.infinite &&
     (game.run.day === VICTORY_DAY || game.run.day === TRUE_VICTORY_DAY);
-  const oreValue = Math.max(0, game.run.money - game.dayMoneyBase);
+  const oreValue = Math.max(0, moneyOf(game.run).sub(game.dayMoneyBaseBig).toNumber());
   const duration = dayDuration(game.run.loadout);
   const preview = buildDayReport(
     game.dayLedger,
@@ -305,7 +314,7 @@ export function finishDay(game: Game): void {
   );
   if (success) {
     const settlementProfit = preview.bonus + preview.punctuality + preview.surplusCapital;
-    game.run.money += settlementProfit;
+    addMoney(game.run, settlementProfit);
     game.run.stats.moneyEarned += settlementProfit;
   }
   const report = buildDayReport(
@@ -349,6 +358,7 @@ export function finishDay(game: Game): void {
         carbon: game.run.carbon,
         quota: game.run.quota,
         money: game.run.money,
+        moneyWire: moneyWire(game.run),
         loadout: cloneLoadout(game.run.loadout),
         stats: cloneStats(game.run.stats),
         report,
@@ -396,7 +406,7 @@ export function startNextDay(game: Game): void {
   game.ui.hideDaySummary();
   game.run.day += 1;
   game.run.carbon = 0;
-  game.run.money = Math.max(0, game.run.money);
+  setMoney(game.run, moneyOf(game.run).clampMin(0));
   const playerCount =
     game.online && game.network ? game.network.getPlayerCount() : 1;
   const rawQuota = quotaForDay(
@@ -449,6 +459,7 @@ export function saveRun(game: Game, showUi = true): boolean {
   const saved = game.saves.save({
     day: saveInShop ? game.run.day + 1 : game.run.day,
     money: game.run.money,
+    moneyWire: moneyWire(game.run),
     infinite:
       game.run.infinite ||
       (saveInShop && game.shopVictory && game.run.day >= TRUE_VICTORY_DAY),
@@ -472,7 +483,7 @@ export function applyDayResult(
 ): void {
   game.run.carbon = message.carbon;
   game.run.quota = message.quota;
-  game.run.money = message.money;
+  setMoney(game.run, BigValue.fromWire(message.moneyWire ?? String(message.money)));
   game.run.loadout = cloneLoadout(message.loadout);
   game.run.stats = cloneStats(message.stats);
   game.run.infinite = message.infinite;

@@ -1,5 +1,6 @@
 import { dayDuration, makeDefaultLoadout, quotaForDay } from '../config';
 import type { Loadout, RunSnapshot, RunStats, WeaponId } from '../types';
+import { BigValue } from './BigValue';
 
 export function emptyStats(): RunStats {
   return {
@@ -56,6 +57,7 @@ export function defaultRun(): RunSnapshot {
   return {
     day: 1,
     money: 0,
+    moneyBig: BigValue.ZERO,
     carbon: 0,
     quota: quotaForDay(1, 1),
     timeLeft: dayDuration(loadout),

@@ -1,6 +1,7 @@
 import {
   GRENADE_ORDER,
   MINE_DEPTH,
+  PASSIVE_ORDER,
   PIT_HALF,
   ROOM_ALPHABET,
   ROOM_CODE_LENGTH,
@@ -45,7 +46,7 @@ import {
   parseWinch,
 } from './ProtocolValidators';
 
-export const PROTOCOL_VERSION = 17;
+export const PROTOCOL_VERSION = 18;
 export const MAX_MESSAGE_LENGTH = 512 * 1024;
 /** Tope de validación para magnitudes económicas; no es un límite de diseño. */
 export const MAX_ECONOMY_VALUE = 1e100;
@@ -108,6 +109,7 @@ export interface DaySnapshot {
   money: number;
   carbon: number;
   dayMoneyBase: number;
+  dayMoneyWire?: string;
   dayReport: DayReport | null;
   infinite: boolean;
   mode?: GameMode;
@@ -161,6 +163,7 @@ export type HostMessage =
       t: 'economy';
       v: number;
       money: number;
+      moneyWire?: string;
       carbon: number;
       timeLeft: number;
       day: number;
@@ -178,6 +181,7 @@ export type HostMessage =
       carbon: number;
       quota: number;
       money: number;
+      moneyWire?: string;
       loadout: Loadout;
       stats: RunStats;
       report: DayReport;
@@ -188,6 +192,7 @@ export type HostMessage =
       t: 'shop_state';
       v: number;
       money: number;
+      moneyWire?: string;
       loadout: Loadout;
       stats: RunStats;
       quota: number;
@@ -628,6 +633,7 @@ function parseHostSnapshot(value: unknown): DaySnapshot | null {
     money,
     carbon,
     dayMoneyBase,
+    dayMoneyWire: typeof value.dayMoneyWire === 'string' ? value.dayMoneyWire.slice(0, 64) : undefined,
     dayReport,
     infinite: Boolean(value.infinite),
     mode:
@@ -794,7 +800,18 @@ export function parseHostMessage(raw: string): HostMessage | null {
       if (money === null || carbon === null || timeLeft === null || day === null || quota === null || ladders === null || grenades === null) {
         return null;
       }
-      return { t: 'economy', v, money, carbon, timeLeft, day, quota, ladders: Math.floor(ladders), grenades };
+      return {
+        t: 'economy',
+        v,
+        money,
+        moneyWire: typeof parsed.moneyWire === 'string' ? parsed.moneyWire.slice(0, 64) : undefined,
+        carbon,
+        timeLeft,
+        day,
+        quota,
+        ladders: Math.floor(ladders),
+        grenades,
+      };
     }
     case 'fx': {
       const fx = parseFx(parsed.fx);
@@ -818,6 +835,7 @@ export function parseHostMessage(raw: string): HostMessage | null {
         carbon,
         quota,
         money,
+        moneyWire: typeof parsed.moneyWire === 'string' ? parsed.moneyWire.slice(0, 64) : undefined,
         loadout: parsed.loadout as unknown as Loadout,
         stats: parsed.stats as unknown as RunStats,
         report,
@@ -834,6 +852,7 @@ export function parseHostMessage(raw: string): HostMessage | null {
         t: 'shop_state',
         v,
         money,
+        moneyWire: typeof parsed.moneyWire === 'string' ? parsed.moneyWire.slice(0, 64) : undefined,
         loadout: parsed.loadout as unknown as Loadout,
         stats: parsed.stats as unknown as RunStats,
         quota,
@@ -843,8 +862,7 @@ export function parseHostMessage(raw: string): HostMessage | null {
     }
     case 'passive': {
       if (!isRecord(parsed.loadout) || typeof parsed.passive !== 'string') return null;
-      const passives = ['digRadius', 'nodeDamage', 'magnet', 'employeeSpeed', 'jetpackFuel'];
-      if (!passives.includes(parsed.passive)) return null;
+      if (!(PASSIVE_ORDER as readonly string[]).includes(parsed.passive)) return null;
       return {
         t: 'passive',
         v,

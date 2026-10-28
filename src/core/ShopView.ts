@@ -3,6 +3,7 @@ import { PROTOCOL_VERSION } from '../network/Protocol';
 import type { ShopViewData } from '../ui/UI';
 import { applyPurchaseToRun, buildShopItems } from './Shop';
 import { cloneLoadout, cloneStats } from './RunState';
+import { moneyOf, moneyWire } from './Economy';
 import type { Game } from './Game';
 
 export function buildShopView(game: Game): ShopViewData {
@@ -16,7 +17,7 @@ export function buildShopView(game: Game): ShopViewData {
     carbon: game.run.carbon,
     quota: game.run.quota,
     nextQuota: quotaForDay(game.run.day + 1, playerCount),
-    money: game.run.money,
+    money: moneyOf(game.run),
     loadout: game.run.loadout,
     stats: game.run.stats,
     items: buildShopItems(game.run),
@@ -68,6 +69,7 @@ export function broadcastShopState(game: Game): void {
     t: 'shop_state',
     v: PROTOCOL_VERSION,
     money: game.run.money,
+    moneyWire: moneyWire(game.run),
     loadout: cloneLoadout(game.run.loadout),
     stats: cloneStats(game.run.stats),
     quota: game.run.quota,

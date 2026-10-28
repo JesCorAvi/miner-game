@@ -26,6 +26,7 @@ import { CARVE_HISTORY_LIMIT } from './GameConstants';
 import type { AimTarget } from './GameTypes';
 import { hashString } from './Rng';
 import { cloneLoadout, roundCoordinate } from './RunState';
+import { addMoney } from './Economy';
 import { PICKAXE_IMPACT_FRACTION } from '../player/PickaxeModel';
 import {
   fireOrbitWeapon,
@@ -137,7 +138,7 @@ export function grantChestReward(game: Game, node: ResourceNode, by: string): vo
   }
   const money = Math.max(0, Math.floor(reward.money ?? 0));
   if (money > 0) {
-    game.run.money += money;
+    addMoney(game.run, money);
     game.run.stats.moneyEarned += money;
     game.recordDayDeposit(
       reward.mineral

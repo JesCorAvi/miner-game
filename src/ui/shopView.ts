@@ -1,4 +1,5 @@
 import { GRENADE_TIERS, UPGRADES, WEAPONS } from '../config';
+import type { BigValue } from '../core/BigValue';
 import type {
   GrenadeTierId,
   Loadout,
@@ -18,7 +19,7 @@ export interface ShopViewData {
   carbon: number;
   quota: number;
   nextQuota: number;
-  money: number;
+  money: BigValue;
   loadout: Loadout;
   stats: RunStats;
   items: ShopItemView[];

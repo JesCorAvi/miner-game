@@ -7,6 +7,7 @@ import {
 } from '../config';
 import { PeerNetwork } from '../network/PeerNetwork';
 import type { DifficultyModifier, GameMode, LadderOrientation, Loadout, WeaponId } from '../types';
+import { BigValue } from './BigValue';
 import { randomSeed } from './Rng';
 import { cloneLoadout, cloneStats, defaultRun } from './RunState';
 import type { Game } from './Game';
@@ -69,6 +70,7 @@ export function continueRun(game: Game): void {
   game.run = {
     day: saved.day,
     money: saved.money,
+    moneyBig: BigValue.fromWire(saved.moneyWire ?? String(saved.money)),
     carbon: 0,
     quota: quotaForDay(saved.day, 1, mode, modifiers),
     timeLeft: dayDuration(loadout),

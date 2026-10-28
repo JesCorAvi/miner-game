@@ -351,7 +351,7 @@ const applyTeamDeposit = extractBlock(deposit, 'export function applyTeamDeposit
 if (!applyTeamDeposit.includes('game.run.carbon += cleanCoal')) {
   fail('applyTeamDeposit(): el host debe acreditar el carbón');
 }
-if (!applyTeamDeposit.includes('game.run.money += cleanMoney')) {
+if (!applyTeamDeposit.includes('addMoney(game.run, cleanMoney)')) {
   fail('applyTeamDeposit(): el host debe acreditar el dinero');
 }
 if (!finishDay.includes('discardCargo(game,')) {
@@ -392,7 +392,7 @@ for (const kind of ['weapon', 'upgrade', 'supply', 'employee_hire', 'employee_ra
     fail(`applyPurchaseToRun(): no valida «${kind}»`);
   }
 }
-if (!applyPurchase.includes('run.money -= cost')) {
+if (!applyPurchase.includes('spendMoney(run, cost)')) {
   fail('applyPurchaseToRun(): el host debe descontar el coste');
 }
 const applyPurchaseWrapper = extractBlock(shopView, 'export function applyPurchase(');

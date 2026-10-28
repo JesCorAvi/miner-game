@@ -2,6 +2,8 @@
  * Los minerales se definen por bioma en `src/data/minerals.ts`. Mantener el
  * tipo como string permite añadir biomas sin tocar cada unión del proyecto.
  */
+import type { BigValue } from './core/BigValue';
+
 export type MineralId = string;
 
 export type MineralFamily = 'coal' | 'ore';
@@ -319,6 +321,7 @@ export interface RunSnapshot {
   day: number;
   money: number;
   moneyWire?: string;
+  moneyBig?: BigValue;
   carbon: number;
   carbonWire?: string;
   quota: number;

@@ -147,7 +147,7 @@ export const LADDER_ORIENTATION_LABELS: Record<LadderOrientation, string> = {
 };
 export const COLLECTOR_CONVERSION_COST = 150;
 export const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-export const PEER_ID_PREFIX = 'carbon-magnate-v17-';
+export const PEER_ID_PREFIX = 'carbon-magnate-v18-';
 
 export const WINCH_SPEED = 8.0;
 export const MIN_WINCH_DROP = 3.0;

@@ -359,7 +359,7 @@ const applyTeamDeposit = extractBlock(deposit, 'export function applyTeamDeposit
 if (!applyTeamDeposit.includes('game.run.carbon += cleanCoal')) {
   fail('applyTeamDeposit(): debe acreditar el carbón depositado');
 }
-if (!applyTeamDeposit.includes('game.run.money += cleanMoney')) {
+if (!applyTeamDeposit.includes('addMoney(game.run, cleanMoney)')) {
   fail('applyTeamDeposit(): debe acreditar el dinero depositado');
 }
 const depositCargo = extractBlock(deposit, 'export function depositCargo(');
@@ -406,7 +406,7 @@ for (const kind of ['weapon', 'upgrade', 'supply', 'employee_hire', 'employee_ra
     fail(`applyPurchaseToRun(): falta la rama «${kind}»`);
   }
 }
-if (!applyPurchase.includes('run.money -= cost')) {
+if (!applyPurchase.includes('spendMoney(run, cost)')) {
   fail('applyPurchaseToRun(): debe descontar el coste');
 }
 if (!applyPurchase.includes('roster.length >= MAX_EMPLOYEES')) {

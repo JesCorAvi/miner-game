@@ -19,6 +19,8 @@ import {
   showGameOverFromHost,
 } from './DayCycle';
 import { applyTeamDeposit } from './Interaction';
+import { BigValue } from './BigValue';
+import { moneyOf, setMoney } from './Economy';
 import { cloneLoadout, cloneStats } from './RunState';
 import { applyPurchase, broadcastShopState, buildShopView } from './ShopView';
 import type { Game } from './Game';
@@ -294,7 +296,10 @@ export function handleHostMessage(game: Game, message: GameHostMessage): void {
     }
     case 'economy': {
       if (game.phase === 'playing') {
-        game.run.money = Math.max(game.run.money, message.money);
+        const incomingMoney = BigValue.fromWire(message.moneyWire ?? String(message.money));
+        if (incomingMoney.gt(moneyOf(game.run))) {
+          setMoney(game.run, incomingMoney);
+        }
         game.run.carbon = Math.max(game.run.carbon, message.carbon);
         game.run.timeLeft = message.timeLeft;
         game.run.day = message.day;
@@ -350,7 +355,7 @@ export function handleHostMessage(game: Game, message: GameHostMessage): void {
       break;
     }
     case 'shop_state': {
-      game.run.money = message.money;
+      setMoney(game.run, BigValue.fromWire(message.moneyWire ?? String(message.money)));
       game.run.loadout = cloneLoadout(message.loadout);
       game.run.stats = cloneStats(message.stats);
       game.run.quota = message.quota;

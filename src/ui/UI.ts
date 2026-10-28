@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { EMPLOYEE_RANKS } from '../config';
+import type { BigValue } from '../core/BigValue';
 import type { InventoryItem } from '../core/Inventory';
 import type {
   DayReport,
@@ -20,10 +21,8 @@ import { renderShopLoadoutSummary, renderShopPassives } from './ShopSideView';
 import type { ReturnRouteStatus } from '../core/ReturnPlanner';
 import { FloatingNoticeView, type ToastTone } from './FloatingNoticeView';
 import { LobbyView, type LobbyViewData } from './LobbyView';
-
 export type { ShopViewData } from './shopView';
 export type { ToastTone } from './FloatingNoticeView';
-
 const LADDER_DIAL_CORES: Record<LadderOrientation, string> = {
   vertical: 'V',
   'diagonal-up': '↗',
@@ -55,7 +54,7 @@ export interface HudViewData {
   timeLeft: number;
   quota: number;
   carbon: number;
-  money: number;
+  money: BigValue;
   depth: number;
   layerName: string;
   fuel: number;

@@ -29,7 +29,7 @@ export interface BrigadeRecord {
   seed: number;
 }
 
-export const MAX_BRIGADE_HEADCOUNT = 1_000_000_000;
+export const MAX_BRIGADE_HEADCOUNT = 7_000_000_000;
 
 export function brigadeUpgradeCost(brigade: BrigadeRecord): number {
   const scale = Math.max(1, Math.log10(Math.max(10, brigade.headcount) / 10) + 1);

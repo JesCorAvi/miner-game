@@ -17,6 +17,7 @@ import {
 import { handleClientMessage, handleHostMessage } from './NetworkMessages';
 import { cloneLoadout, cloneStats } from './RunState';
 import { BigValue } from './BigValue';
+import { moneyWire } from './Economy';
 import type { Game } from './Game';
 
 export function networkCallbacks(game: Game): NetworkCallbacks {
@@ -181,6 +182,7 @@ export function buildSnapshot(game: Game): DaySnapshot {
     money: game.run.money,
     carbon: game.run.carbon,
     dayMoneyBase: game.dayMoneyBase,
+    dayMoneyWire: game.dayMoneyBaseBig.toWire(),
     dayReport: game.dayReport,
     infinite: game.run.infinite,
     mode: game.run.mode ?? 'normal',
@@ -201,7 +203,7 @@ export function buildSnapshot(game: Game): DaySnapshot {
     sectors: game.brigades ? [...game.brigades.getSectors()] : [],
     conveyors: game.conveyors ? [...game.conveyors.getModules()] : [],
     missions: game.missions ? game.missions.getSnapshot() : [],
-    moneyWire: BigValue.fromNumber(game.run.money).toWire(),
+    moneyWire: moneyWire(game.run),
     carbonWire: BigValue.fromNumber(game.run.carbon).toWire(),
     quotaWire: BigValue.fromNumber(game.run.quota).toWire(),
     platformDepth: game.run.platformDepth || 0,
@@ -278,6 +280,7 @@ export function broadcastEconomy(game: Game): void {
     t: 'economy',
     v: PROTOCOL_VERSION,
     money: game.run.money,
+    moneyWire: moneyWire(game.run),
     carbon: game.run.carbon,
     timeLeft: game.run.timeLeft,
     day: game.run.day,

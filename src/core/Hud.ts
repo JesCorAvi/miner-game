@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { WEAPONS, layerAtDepth, maxCarryWeight, maxStackFor } from '../config';
+import { moneyOf } from './Economy';
 import type { AimViewData, HudViewData } from '../ui/UI';
 import { formatMoney, formatNumber } from '../ui/format';
 import type { Game } from './Game';
@@ -32,7 +33,7 @@ export function updateHud(game: Game): void {
     timeLeft: game.run.timeLeft,
     quota: game.run.quota,
     carbon: game.run.carbon,
-    money: game.run.money,
+    money: moneyOf(game.run),
     depth: game.player.getDepth(),
     layerName: layer.name,
     fuel: game.player.getJetpackFuel(),
@@ -66,7 +67,7 @@ export function updateHud(game: Game): void {
     Math.ceil(data.timeLeft),
     Math.ceil(data.carbon),
     Math.ceil(data.quota),
-    Math.ceil(data.money),
+    data.money.toWire(),
     Math.ceil(data.depth),
     data.returnStatus,
     data.returnText,

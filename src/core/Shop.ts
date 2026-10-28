@@ -29,6 +29,7 @@ import {
   weaponFamily,
 } from '../config';
 import { formatMoney, formatNumber } from '../ui/format';
+import { canAfford, spendMoney } from './Economy';
 import {
   FIELD_CERTIFICATIONS,
   PATENTS,
@@ -128,7 +129,7 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
         : `TIER ${nextTier} / ${family.tierCount}`,
       owned: currentTier > 0,
       maxed,
-      affordable: !maxed && run.money >= cost,
+      affordable: !maxed && canAfford(run, cost),
     });
   }
 
@@ -150,7 +151,7 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
     level: `TIER ${Math.min(15, currentPickaxe + 1)} / 15`,
     owned: false,
     maxed: !canUpgradePickaxe,
-    affordable: canUpgradePickaxe && run.money >= pickaxeCost,
+    affordable: canUpgradePickaxe && canAfford(run, pickaxeCost),
   });
 
   // Patentes corporativas I a VI
@@ -173,7 +174,7 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
     const maxLayer = run.loadout.maxLayerReached ?? 1;
     const layerOk = maxLayer >= patentDef.requiredLayer;
     const cost = patentDef.cost;
-    const affordable = run.money >= cost && layerOk;
+    const affordable = canAfford(run, cost) && layerOk;
     items.push({
       id: `patent:${nextTier}`,
       kind: 'patent',
@@ -232,7 +233,7 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
       level: `NV ${level} / ${definition.max}`,
       owned: false,
       maxed,
-      affordable: !maxed && run.money >= cost && upgradeCheck.allowed,
+      affordable: !maxed && canAfford(run, cost) && upgradeCheck.allowed,
     });
   }
 
@@ -249,7 +250,7 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
     level: `STOCK: ${run.loadout.ladders}`,
     owned: false,
     maxed: false,
-    affordable: ladderCheck.allowed && run.money >= ladderCost,
+    affordable: ladderCheck.allowed && canAfford(run, ladderCost),
   });
 
   const winchCost = getSupplyCost('winch', doctrine);
@@ -263,7 +264,7 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
     level: `STOCK: ${run.loadout.winches ?? 0}`,
     owned: false,
     maxed: false,
-    affordable: run.money >= winchCost,
+    affordable: canAfford(run, winchCost),
   });
 
   const depotCost = getSupplyCost('field_depot', doctrine);
@@ -277,7 +278,7 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
     level: `STOCK: ${run.loadout.fieldDepots ?? 0}`,
     owned: false,
     maxed: false,
-    affordable: run.money >= depotCost,
+    affordable: canAfford(run, depotCost),
   });
 
   const beaconCost = getSupplyCost('beacon', doctrine);
@@ -291,7 +292,7 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
     level: `STOCK: ${run.loadout.beacons ?? 0}`,
     owned: false,
     maxed: false,
-    affordable: run.money >= beaconCost,
+    affordable: canAfford(run, beaconCost),
   });
 
   const conveyorCost = getSupplyCost('conveyor', doctrine);
@@ -305,7 +306,7 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
     level: `STOCK: ${run.loadout.conveyors ?? 0}/${MAX_CONVEYORS}`,
     owned: false,
     maxed: (run.loadout.conveyors ?? 0) >= MAX_CONVEYORS,
-    affordable: (run.loadout.conveyors ?? 0) < MAX_CONVEYORS && run.money >= conveyorCost,
+    affordable: (run.loadout.conveyors ?? 0) < MAX_CONVEYORS && canAfford(run, conveyorCost),
   });
 
   const currentDepth = run.platformDepth || 0;
@@ -321,7 +322,7 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
       level: `COTA: -${currentDepth}m → -${nextDepth}m`,
       owned: false,
       maxed: false,
-      affordable: canClose && run.money >= CLOSURE_ACT_COST,
+      affordable: canClose && canAfford(run, CLOSURE_ACT_COST),
     });
   }
 
@@ -342,7 +343,7 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
       level: `CAPA ${definition.maxLayer} · STOCK: ${run.loadout.grenades[tier] ?? 0}`,
       owned: false,
       maxed: false,
-      affordable: grenadeSupplyCheck.allowed && run.money >= cost,
+      affordable: grenadeSupplyCheck.allowed && canAfford(run, cost),
     });
   }
 
@@ -364,7 +365,7 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
     level: `${roster.length} / ${MAX_EMPLOYEES} EMPLEADOS`,
     owned: false,
     maxed: rosterFull,
-    affordable: !rosterFull && hireCheck.allowed && run.money >= hirePrice,
+    affordable: !rosterFull && hireCheck.allowed && canAfford(run, hirePrice),
   });
 
   const allowStaffOps = canHireEmployee('miner', doctrine, profession).allowed;
@@ -387,7 +388,7 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
       level: summary,
       owned: false,
       maxed: rankMaxed,
-      affordable: !rankMaxed && allowStaffOps && run.money >= promotionCost,
+      affordable: !rankMaxed && allowStaffOps && canAfford(run, promotionCost),
     });
     if (employee.kind === 'miner') {
       items.push({
@@ -400,7 +401,7 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
         level: summary,
         owned: false,
         maxed: false,
-        affordable: allowConvert && run.money >= COLLECTOR_CONVERSION_COST,
+        affordable: allowConvert && canAfford(run, COLLECTOR_CONVERSION_COST),
       });
     }
   });
@@ -439,7 +440,7 @@ export function applyPurchaseToRun(run: RunSnapshot, itemId: string): PurchaseRe
       return null;
     }
     cost = patentDef.cost;
-    if (run.money < cost) {
+    if (!canAfford(run, cost)) {
       return null;
     }
     run.loadout.patent = tier;
@@ -461,7 +462,7 @@ export function applyPurchaseToRun(run: RunSnapshot, itemId: string): PurchaseRe
     const nextTier = currentTier + 1;
     const tradeIn = currentTier > 0 ? familyTierSell(weapon, currentTier) : 0;
     cost = Math.max(0, familyTierBuy(weapon, nextTier) - tradeIn);
-    if (run.money < cost) {
+    if (!canAfford(run, cost)) {
       return null;
     }
     if (!run.loadout.weaponTiers) {
@@ -482,7 +483,7 @@ export function applyPurchaseToRun(run: RunSnapshot, itemId: string): PurchaseRe
     const previous = pickaxeTierDefinition(current);
     const tradeIn = current > 1 ? previous.sell : 0;
     cost = Math.max(0, next.buy - tradeIn);
-    if (run.money < cost) {
+    if (!canAfford(run, cost)) {
       return null;
     }
     run.loadout.pickaxeTier = tier;
@@ -508,7 +509,7 @@ export function applyPurchaseToRun(run: RunSnapshot, itemId: string): PurchaseRe
       return null;
     }
     cost = upgradeCost(upgrade, level);
-    if (run.money < cost) {
+    if (!canAfford(run, cost)) {
       return null;
     }
     run.loadout.upgrades[upgrade] += 1;
@@ -519,7 +520,7 @@ export function applyPurchaseToRun(run: RunSnapshot, itemId: string): PurchaseRe
       return null;
     }
     cost = getSupplyCost(rawId, doctrine);
-    if (cost <= 0 || run.money < cost) {
+    if (cost <= 0 || !canAfford(run, cost)) {
       return null;
     }
     if (rawId === 'ladders') {
@@ -557,7 +558,7 @@ export function applyPurchaseToRun(run: RunSnapshot, itemId: string): PurchaseRe
     }
     const definition = GRENADE_TIERS[tier];
     cost = getGrenadeCost(tier, doctrine, run.loadout.profession);
-    if (run.money < cost) {
+    if (!canAfford(run, cost)) {
       return null;
     }
     run.loadout.grenades[tier] = Math.min(
@@ -578,7 +579,7 @@ export function applyPurchaseToRun(run: RunSnapshot, itemId: string): PurchaseRe
       return null;
     }
     cost = getEmployeeHireCost(roster.length, doctrine);
-    if (run.money < cost) {
+    if (!canAfford(run, cost)) {
       return null;
     }
     const id = `emp-${run.loadout.employees.nextId}`;
@@ -603,7 +604,7 @@ export function applyPurchaseToRun(run: RunSnapshot, itemId: string): PurchaseRe
         return null;
       }
       cost = rankCost(employee.rank);
-      if (run.money < cost) {
+      if (!canAfford(run, cost)) {
         return null;
       }
       employee.rank += 1;
@@ -617,7 +618,7 @@ export function applyPurchaseToRun(run: RunSnapshot, itemId: string): PurchaseRe
         return null;
       }
       cost = COLLECTOR_CONVERSION_COST;
-      if (run.money < cost) {
+      if (!canAfford(run, cost)) {
         return null;
       }
       employee.kind = 'collector';
@@ -657,6 +658,8 @@ export function applyPurchaseToRun(run: RunSnapshot, itemId: string): PurchaseRe
   } else {
     return null;
   }
-  run.money -= cost;
+  if (!spendMoney(run, cost)) {
+    return null;
+  }
   return { cost, label };
 }

@@ -7,6 +7,8 @@ import {
   WEAPON_ORDER,
 } from '../config';
 import { AudioEngine } from './Audio';
+import { BigValue } from './BigValue';
+import { moneyOf } from './Economy';
 import { ReturnPlanner } from './ReturnPlanner';
 import { Effects } from './Effects';
 import { globalPresentationBudget } from './PresentationBudget';
@@ -163,6 +165,7 @@ export class Game {
   readonly perf = new PerfOverlay();
   hopperTripsToday = 0;
   dayMoneyBase = 0;
+  dayMoneyBaseBig = BigValue.ZERO;
   dayLedger: DayLedger = emptyDayLedger();
   dayReport: DayReport | null = null;
   securedAt: number | null = null;
@@ -356,7 +359,7 @@ export class Game {
     this.environment.update(dt, THREE.MathUtils.clamp(dayProgress, 0, 1));
     this.resources.group.visible =
       this.phase === 'playing' && this.camera.position.y < 1;
-    const dailyMoney = Math.max(0, this.run.money - this.dayMoneyBase);
+    const dailyMoney = Math.max(0, moneyOf(this.run).sub(this.dayMoneyBaseBig).toNumber());
     this.hopper.update(dt, this.run.carbon + dailyMoney * 0.025, this.run.quota);
     this.updatePixelMode();
     if (this.phase !== 'playing' || !this.input.isLocked()) {
