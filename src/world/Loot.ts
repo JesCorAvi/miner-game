@@ -16,24 +16,19 @@ import {
   type Pellet,
 } from './LootTypes';
 import { LootSpatialHash } from './LootSpatialHash';
-
 export type { CollectedLoot, LootCollectFn, OverflowEntry } from './LootTypes';
-
 import { makeGlowTexture, makePelletGeometry } from './LootAssets';
-
 const PELLET_LIFETIME = 86;
 const GRAVITY = 17.5;
 const MAX_SPEED = 14;
 const MAGNET_DELAY = 0.25;
 const MAX_HIT_CHIPS_PER_NODE = 8;
 const FUSION_INTERVAL = 0.5;
-
 interface ChipLedger {
   carbon: number;
   money: number;
   count: number;
 }
-
 export class LootField {
   readonly group = new THREE.Group();
   private readonly mesh: THREE.InstancedMesh;
@@ -61,7 +56,6 @@ export class LootField {
   private readonly overflowLedger: OverflowEntry[] = [];
   private readonly chipLedger = new Map<string, ChipLedger>();
   private tickCounter = 0;
-
   constructor() {
     this.group.name = 'loot-field';
     this.geometry = makePelletGeometry();
@@ -101,7 +95,6 @@ export class LootField {
            totalEmissiveRadiance += vInstanceEmissive;`,
         );
     };
-
     this.mesh = new THREE.InstancedMesh(this.geometry, this.material, MAX_PELLETS);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.castShadow = false;
@@ -146,7 +139,6 @@ export class LootField {
     }
     this.emissiveAttribute.needsUpdate = true;
     this.group.add(this.mesh);
-
     this.glowTexture = makeGlowTexture();
     this.glowPositions = new Float32Array(MAX_PELLETS * 3);
     for (let index = 0; index < MAX_PELLETS; index += 1) {
@@ -172,15 +164,12 @@ export class LootField {
     glowPoints.frustumCulled = false;
     this.group.add(glowPoints);
   }
-
   setBulkMode(enabled: boolean): void { this.bulkMode = enabled; }
   isBulkMode(): boolean { return this.bulkMode; }
   getOverflowLedger(): readonly OverflowEntry[] { return this.overflowLedger; }
-
   private setPelletEmissive(index: number, color: THREE.Color): void {
     this.emissiveAttribute.setXYZ(index, color.r, color.g, color.b);
   }
-
   spawnFromNode(
     node: ResourceNode,
     terrain: Terrain,
@@ -220,12 +209,10 @@ export class LootField {
     );
     const glowColor = new THREE.Color(mineral.glow);
     let spawned = 0;
-
     for (let index = 0; index < count; index += 1) {
       const carbon = baseCarbon + (index < carbonRemainder ? 1 : 0);
       const money = baseMoney + (index < moneyRemainder ? 1 : 0);
       const slot = this.findSlot();
-
       if (slot < 0) {
         this.addToOverflow(
           new THREE.Vector3(node.x, node.y, node.z),
@@ -238,7 +225,6 @@ export class LootField {
         spawned += 1;
         continue;
       }
-
       const pellet = this.pellets[slot];
       const angle = random() * Math.PI * 2;
       const spread = 0.22 + random() * 0.62;
@@ -297,7 +283,6 @@ export class LootField {
     }
     return spawned;
   }
-
   spawnNodeHitChips(node: ResourceNode, terrain: Terrain): number {
     if (!node.mineral || node.broken) {
       return 0;
@@ -330,7 +315,6 @@ export class LootField {
     }
     return spawned;
   }
-
   private spawnChipBurst(
     position: THREE.Vector3,
     normal: THREE.Vector3,
@@ -348,7 +332,6 @@ export class LootField {
     );
     const glowColor = new THREE.Color(mineral.glow);
     let spawned = 0;
-
     for (let index = 0; index < count; index += 1) {
       const slot = this.findSlot();
       if (slot < 0) {

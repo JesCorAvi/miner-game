@@ -29,6 +29,13 @@ export interface BrigadeRecord {
   seed: number;
 }
 
+export const MAX_BRIGADE_HEADCOUNT = 1_000_000_000;
+
+export function brigadeUpgradeCost(brigade: BrigadeRecord): number {
+  const scale = Math.max(1, Math.log10(Math.max(10, brigade.headcount) / 10) + 1);
+  return Math.round((450 * Math.pow(3, scale)) / 5) * 5;
+}
+
 export class BrigadeManager {
   readonly group = new THREE.Group();
   private readonly sectors: SectorBeacon[] = [];
@@ -160,6 +167,17 @@ export class BrigadeManager {
     if (!brigade || brigade.rank >= 5) return false;
     brigade.rank += 1;
     brigade.headcount += 5; // Aumento de efectivos
+    this.updateCrowdInstances();
+    return true;
+  }
+
+  upgradeBrigade(id: string): boolean {
+    const brigade = this.brigades.find((b) => b.id === id);
+    if (!brigade || brigade.headcount >= MAX_BRIGADE_HEADCOUNT) return false;
+    brigade.headcount = Math.min(
+      MAX_BRIGADE_HEADCOUNT,
+      Math.max(10, brigade.headcount * 10),
+    );
     this.updateCrowdInstances();
     return true;
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { BrigadeManager, type SectorBeacon } from '../src/entities/Brigades';
+import { BrigadeManager, brigadeUpgradeCost, type SectorBeacon } from '../src/entities/Brigades';
 import { ConveyorSystem } from '../src/world/Conveyors';
 import { computeFootprintStage } from '../src/core/DayCycle';
 
@@ -56,6 +56,19 @@ describe('Simulación Híbrida de Brigadas y Sectores', () => {
       expect(b1.rank).toBe(2);
       expect(b1.headcount).toBe(15);
     }
+  });
+
+  it('la ampliación de brigada multiplica por diez la plantilla', () => {
+    const manager = new BrigadeManager();
+    const brigade = manager.hireBrigade('miners', '', 42);
+    expect(brigade).not.toBeNull();
+    if (!brigade) return;
+    const firstCost = brigadeUpgradeCost(brigade);
+    expect(manager.upgradeBrigade(brigade.id)).toBe(true);
+    expect(brigade.headcount).toBe(100);
+    expect(brigadeUpgradeCost(brigade)).toBeGreaterThan(firstCost);
+    manager.upgradeBrigade(brigade.id);
+    expect(brigade.headcount).toBe(1_000);
   });
 
   it('cálculo de rendimiento estadístico en host es determinista y no nulo', () => {

@@ -12,7 +12,7 @@ La Fase 1 de la emulación de Coal LLC ya es jugable: **12 biomas en 20 niveles 
 
 La **Fase 2A** añade **22 familias de armas** (picos, picos eléctricos, pistolas, escopetas, rifles, miniguns, hachas, hachas orbitales, guantes, patadas, bastones, orbes, jets, tanques, lanzallamas, veneno, agua, morteros, taladros y sísmicos) con tiers, recompra y daño por familia, y las **13 profesiones** de Coal LLC seleccionables al iniciar la expedición, con bonificaciones y prohibiciones en tienda, capacidad, jetpack, granadas y daño.
 
-La **Fase 2B** añade las **7 topologías de pozo** y los **encargos de galería**: 3 módulos de servicio deterministas por día (sellado de fuga, rescate de sonda, testigo de sondeo y anclaje), recompensas de certificación no comprables, HUD de seguimiento y sincronización host/cliente. Las certificaciones ya no se desbloquean por día: se obtienen completando su encargo. También se cerraron los **comportamientos únicos** de las familias: proyectiles para tanques, morteros, jets y bastones; órbita para el hacha de batalla; onda sísmica para el inductor; y los cuatro patrones base para el resto. La **Fase 3A** añade el **Compactador de Carga** (+32 unidades por stack de mineral, hasta 12 niveles) y amplía la **Bahía de Carga** a 12 niveles de +40 kg (hasta 520 kg base). Las **brigadas y cintas** ya acreditan su producción en la tolva mediante el flujo autoritativo de depósito, no mutando la economía directamente. La Fase 3 restante cubre la escala masiva de brigadas/cintas y la migración real de la economía a `BigValue`. No afirmar que esas fases están terminadas hasta que sus pruebas de integración estén en verde.
+La **Fase 2B** añade las **7 topologías de pozo** y los **encargos de galería**: 3 módulos de servicio deterministas por día (sellado de fuga, rescate de sonda, testigo de sondeo y anclaje), recompensas de certificación no comprables, HUD de seguimiento y sincronización host/cliente. Las certificaciones ya no se desbloquean por día: se obtienen completando su encargo. También se cerraron los **comportamientos únicos** de las familias: proyectiles para tanques, morteros, jets y bastones; órbita para el hacha de batalla; onda sísmica para el inductor; y los cuatro patrones base para el resto. La **Fase 3A** añade el **Compactador de Carga** (+32 unidades por stack de mineral, hasta 12 niveles) y amplía la **Bahía de Carga** a 12 niveles de +40 kg (hasta 520 kg base). Las **brigadas y cintas** ya acreditan su producción en la tolva mediante el flujo autoritativo de depósito, no mutando la economía directamente. Las brigadas se pueden **ampliar ×10** hasta 1.000 millones de operarios estadísticos, con coste creciente. La Fase 3 restante cubre la escala masiva de brigadas/cintas y la migración real de la economía a `BigValue`. No afirmar que esas fases están terminadas hasta que sus pruebas de integración estén en verde.
 
 Documentos relacionados:
 
@@ -154,7 +154,7 @@ Antes de tocar un dominio, leer su `SKILL.md` y ejecutar la auditoría. Las skil
 
 ## Verificación automatizada y manual recomendada
 
-Suite de pruebas automatizadas: `npm test` ejecuta 24 archivos de prueba y 155 tests unitarios/integración con Vitest. `npm run test:e2e` ejecuta la validación headless y detección de fugas de memoria en Electron.
+Suite de pruebas automatizadas: `npm test` ejecuta 24 archivos de prueba y 156 tests unitarios/integración con Vitest. `npm run test:e2e` ejecuta la validación headless y detección de fugas de memoria en Electron.
 
 Antes de cerrar un cambio, como mínimo:
 

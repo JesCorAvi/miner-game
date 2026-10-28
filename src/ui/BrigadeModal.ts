@@ -1,4 +1,9 @@
 import type { Game } from '../core/Game';
+import {
+  MAX_BRIGADE_HEADCOUNT,
+  brigadeUpgradeCost,
+} from '../entities/Brigades';
+import { formatMoney, formatNumber } from './format';
 
 export class BrigadeModal {
   private readonly container: HTMLElement | null;
@@ -88,19 +93,34 @@ export class BrigadeModal {
         this.rosterList.appendChild(empty);
       } else {
         for (const b of brigades) {
+          const scaleCost = brigadeUpgradeCost(b);
           const row = document.createElement('div');
           row.className = 'brigade-row';
           row.innerHTML = `
             <div>
               <strong>${b.name}</strong>
-              <div style="font-size: 0.68rem; color: var(--muted);">${b.headcount} operarios · Rango ${b.rank}/5 · ${b.sectorId ? 'Asignada' : 'En reserva'}</div>
+              <div style="font-size: 0.68rem; color: var(--muted);">${formatNumber(b.headcount)} operarios · Rango ${b.rank}/5 · ${b.sectorId ? 'Asignada' : 'En reserva'}</div>
             </div>
-            <button class="button ghost small" type="button" data-brigade-promote="${b.id}" ${b.rank >= 5 || this.game.run.money < 300 ? 'disabled' : ''}>ASCENDER ($300)</button>
+            <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+              <button class="button ghost small" type="button" data-brigade-promote="${b.id}" ${b.rank >= 5 || this.game.run.money < 300 ? 'disabled' : ''}>ASCENDER ($300)</button>
+              <button class="button ghost small" type="button" data-brigade-scale="${b.id}" ${b.headcount >= MAX_BRIGADE_HEADCOUNT || this.game.run.money < scaleCost ? 'disabled' : ''}>AMPLIAR ×10 (${formatMoney(scaleCost)})</button>
+            </div>
           `;
           row.querySelector(`[data-brigade-promote="${b.id}"]`)?.addEventListener('click', () => {
             if (this.game.run.money >= 300 && this.game.brigades.promoteBrigade(b.id)) {
               this.game.run.money -= 300;
               this.game.ui.notify(`${b.name} ASCENDIDA A RANGO ${b.rank}`, 'positive');
+              this.render();
+            }
+          });
+          row.querySelector(`[data-brigade-scale="${b.id}"]`)?.addEventListener('click', () => {
+            const cost = brigadeUpgradeCost(b);
+            if (this.game.run.money >= cost && this.game.brigades.upgradeBrigade(b.id)) {
+              this.game.run.money -= cost;
+              this.game.ui.notify(
+                `${b.name} AMPLIADA · ${formatNumber(b.headcount)} operarios`,
+                'positive',
+              );
               this.render();
             }
           });
