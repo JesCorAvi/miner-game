@@ -33,6 +33,25 @@ const LEGACY_SAVE_KEYS = [
   'carbon-magnate.save.v2',
 ];
 const SAVE_VERSION = 9;
+const SETUP_KEY = 'carbon-magnate.setup.v1';
+
+/** Preferencias de la pantalla de expedición; no forman parte del expediente. */
+export function loadSetupPreferences(): unknown {
+  try {
+    const raw = window.localStorage.getItem(SETUP_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveSetupPreferences(value: unknown): void {
+  try {
+    window.localStorage.setItem(SETUP_KEY, JSON.stringify(value));
+  } catch {
+    // La configuración es una comodidad; si el almacenamiento falla, seguimos.
+  }
+}
 const SHAKE_KEY = 'carbon-magnate.shake';
 const FOV_KEY = 'carbon-magnate.fov';
 const BULK_LOOT_KEY = 'carbon-magnate.bulk-loot';

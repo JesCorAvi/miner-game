@@ -253,14 +253,14 @@
   font-size: 0.7rem;
 }
 
-.menu-profession-info {
-  width: min(420px, 100%);
-  margin: 6px 0 0;
-  color: var(--gold, #e6a449);
+.menu-setup-note {
+  width: min(480px, 100%);
+  margin: 16px 0 0;
+  color: var(--amber);
   font-family: var(--mono);
-  font-size: 0.56rem;
-  letter-spacing: 0.04em;
-  line-height: 1.45;
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
+  line-height: 1.5;
 }
 
 .menu-actions {

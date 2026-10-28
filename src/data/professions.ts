@@ -358,7 +358,7 @@ const PROFESSION_LIST: readonly ProfessionDefinition[] = [  {
       '+10 % capacidad de mochila',
     ],
     prohibitions: [
-      'Solo pico y escopeta',
+      'Solo escopeta (sin pico)',
       'Sin jetpack',
       'No puede contratar empleados',
     ],
@@ -416,7 +416,7 @@ const PROFESSION_LIST: readonly ProfessionDefinition[] = [  {
       'Guantes y patadas 20 % más baratos',
     ],
     prohibitions: [
-      'Solo pico, guantes y patadas',
+      'Solo guantes y patadas (sin pico)',
       'Sin armas de fuego, bastones ni explosivos',
     ],
     capacityMultiplier: 1.05,

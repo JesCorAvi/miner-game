@@ -4,10 +4,7 @@ import type { BigValue } from '../core/BigValue';
 import type { InventoryItem } from '../core/Inventory';
 import type {
   DayReport,
-  DifficultyModifier,
-  GameMode,
   LadderOrientation,
-  ProfessionId,
   RunStats,
   SaveSummary,
 } from '../types';
@@ -21,7 +18,10 @@ import { renderShopLoadoutSummary, renderShopPassives } from './ShopSideView';
 import type { ReturnRouteStatus } from '../core/ReturnPlanner';
 import { FloatingNoticeView, type ToastTone } from './FloatingNoticeView';
 import { LobbyView, type LobbyViewData } from './LobbyView';
-import { bindProfessionMenu } from './ProfessionMenuView';
+import {
+  ExpeditionSetupView,
+  type ExpeditionConfig,
+} from './ExpeditionSetupView';
 export type { ShopViewData } from './shopView';
 export type { ToastTone } from './FloatingNoticeView';
 const LADDER_DIAL_CORES: Record<LadderOrientation, string> = {
@@ -138,10 +138,8 @@ export class UI {
   private readonly startContinue = required<HTMLButtonElement>('start-continue');
   private readonly saveSummary = required<HTMLElement>('save-summary');
   private readonly playerNameInput = required<HTMLInputElement>('player-name');
-  private readonly menuMode = required<HTMLSelectElement>('menu-mode');
-  private readonly menuMap = required<HTMLSelectElement>('menu-map');
-  private readonly menuProfession = required<HTMLSelectElement>('menu-profession');
-  private readonly menuModifiers = required<HTMLElement>('menu-modifiers');
+  private readonly setupView: ExpeditionSetupView;
+  private setupIntent: 'solo' | 'host' = 'solo';
   private readonly createRoomButton = required<HTMLButtonElement>('create-room');
   private readonly joinRoomButton = required<HTMLButtonElement>('join-room');
   private readonly joinCodeInput = required<HTMLInputElement>('join-code');
@@ -233,6 +231,15 @@ export class UI {
 
   constructor(camera: THREE.PerspectiveCamera, actions: UIActions) {
     this.actions = actions;
+    this.setupView = new ExpeditionSetupView({
+      onConfirm: () => {
+        if (this.setupIntent === 'host') {
+          this.actions.createRoom(this.getPlayerName());
+        } else {
+          this.actions.startSolo();
+        }
+      },
+    });
     this.notices = new FloatingNoticeView(camera, {
       toastStack: required<HTMLElement>('toast-stack'),
       floatLayer: required<HTMLElement>('float-layer'),
@@ -281,13 +288,9 @@ export class UI {
   }
 
   private bind(): void {
-    bindProfessionMenu(this.menuProfession, required<HTMLElement>('menu-profession-info'));
-    this.startNew.addEventListener('click', () => this.actions.startSolo());
+    this.startNew.addEventListener('click', () => this.openSetup('solo'));
     this.startContinue.addEventListener('click', () => this.actions.continueRun());
-    this.createRoomButton.addEventListener('click', () => {
-      this.clearMenuError();
-      this.actions.createRoom(this.getPlayerName());
-    });
+    this.createRoomButton.addEventListener('click', () => this.openSetup('host'));
     this.joinRoomButton.addEventListener('click', () => {
       this.clearMenuError();
       this.actions.joinRoom(this.getPlayerName(), this.joinCodeInput.value);
@@ -356,30 +359,14 @@ export class UI {
     this.playerNameInput.value = name;
   }
 
-  getRunConfig(): {
-    mode: GameMode;
-    modifiers: DifficultyModifier[];
-    profession: ProfessionId;
-    map: string;
-  } {
-    const rawMode = this.menuMode.value;
-    const mode: GameMode =
-      rawMode === 'tough' || rawMode === 'peaceful' ? rawMode : 'normal';
-    const modifiers: DifficultyModifier[] = [];
-    const inputs = this.menuModifiers.querySelectorAll<HTMLInputElement>(
-      'input[type="checkbox"]',
-    );
-    inputs.forEach((input) => {
-      if (input.checked) {
-        modifiers.push(input.value as DifficultyModifier);
-      }
-    });
-    return {
-      mode,
-      modifiers,
-      profession: this.menuProfession.value || 'internship',
-      map: this.menuMap.value || 'standard',
-    };
+  getRunConfig(): ExpeditionConfig {
+    return this.setupView.getConfig();
+  }
+
+  private openSetup(intent: 'solo' | 'host'): void {
+    this.setupIntent = intent;
+    this.clearMenuError();
+    this.setupView.open(intent);
   }
 
   setJoinCode(code: string): void {
@@ -393,6 +380,7 @@ export class UI {
   showMenu(save: SaveSummary | null): void {
     this.setMenuBusy(false);
     this.clearMenuError();
+    this.setupView.hide();
     this.hideHud();
     this.hideLobby();
     this.hideShop();
@@ -419,6 +407,7 @@ export class UI {
 
   hideMenu(): void {
     this.menuOverlay.hidden = true;
+    this.setupView.hide();
   }
 
   setMenuError(message: string): void {

@@ -34,18 +34,41 @@ async function runE2E() {
       logs.push('[E2E] 1. Menú inicial detectado: fase=' + game.phase);
       if (game.phase !== 'menu') throw new Error('Se esperaba fase "menu", se obtuvo ' + game.phase);
 
-      // Elegir Escopetero para validar el kit inicial de clase.
-      const professionSelect = document.getElementById('menu-profession');
-      if (professionSelect) professionSelect.value = 'shotgunner';
+      // Abrir la configuración de expedición y elegir Escopetero.
+      const startBtn = document.getElementById('start-new');
+      if (!startBtn) throw new Error('No se encontró el botón de nueva expedición');
+      startBtn.click();
+      await wait(80);
 
-      // Iniciar partida individual mediante botón de interfaz o startSolo
-      const startBtn = document.getElementById('start-new') || document.getElementById('start-continue');
-      if (startBtn) {
-        startBtn.click();
-      } else {
-        game.startSolo();
+      const setup = document.getElementById('expedition-setup-overlay');
+      if (!setup || setup.hidden) {
+        throw new Error('La configuración de expedición no se abrió');
       }
+      if (document.querySelectorAll('.setup-class-card').length !== 15) {
+        throw new Error('La configuración no muestra las 15 clases');
+      }
+      document.getElementById('setup-cancel')?.click();
+      await wait(60);
+      if (game.phase !== 'menu' || !setup.hidden) {
+        throw new Error('Cancelar la configuración no devolvió al menú');
+      }
+      startBtn.click();
+      await wait(80);
+      const shotgunnerCard = document.getElementById('setup-class-shotgunner');
+      if (!shotgunnerCard) throw new Error('No se encontró la tarjeta del Escopetero');
+      shotgunnerCard.click();
+      const arsenalText = document.getElementById('setup-arsenal')?.textContent || '';
+      if (!arsenalText.includes('ESCOPETA')) {
+        throw new Error('El arsenal del Escopetero no muestra la escopeta');
+      }
+      if (arsenalText.includes('PISTOLA')) {
+        throw new Error('El arsenal del Escopetero muestra armas no comprables');
+      }
+      const setupConfirm = document.getElementById('setup-confirm');
+      if (!setupConfirm) throw new Error('No se encontró el botón de iniciar expedición');
+      setupConfirm.click();
       await wait(400);
+      if (!setup.hidden) throw new Error('La configuración no se cerró al iniciar');
 
       if (!game.run.loadout.weapons.shotgun || game.run.loadout.weaponTiers.shotgun !== 1) {
         throw new Error('El kit inicial del Escopetero no entregó la escopeta T1');
