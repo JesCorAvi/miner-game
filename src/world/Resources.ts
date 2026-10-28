@@ -243,11 +243,16 @@ export class Resources {
     terrain: Terrain,
     modifiers: readonly DifficultyModifier[] = [],
     mapId: MapId = 'standard',
+    exclusions: readonly { x: number; y: number; z: number; radius: number }[] = [],
   ): void {
     this.clear();
     this.seed = seed >>> 0;
     const random = mulberry32(this.seed ^ hashString(`resources-${day}`));
     const depthLimit = mapMaxDepth(mapId);
+    const isExcluded = (x: number, y: number, z: number): boolean =>
+      exclusions.some(
+        (entry) => Math.hypot(x - entry.x, y - entry.y, z - entry.z) < entry.radius,
+      );
     const specs = buildResourceSpecs(modifiers)
       .map((spec) => ({
         ...spec,
@@ -275,7 +280,7 @@ export class Resources {
             const x = Math.max(-bound, Math.min(bound, centerX + Math.cos(offsetAngle) * offsetRadius));
             const z = Math.max(-bound, Math.min(bound, centerZ + Math.sin(offsetAngle) * offsetRadius));
             const y = Math.max(-depthLimit + 1, Math.min(-1, centerY + offsetDepth));
-            if (terrain.getDensityAt(x, y, z) > 0.64) {
+            if (!isExcluded(x, y, z) && terrain.getDensityAt(x, y, z) > 0.64) {
               placed = { x, y, z };
               break;
             }
@@ -335,7 +340,7 @@ export class Resources {
         const x = (random() * 2 - 1) * bound;
         const z = (random() * 2 - 1) * bound;
         const y = -Math.max(3, Math.min(Math.min(MINE_DEPTH, depthLimit) - 2, depth + (random() - 0.5) * 6));
-        if (terrain.getDensityAt(x, y, z) > 0.64) {
+        if (!isExcluded(x, y, z) && terrain.getDensityAt(x, y, z) > 0.64) {
           placed = { x, y, z };
           break;
         }

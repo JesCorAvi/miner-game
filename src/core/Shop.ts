@@ -191,17 +191,16 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
   for (const cert of certs) {
     const isUnlocked = run.loadout.certifications?.includes(cert.id) ?? false;
     const isEquipped = run.loadout.utilitySlots?.includes(cert.id) ?? false;
-    const qualified = run.day >= cert.requiredDays;
     items.push({
       id: `certification:${cert.id}`,
       kind: 'certification',
       title: `${cert.name}${isEquipped ? ' · [EQUIPADA EN RANURA]' : isUnlocked ? ' · [DISPONIBLE]' : ''}`,
-      description: `${cert.description} Perk: ${cert.perk}.${!qualified && !isUnlocked ? ` Desbloquea en Día ${cert.requiredDays}.` : ''}`,
+      description: `${cert.description} Perk: ${cert.perk}.${!isUnlocked ? ' Se obtiene completando su encargo de galería.' : ''}`,
       cost: 0,
-      level: isEquipped ? 'RANURA UTILIDAD ACTIVA' : isUnlocked ? 'CLIC PARA EQUIPAR' : `DISPONIBLE DÍA ${cert.requiredDays}`,
+      level: isEquipped ? 'RANURA UTILIDAD ACTIVA' : isUnlocked ? 'CLIC PARA EQUIPAR' : 'PENDIENTE DE ENCARGO',
       owned: isEquipped,
       maxed: isEquipped,
-      affordable: qualified || isUnlocked,
+      affordable: isUnlocked,
     });
   }
 
@@ -637,10 +636,7 @@ export function applyPurchaseToRun(run: RunSnapshot, itemId: string): PurchaseRe
       run.loadout.utilitySlots = [null, null];
     }
     if (!run.loadout.certifications.includes(certId)) {
-      if (run.day < certDef.requiredDays) {
-        return null;
-      }
-      run.loadout.certifications.push(certId);
+      return null;
     }
     const isEquipped = run.loadout.utilitySlots.includes(certId);
     if (isEquipped) {

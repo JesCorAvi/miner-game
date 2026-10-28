@@ -43,6 +43,7 @@ export function breakNodeAsHost(game: Game, node: ResourceNode, by: string): voi
   spawnBreakEffect(game, node);
   game.loot.spawnFromNode(node, game.terrain, dropSeed);
   game.run.stats.nodesBroken += 1;
+  game.missions.onNodeBroken(node.id, game);
   if (node.type === 'chest') {
     grantChestReward(game, node, by);
   }
@@ -54,7 +55,6 @@ export function breakNodeAsHost(game: Game, node: ResourceNode, by: string): voi
     by,
   });
 }
-
 export function breakNodeAsClient(game: Game, node: ResourceNode, dropSeed: number): void {
   if (node.broken) {
     return;
@@ -68,7 +68,6 @@ export function breakNodeAsClient(game: Game, node: ResourceNode, dropSeed: numb
     game.ui.notify(`Cofre fracturado · ${reward.title}. El anfitrión valida la mejora.`, 'positive');
   }
 }
-
 export function breakNodeLocally(game: Game, node: ResourceNode): void {
   if (node.broken) {
     return;
@@ -78,6 +77,9 @@ export function breakNodeLocally(game: Game, node: ResourceNode): void {
   spawnBreakEffect(game, node);
   game.loot.spawnFromNode(node, game.terrain, dropSeed);
   game.run.stats.nodesBroken += 1;
+  if (game.isAuthority()) {
+    game.missions.onNodeBroken(node.id, game);
+  }
   if (node.type === 'chest') {
     if (game.isAuthority()) {
       grantChestReward(game, node, game.selfPeerId || 'solo');
@@ -105,7 +107,6 @@ export function breakNodeLocally(game: Game, node: ResourceNode): void {
     }
   }
 }
-
 export function grantChestReward(game: Game, node: ResourceNode, by: string): void {
   if (!game.rewardedChests.add(node.id)) {
     return;
@@ -115,7 +116,6 @@ export function grantChestReward(game: Game, node: ResourceNode, by: string): vo
   game.audio.playChest(
     node ? new THREE.Vector3(node.x, node.y, node.z) : game.player.getPosition(),
   );
-
   if (reward.kind === 'passive' && reward.passive) {
     const points = reward.points ?? 1;
     game.run.loadout.passives[reward.passive] =
@@ -134,7 +134,6 @@ export function grantChestReward(game: Game, node: ResourceNode, by: string): vo
     }
     return;
   }
-
   const money = Math.max(0, Math.floor(reward.money ?? 0));
   if (money > 0) {
     game.run.money += money;

@@ -92,6 +92,13 @@ export function handleClientMessage(
       }
       break;
     }
+    case 'mission_interact': {
+      const state = game.remoteStates.get(fromId);
+      if (state) {
+        game.missions.interactRemote(game, message.moduleId, message.objectiveId, state);
+      }
+      break;
+    }
     case 'deposit': {
       if (game.phase === 'playing') {
         applyTeamDeposit(game, message.coal, message.money, false, message.lines);
@@ -319,6 +326,19 @@ export function handleHostMessage(game: Game, message: GameHostMessage): void {
       break;
     }
     case 'belt_state': {
+      break;
+    }
+    case 'mission_state': {
+      const before = game.run.loadout.certifications?.length ?? 0;
+      game.missions.applyRemote(message.modules);
+      game.run.loadout = cloneLoadout(message.loadout);
+      game.player.setLoadout(game.run.loadout);
+      game.syncEquipmentInventory();
+      const after = game.run.loadout.certifications?.length ?? 0;
+      if (after > before) {
+        game.ui.notify('CERTIFICACIÓN DE CAMPO DESBLOQUEADA · Revisa la oficina.', 'positive');
+      }
+      game.lastHudSignature = '';
       break;
     }
     case 'fx': {

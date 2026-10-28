@@ -78,6 +78,7 @@ export interface HudViewData {
   jetpackUnlocked: boolean;
   returnStatus: ReturnRouteStatus;
   returnText: string;
+  missionText: string;
   hopperBearingText: string;
   hopperVerticalText: string;
   prompt: HudPrompt | null;
@@ -177,6 +178,7 @@ export class UI {
   private readonly networkAction = required<HTMLButtonElement>('network-action');
   private readonly loadingText = required<HTMLElement>('loading-text');
   private readonly hudDay = required<HTMLElement>('hud-day');
+  private readonly hudObjectiveKind = required<HTMLElement>('hud-objective-kind');
   private readonly hudTime = required<HTMLElement>('hud-time');
   private readonly hudReturnBadge = required<HTMLElement>('hud-return');
   private readonly hudReturnTime = required<HTMLElement>('hud-return-time');
@@ -469,6 +471,7 @@ export class UI {
 
   updateHud(data: HudViewData): void {
     setText(this.hudDay, `DÍA ${String(data.day).padStart(2, '0')}`);
+    setText(this.hudObjectiveKind, data.missionText || 'CUOTA OBLIGATORIA');
     setText(this.hudTime, formatTime(data.timeLeft));
     setText(this.hudReturnTime, data.returnText);
     this.hudReturnBadge.className = `return-chip status-${data.returnStatus}`;

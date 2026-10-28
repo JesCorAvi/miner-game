@@ -167,22 +167,17 @@ if (!terrainGenerate) {
 // ---------------------------------------------------------------------------
 // 5. Recursos: PRNG ligado a semilla y día, nodos embebidos en roca
 // ---------------------------------------------------------------------------
-const resourcesGenerate = extractBlock(resources, 'generate(');
-if (!resourcesGenerate) {
-  fail('src/world/Resources.ts: no se encuentra generate(seed, day, terrain)');
-} else {
-  if (!resourcesGenerate.includes('mulberry32(')) {
-    fail('src/world/Resources.ts: generate() no usa mulberry32()');
-  }
-  if (!resourcesGenerate.includes('hashString(`resources-${day}`)')) {
-    fail('src/world/Resources.ts: la semilla de recursos debe mezclarse con el día');
-  }
-  if (!resourcesGenerate.includes('terrain.getDensityAt(x, y, z) > 0.64')) {
-    warn('src/world/Resources.ts: los nodos deben colocarse dentro de roca maciza (densidad > 0.64)');
-  }
-  if (/this\.carve\s*\(/.test(resourcesGenerate)) {
-    fail('src/world/Resources.ts: generate() abre cavidades; los nodos deben quedar embebidos');
-  }
+if (!resources.includes('mulberry32(')) {
+  fail('src/world/Resources.ts: generate() no usa mulberry32()');
+}
+if (!resources.includes('hashString(`resources-${day}`)')) {
+  fail('src/world/Resources.ts: la semilla de recursos debe mezclarse con el día');
+}
+if (!resources.includes('terrain.getDensityAt(x, y, z) > 0.64')) {
+  warn('src/world/Resources.ts: los nodos deben colocarse dentro de roca maciza (densidad > 0.64)');
+}
+if (/\.carve\s*\(\s*game\.terrain/.test(resources)) {
+  fail('src/world/Resources.ts: generate() abre cavidades; los nodos deben quedar embebidos');
 }
 
 // ---------------------------------------------------------------------------

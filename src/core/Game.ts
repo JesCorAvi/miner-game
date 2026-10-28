@@ -41,6 +41,7 @@ import { WinchSystem } from '../world/Winch';
 import { FieldDepotSystem } from '../world/FieldDepot';
 import { BeaconSystem } from '../world/Beacons';
 import { ConveyorSystem } from '../world/Conveyors';
+import { MissionSystem } from '../world/Missions';
 import { BrigadeManager } from '../entities/Brigades';
 import { GalleryMap } from '../ui/GalleryMap';
 import { DoctrineModal } from '../ui/DoctrineModal';
@@ -98,6 +99,7 @@ export class Game {
   readonly ledgerModeView: LedgerModeView;
   readonly brigades = new BrigadeManager();
   readonly conveyors = new ConveyorSystem();
+  readonly missions = new MissionSystem();
   readonly terrain = new Terrain();
   readonly resources = new Resources();
   readonly loot = new LootField();
@@ -226,6 +228,7 @@ export class Game {
       this.beacons.group,
       this.brigades.group,
       this.conveyors.group,
+      this.missions.group,
     );
     this.effects = new Effects(this.scene);
 
@@ -842,6 +845,7 @@ export class Game {
     this.beacons.dispose();
     this.brigades.dispose();
     this.conveyors.dispose();
+    this.missions.dispose();
     this.conveyorOverlay.dispose();
     this.galleryMap.dispose();
     this.perf.dispose();

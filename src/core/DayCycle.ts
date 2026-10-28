@@ -73,6 +73,7 @@ export function beginAuthorityDay(game: Game, broadcastStart = false): void {
     platformDepth: game.run.platformDepth || 0,
   };
   loadSnapshot(game, snapshot, true);
+  snapshot.missions = game.missions.getSnapshot();
   if (broadcastStart && game.online && game.role === 'host' && game.network) {
     game.network.broadcast({
       t: 'start_day',
@@ -158,13 +159,24 @@ export function loadSnapshot(game: Game, snapshot: DaySnapshot, authority: boole
   game.tools.setPatent(game.run.loadout.patent ?? 0);
   game.ui.showLoading('GENERANDO POZO…');
   game.terrain.generate(game.seed, game.run.map ?? 'standard');
+  game.missions.generate(
+    game.seed,
+    game.run.day,
+    game.run.map ?? 'standard',
+    game.terrain,
+  );
   game.resources.generate(
     game.seed,
     game.run.day,
     game.terrain,
     game.run.modifiers ?? [],
     game.run.map ?? 'standard',
+    game.missions.getExclusions(),
   );
+  game.missions.bindSampleNodes(game.resources);
+  if (snapshot.missions && snapshot.missions.length > 0) {
+    game.missions.fromSnapshot(snapshot.missions);
+  }
   game.terrain.applyCarveHistory(snapshot.carveHistory);
   for (const nodeId of snapshot.brokenNodes) {
     game.resources.markBroken(nodeId);

@@ -18,6 +18,7 @@ import type {
   GrenadeTierId,
   Loadout,
   MapId,
+  MissionModuleState,
   NetworkBeaconState,
   NetworkFieldDepotState,
   NetworkLadderState,
@@ -44,7 +45,7 @@ import {
   parseWinch,
 } from './ProtocolValidators';
 
-export const PROTOCOL_VERSION = 16;
+export const PROTOCOL_VERSION = 17;
 export const MAX_MESSAGE_LENGTH = 512 * 1024;
 /** Tope de validación para magnitudes económicas; no es un límite de diseño. */
 export const MAX_ECONOMY_VALUE = 1e100;
@@ -85,6 +86,7 @@ export type ClientMessage =
   | { t: 'carve'; v: number; e: CarveEvent }
   | { t: 'node_hit'; v: number; id: string; dmg: number }
   | { t: 'node_break'; v: number; id: string; dropSeed: number }
+  | { t: 'mission_interact'; v: number; moduleId: string; objectiveId: string }
   | { t: 'deposit'; v: number; coal: number; money: number; lines: DaySaleLine[] }
   | { t: 'grenade_use'; v: number; tier: GrenadeTierId }
   | { t: 'ladder_place'; v: number; ladder: NetworkLadderState }
@@ -125,6 +127,7 @@ export interface DaySnapshot {
   brigades?: BrigadeRecord[];
   sectors?: SectorBeacon[];
   conveyors?: ConveyorModule[];
+  missions?: MissionModuleState[];
   moneyWire?: string;
   carbonWire?: string;
   quotaWire?: string;
@@ -146,6 +149,7 @@ export type HostMessage =
   | { t: 'staff'; v: number; states: NetworkStaffState[] }
   | { t: 'brigade_state'; v: number; brigades: BrigadeRecord[]; sectors: SectorBeacon[] }
   | { t: 'belt_state'; v: number; modules: ConveyorModule[]; isJammed: boolean }
+  | { t: 'mission_state'; v: number; modules: MissionModuleState[]; loadout: Loadout }
   | { t: 'ladder_placed'; v: number; ladder: NetworkLadderState }
   | { t: 'winch_placed'; v: number; winch: NetworkWinchState }
   | { t: 'depot_sync'; v: number; depots: NetworkFieldDepotState[] }
@@ -220,6 +224,7 @@ export type GameHostMessage = Extract<
       | 'beacon_sync'
       | 'brigade_state'
       | 'belt_state'
+      | 'mission_state'
       | 'fx'
       | 'day_result'
       | 'shop_state'
@@ -378,6 +383,17 @@ export function parseClientMessage(raw: string): ClientMessage | null {
         return null;
       }
       return { t: 'node_break', v, id: parsed.id.slice(0, 96), dropSeed: seed >>> 0 };
+    }
+    case 'mission_interact': {
+      if (typeof parsed.moduleId !== 'string' || typeof parsed.objectiveId !== 'string') {
+        return null;
+      }
+      return {
+        t: 'mission_interact',
+        v,
+        moduleId: parsed.moduleId.slice(0, 96),
+        objectiveId: parsed.objectiveId.slice(0, 96),
+      };
     }
     case 'deposit': {
       const coal = bounded(parsed.coal, 0, MAX_ECONOMY_VALUE);
@@ -642,6 +658,7 @@ function parseHostSnapshot(value: unknown): DaySnapshot | null {
     brigades: Array.isArray(value.brigades) ? (value.brigades as BrigadeRecord[]) : undefined,
     sectors: Array.isArray(value.sectors) ? (value.sectors as SectorBeacon[]) : undefined,
     conveyors: Array.isArray(value.conveyors) ? (value.conveyors as ConveyorModule[]) : undefined,
+    missions: Array.isArray(value.missions) ? (value.missions as MissionModuleState[]) : undefined,
     moneyWire: typeof value.moneyWire === 'string' ? value.moneyWire : undefined,
     carbonWire: typeof value.carbonWire === 'string' ? value.carbonWire : undefined,
     quotaWire: typeof value.quotaWire === 'string' ? value.quotaWire : undefined,
@@ -742,6 +759,15 @@ export function parseHostMessage(raw: string): HostMessage | null {
     case 'belt_state': {
       if (!Array.isArray(parsed.modules)) return null;
       return { t: 'belt_state', v, modules: parsed.modules as ConveyorModule[], isJammed: Boolean(parsed.isJammed) };
+    }
+    case 'mission_state': {
+      if (!Array.isArray(parsed.modules) || !isRecord(parsed.loadout)) return null;
+      return {
+        t: 'mission_state',
+        v,
+        modules: parsed.modules as MissionModuleState[],
+        loadout: parsed.loadout as unknown as Loadout,
+      };
     }
     case 'carve': {
       const e = parseCarveEvent(parsed.e);

@@ -200,6 +200,7 @@ export function buildSnapshot(game: Game): DaySnapshot {
     brigades: game.brigades ? [...game.brigades.getBrigades()] : [],
     sectors: game.brigades ? [...game.brigades.getSectors()] : [],
     conveyors: game.conveyors ? [...game.conveyors.getModules()] : [],
+    missions: game.missions ? game.missions.getSnapshot() : [],
     moneyWire: BigValue.fromNumber(game.run.money).toWire(),
     carbonWire: BigValue.fromNumber(game.run.carbon).toWire(),
     quotaWire: BigValue.fromNumber(game.run.quota).toWire(),

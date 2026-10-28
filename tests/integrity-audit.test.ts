@@ -188,8 +188,11 @@ describe('FASE 6A — Auditoría de Integridad y Cero Stubs', () => {
       };
 
       const resEquip = applyPurchaseToRun(run, 'certification:rappel_harness');
-      expect(resEquip).not.toBeNull();
-      expect(resEquip?.cost).toBe(0);
+      expect(resEquip).toBeNull();
+      run.loadout.certifications = ['rappel_harness'];
+      const resUnlocked = applyPurchaseToRun(run, 'certification:rappel_harness');
+      expect(resUnlocked).not.toBeNull();
+      expect(resUnlocked?.cost).toBe(0);
       expect(hasUtilityActive(run.loadout, 'rappel_harness')).toBe(true);
 
       // Clic nuevamente desequipa la utilidad

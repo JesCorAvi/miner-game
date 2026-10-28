@@ -131,6 +131,33 @@ export interface CertificationDefinition {
   requiredDays: number;
 }
 
+export type MissionType = 'seal' | 'anchor' | 'sample' | 'probe';
+
+export type MissionStatus = 'active' | 'carrying' | 'complete';
+
+export interface MissionObjectiveState {
+  id: string;
+  kind: 'vent' | 'anchor' | 'core' | 'node';
+  x: number;
+  y: number;
+  z: number;
+  done: boolean;
+  nodeId?: string;
+}
+
+export interface MissionModuleState {
+  id: string;
+  type: MissionType;
+  name: string;
+  x: number;
+  y: number;
+  z: number;
+  depth: number;
+  reward: CertificationId;
+  status: MissionStatus;
+  objectives: MissionObjectiveState[];
+}
+
 export interface WeaponDefinition {
   id: WeaponId;
   slot: number;

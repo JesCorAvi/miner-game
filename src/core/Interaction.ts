@@ -623,6 +623,9 @@ export function handleInteract(game: Game): void {
     depositCargo(game);
     return;
   }
+  if (game.missions.tryInteract(game)) {
+    return;
+  }
   const winch = game.winches.findNearestInteractive(game.player.getPosition(), game.terrain);
   if (winch) {
     game.winches.startRide(winch.winch.id, winch.targetY, winch.direction);
@@ -677,6 +680,13 @@ export function updateInteractionState(game: Game): void {
         ? `${actionLabel} · ${formatNumber(game.cargoCoal)} t · ${formatMoney(game.cargoMoney)} · ${formatNumber(pieces)} PIEZAS`
         : 'TOLVA VACÍA · EXTRAE MINERAL Y VUELVE',
     };
+    return;
+  }
+
+  const missionPrompt = game.missions.getPrompt(game.player.getPosition());
+  if (missionPrompt) {
+    game.ladders.clearGhost();
+    game.interactionPrompt = { key: 'E', text: missionPrompt };
     return;
   }
 

@@ -6,10 +6,10 @@ import {
   parseHostMessage,
 } from '../src/network/Protocol';
 
-describe('Protocolo de Red v16 (P2P WebRTC)', () => {
-  it('versión del protocolo y prefijo de PeerJS sincronizados a v16', () => {
-    expect(PROTOCOL_VERSION).toBe(16);
-    expect(PEER_ID_PREFIX).toContain('v16');
+describe('Protocolo de Red v17 (P2P WebRTC)', () => {
+  it('versión del protocolo y prefijo de PeerJS sincronizados a v17', () => {
+    expect(PROTOCOL_VERSION).toBe(17);
+    expect(PEER_ID_PREFIX).toContain('v17');
   });
 
   it('rechaza mensajes con versión de protocolo incompatible', () => {
