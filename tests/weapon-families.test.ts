@@ -90,8 +90,10 @@ describe('Familias de armas y profesiones', () => {
     const run = defaultRun();
     run.loadout.profession = 'shaman';
     run.money = 1_000_000;
-    const pistol = buildShopItems(run).find((item) => item.id === 'weapon:pistol');
-    expect(pistol?.level).toContain('BLOQUEADA');
+    const items = buildShopItems(run);
+    expect(items.find((item) => item.id === 'weapon:pistol')).toBeUndefined();
+    expect(items.find((item) => item.id === 'weapon:shotgun')).toBeUndefined();
+    expect(items.find((item) => item.id === 'weapon:poisonGun')).toBeDefined();
     expect(applyPurchaseToRun(run, 'weapon:pistol')).toBeNull();
     expect(applyPurchaseToRun(run, 'weapon:poisonGun')).not.toBeNull();
   });
@@ -111,9 +113,11 @@ describe('Familias de armas y profesiones', () => {
     expect(professionCanUseWeapon('shotgunner', 'shotgun')).toBe(true);
     expect(professionCanUseWeapon('shotgunner', 'pistol')).toBe(false);
     expect(professionCanUseWeapon('shotgunner', 'minigun')).toBe(false);
+    expect(professionCanUseWeapon('shotgunner', 'pickaxe')).toBe(false);
     expect(professionCanUseWeapon('martialArtist', 'boxingGlove')).toBe(true);
     expect(professionCanUseWeapon('martialArtist', 'roundhouseKick')).toBe(true);
     expect(professionCanUseWeapon('martialArtist', 'axe')).toBe(false);
+    expect(professionCanUseWeapon('martialArtist', 'pickaxe')).toBe(false);
     expect(professionAllowsJetpack('shotgunner')).toBe(false);
     expect(professionAllowsJetpack('gunslinger')).toBe(true);
     expect(professionMoveSpeedMultiplier('martialArtist')).toBeGreaterThan(1);
@@ -157,6 +161,33 @@ describe('Familias de armas y profesiones', () => {
     expect(maxJetpackFuel(shotgunnerFuel)).toBe(0);
   });
 
+  it('la tienda solo muestra familias comprables por la clase', () => {
+    for (const profession of PROFESSION_ORDER) {
+      const run = defaultRun();
+      run.loadout.profession = profession;
+      run.money = 1_000_000;
+      const weaponIds = buildShopItems(run)
+        .filter((item) => item.kind === 'weapon')
+        .map((item) => item.id.replace('weapon:', ''));
+      for (const weapon of weaponIds) {
+        expect(professionCanUseWeapon(profession, weapon)).toBe(true);
+      }
+    }
+    const shotgunner = defaultRun();
+    shotgunner.loadout.profession = 'shotgunner';
+    const shotgunnerWeapons = buildShopItems(shotgunner)
+      .filter((item) => item.kind === 'weapon')
+      .map((item) => item.id);
+    expect(shotgunnerWeapons).toEqual(['weapon:shotgun']);
+
+    const martial = defaultRun();
+    martial.loadout.profession = 'martialArtist';
+    const martialWeapons = buildShopItems(martial)
+      .filter((item) => item.kind === 'weapon')
+      .map((item) => item.id);
+    expect(martialWeapons).toEqual(['weapon:boxingGlove', 'weapon:roundhouseKick']);
+  });
+
   it('la tienda aplica descuentos y bloqueos de clase', () => {
     const shotgunner = defaultRun();
     shotgunner.loadout.profession = 'shotgunner';
@@ -182,11 +213,9 @@ describe('Familias de armas y profesiones', () => {
     expect(applyPurchaseToRun(shotgunner, 'weapon:shotgun')).not.toBeNull();
     expect(shotgunner.loadout.weaponTiers?.shotgun).toBe(2);
 
-    const pickaxeCard = shotgunnerItems.find((item) => item.id === 'pickaxe:1');
-    expect(pickaxeCard).toBeDefined();
-    expect(applyPurchaseToRun(shotgunner, 'pickaxe:1')).not.toBeNull();
-    expect(shotgunner.loadout.weapons.pickaxe).toBe(true);
-    expect(shotgunner.loadout.pickaxeTier).toBe(1);
+    expect(shotgunnerItems.find((item) => item.id === 'pickaxe:1')).toBeUndefined();
+    expect(shotgunnerItems.some((item) => item.id === 'weapon:pistol')).toBe(false);
+    expect(applyPurchaseToRun(shotgunner, 'pickaxe:1')).toBeNull();
 
     const martial = defaultRun();
     martial.loadout.profession = 'martialArtist';

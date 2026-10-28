@@ -24,7 +24,6 @@ import {
   hireCost,
   pickaxeTierDefinition,
   professionCanUseWeapon,
-  professionDefinition,
   professionGrenadeCostMultiplier,
   professionShopLockReason,
   professionWeaponDiscount,
@@ -140,17 +139,7 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
     }
     const family = weaponFamily(weapon);
     if (!professionCanUseWeapon(profession, weapon)) {
-      items.push({
-        id: `weapon:${weapon}`,
-        kind: 'weapon',
-        title: family.name,
-        description: `${family.description} [BLOQUEADA POR PROFESIÓN: ${professionDefinition(profession).shortName} no puede usar esta familia.]`,
-        cost: 0,
-        level: 'BLOQUEADA POR PROFESIÓN',
-        owned: false,
-        maxed: true,
-        affordable: false,
-      });
+      // La tienda solo muestra el arsenal comprable de la clase.
       continue;
     }
     const currentTier = Math.max(
@@ -189,43 +178,45 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
     });
   }
 
-  const ownsPickaxe = Boolean(run.loadout.weapons.pickaxe);
-  const currentPickaxe = ownsPickaxe
-    ? Math.max(1, run.loadout.pickaxeTier ?? 1)
-    : 0;
-  if (!ownsPickaxe) {
-    const firstPickaxe = pickaxeTierDefinition(1);
-    items.push({
-      id: 'pickaxe:1',
-      kind: 'pickaxe',
-      title: `PICO · ${firstPickaxe.name}`,
-      description: `Tu clase empieza sin pico. Cómpralo para poder excavar con él. Fuerza ${formatNumber(firstPickaxe.strength)}.`,
-      cost: firstPickaxe.buy,
-      level: 'TIER 1 / 15',
-      owned: false,
-      maxed: false,
-      affordable: canAfford(run, firstPickaxe.buy),
-    });
-  } else {
-    const nextPickaxe = pickaxeTierDefinition(Math.min(15, currentPickaxe + 1));
-    const canUpgradePickaxe = currentPickaxe < 15;
-    const tradeIn = currentPickaxe > 1 ? pickaxeTierDefinition(currentPickaxe).sell : 0;
-    const pickaxeCost = canUpgradePickaxe ? Math.max(0, nextPickaxe.buy - tradeIn) : 0;
-    items.push({
-      id: `pickaxe:${Math.min(15, currentPickaxe + 1)}`,
-      kind: 'pickaxe',
-      title: canUpgradePickaxe
-        ? `PICO · ${nextPickaxe.name}`
-        : `PICO · ${pickaxeTierDefinition(currentPickaxe).name}`,
-      description: canUpgradePickaxe
-        ? `Fuerza ${formatNumber(nextPickaxe.strength)} · recompra del pico actual incluida (${formatMoney(tradeIn)}).`
-        : 'Pico de máxima potencia homologado.',
-      cost: pickaxeCost,
-      level: `TIER ${Math.min(15, currentPickaxe + 1)} / 15`,
-      owned: false,
-      maxed: !canUpgradePickaxe,
-      affordable: canUpgradePickaxe && canAfford(run, pickaxeCost),
-    });
+  if (professionCanUseWeapon(profession, 'pickaxe')) {
+    const ownsPickaxe = Boolean(run.loadout.weapons.pickaxe);
+    const currentPickaxe = ownsPickaxe
+      ? Math.max(1, run.loadout.pickaxeTier ?? 1)
+      : 0;
+    if (!ownsPickaxe) {
+      const firstPickaxe = pickaxeTierDefinition(1);
+      items.push({
+        id: 'pickaxe:1',
+        kind: 'pickaxe',
+        title: `PICO · ${firstPickaxe.name}`,
+        description: `Tu clase no incluye pico de serie. Cómpralo para excavar con él. Fuerza ${formatNumber(firstPickaxe.strength)}.`,
+        cost: firstPickaxe.buy,
+        level: 'TIER 1 / 15',
+        owned: false,
+        maxed: false,
+        affordable: canAfford(run, firstPickaxe.buy),
+      });
+    } else {
+      const nextPickaxe = pickaxeTierDefinition(Math.min(15, currentPickaxe + 1));
+      const canUpgradePickaxe = currentPickaxe < 15;
+      const tradeIn = currentPickaxe > 1 ? pickaxeTierDefinition(currentPickaxe).sell : 0;
+      const pickaxeCost = canUpgradePickaxe ? Math.max(0, nextPickaxe.buy - tradeIn) : 0;
+      items.push({
+        id: `pickaxe:${Math.min(15, currentPickaxe + 1)}`,
+        kind: 'pickaxe',
+        title: canUpgradePickaxe
+          ? `PICO · ${nextPickaxe.name}`
+          : `PICO · ${pickaxeTierDefinition(currentPickaxe).name}`,
+        description: canUpgradePickaxe
+          ? `Fuerza ${formatNumber(nextPickaxe.strength)} · recompra del pico actual incluida (${formatMoney(tradeIn)}).`
+          : 'Pico de máxima potencia homologado.',
+        cost: pickaxeCost,
+        level: `TIER ${Math.min(15, currentPickaxe + 1)} / 15`,
+        owned: false,
+        maxed: !canUpgradePickaxe,
+        affordable: canUpgradePickaxe && canAfford(run, pickaxeCost),
+      });
+    }
   }
 
   // Patentes corporativas I a VI
@@ -554,6 +545,9 @@ export function applyPurchaseToRun(run: RunSnapshot, itemId: string): PurchaseRe
     }
     label = `${family.name} T${nextTier} · daño ${formatNumber(familyTierDamage(weapon, nextTier))}`;
   } else if (kind === 'pickaxe') {
+    if (!professionCanUseWeapon(run.loadout.profession, 'pickaxe')) {
+      return null;
+    }
     const tier = parseInt(rawId, 10);
     const ownsPickaxe = Boolean(run.loadout.weapons.pickaxe);
     const current = ownsPickaxe ? Math.max(1, run.loadout.pickaxeTier ?? 1) : 0;

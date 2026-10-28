@@ -21,6 +21,7 @@ import { renderShopLoadoutSummary, renderShopPassives } from './ShopSideView';
 import type { ReturnRouteStatus } from '../core/ReturnPlanner';
 import { FloatingNoticeView, type ToastTone } from './FloatingNoticeView';
 import { LobbyView, type LobbyViewData } from './LobbyView';
+import { bindProfessionMenu } from './ProfessionMenuView';
 export type { ShopViewData } from './shopView';
 export type { ToastTone } from './FloatingNoticeView';
 const LADDER_DIAL_CORES: Record<LadderOrientation, string> = {
@@ -280,6 +281,7 @@ export class UI {
   }
 
   private bind(): void {
+    bindProfessionMenu(this.menuProfession, required<HTMLElement>('menu-profession-info'));
     this.startNew.addEventListener('click', () => this.actions.startSolo());
     this.startContinue.addEventListener('click', () => this.actions.continueRun());
     this.createRoomButton.addEventListener('click', () => {
@@ -342,10 +344,7 @@ export class UI {
 
   private updateClock(): void {
     const now = new Date();
-    setText(
-      this.menuClock,
-      `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`,
-    );
+    setText(this.menuClock, `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
   }
 
   getPlayerName(): string {

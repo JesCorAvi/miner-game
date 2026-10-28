@@ -23,9 +23,10 @@ export interface ProfessionDefinition {
 }
 
 /**
- * Acceso de cada profesión a las familias de armas. El pico es universal.
- * Solitario, Mula y Generalista conservan todo el catálogo; su identidad está
- * en las restricciones de plantilla y en sus bonus.
+ * Acceso de cada profesión a las familias de armas. El pico solo es universal
+ * para las clases cuyo pool lo incluye; el Escopetero y el Artista Marcial son
+ * las excepciones estrictas del referente. Solitario, Mula y Generalista
+ * conservan todo el catálogo.
  */
 export const PROFESSION_WEAPON_POOLS: Record<string, readonly string[]> = {
   internship: [
@@ -42,10 +43,10 @@ export const PROFESSION_WEAPON_POOLS: Record<string, readonly string[]> = {
   ],
   shaman: ['pickaxe', 'poisonGun', 'poisonStaff', 'flamethrower', 'magicStaff'],
   gunslinger: ['pickaxe', 'pistol', 'rifle', 'minigun', 'shotgun', 'tank'],
-  shotgunner: ['pickaxe', 'shotgun'],
+  shotgunner: ['shotgun'],
   wizard: ['pickaxe', 'magicStaff', 'poisonStaff', 'waterStaff', 'orb', 'tesla'],
   barbarian: ['pickaxe', 'axe', 'battleaxe', 'boxingGlove', 'roundhouseKick'],
-  martialArtist: ['pickaxe', 'boxingGlove', 'roundhouseKick'],
+  martialArtist: ['boxingGlove', 'roundhouseKick'],
   loneRanger: [...WEAPON_FAMILY_ORDER],
   demolitionist: ['pickaxe', 'drill', 'shotgun', 'mortar', 'earthquake'],
   waterbender: ['pickaxe', 'drill', 'waterGun', 'waterStaff'],
@@ -75,9 +76,6 @@ export function professionCanUseWeapon(
   id: string | null | undefined,
   weaponId: string,
 ): boolean {
-  if (weaponId === 'pickaxe') {
-    return true;
-  }
   return professionWeaponPool(id).includes(weaponId);
 }
 

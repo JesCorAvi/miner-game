@@ -253,6 +253,16 @@
   font-size: 0.7rem;
 }
 
+.menu-profession-info {
+  width: min(420px, 100%);
+  margin: 6px 0 0;
+  color: var(--gold, #e6a449);
+  font-family: var(--mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.04em;
+  line-height: 1.45;
+}
+
 .menu-actions {
   display: flex;
   flex-wrap: wrap;
