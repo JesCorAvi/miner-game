@@ -13,6 +13,7 @@ import { MAPS } from '../data/maps';
 import type { DifficultyModifier, GameMode, ProfessionId, WeaponId } from '../types';
 import { itemIconUrl } from './ItemIcon';
 import { cssHex } from './MineralIcon';
+import { professionAccent, professionEmblemUrl } from './ProfessionEmblem';
 import { loadSetupPreferences, saveSetupPreferences } from '../save/SaveManager';
 
 export interface ExpeditionConfig {
@@ -255,8 +256,7 @@ export class ExpeditionSetupView {
   private buildClasses(): void {
     for (const id of PROFESSION_ORDER) {
       const definition = professionDefinition(id);
-      const startingWeapon = professionStartingWeapon(id) as WeaponId;
-      const accent = cssHex(weaponFamily(startingWeapon).color);
+      const accent = professionAccent(id);
       const card = node('button', 'setup-class-card') as HTMLButtonElement;
       card.type = 'button';
       card.id = `setup-class-${id}`;
@@ -264,7 +264,7 @@ export class ExpeditionSetupView {
       card.style.setProperty('--class-accent', accent);
       card.title = `${definition.name}: ${definition.motto}`;
       const icon = node('img', 'setup-class-icon');
-      icon.src = itemIconUrl({ kind: 'tool', weapon: startingWeapon });
+      icon.src = professionEmblemUrl(id);
       icon.alt = '';
       const copy = node('span', 'setup-class-copy');
       copy.append(
@@ -349,9 +349,9 @@ export class ExpeditionSetupView {
     const definition = professionDefinition(this.selectedProfession);
     const startingWeapon = professionStartingWeapon(this.selectedProfession) as WeaponId;
     const pool = professionWeaponPool(this.selectedProfession);
-    const accent = cssHex(weaponFamily(startingWeapon).color);
+    const accent = professionAccent(this.selectedProfession);
     const heroIcon = node('img', 'setup-hero-icon-image');
-    heroIcon.src = itemIconUrl({ kind: 'tool', weapon: startingWeapon });
+    heroIcon.src = professionEmblemUrl(this.selectedProfession);
     heroIcon.alt = '';
     this.heroIcon.replaceChildren(heroIcon);
     this.heroIcon.style.setProperty('--class-accent', accent);

@@ -12,6 +12,7 @@ import {
   type PickaxeMaterials,
 } from './PickaxeModel';
 import { buildFamilyWeaponModel, familyWeaponPose } from './WeaponModels';
+import { resetWeaponModelMaterials } from './WeaponModelKit';
 
 interface ModelRig {
   group: THREE.Group;
@@ -26,42 +27,10 @@ interface ModelRig {
 const REST_POSITION = new THREE.Vector3(0.4, -0.62, -0.68);
 const REST_ROTATION = new THREE.Euler(0.06, 0.3, 0.22, 'YXZ');
 
-const WEAPON_POSES: Record<string, { position: THREE.Vector3; rotation: THREE.Euler }> = {
-  pickaxe: {
-    position: REST_POSITION.clone(),
-    rotation: REST_ROTATION.clone(),
-  },
-  tesla: {
-    position: new THREE.Vector3(0.42, -0.42, -0.76),
-    rotation: new THREE.Euler(-0.09, -0.22, 0.18, 'YXZ'),
-  },
-  drill: {
-    position: new THREE.Vector3(0.42, -0.4, -0.8),
-    rotation: new THREE.Euler(-0.04, -0.12, 0.12, 'YXZ'),
-  },
-  shotgun: {
-    position: new THREE.Vector3(0.45, -0.45, -0.74),
-    rotation: new THREE.Euler(-0.06, -0.18, 0.08, 'YXZ'),
-  },
+const PICKAXE_POSE = {
+  position: REST_POSITION.clone(),
+  rotation: REST_ROTATION.clone(),
 };
-
-function standardMaterial(
-  color: number,
-  _roughness: number,
-  _metalness: number,
-  emissive = 0x000000,
-  emissiveIntensity = 0,
-): THREE.MeshBasicMaterial {
-  const resolved = new THREE.Color(color);
-  if (emissiveIntensity > 0) {
-    resolved.lerp(new THREE.Color(emissive), Math.min(0.82, emissiveIntensity * 0.62));
-  }
-  return new THREE.MeshBasicMaterial({
-    color: resolved,
-    fog: false,
-    toneMapped: false,
-  });
-}
 
 export class ToolView {
   private readonly root = new THREE.Group();
@@ -69,11 +38,6 @@ export class ToolView {
   private readonly viewCamera: THREE.PerspectiveCamera;
   private readonly mainCamera: THREE.PerspectiveCamera;
   private readonly rigs = new Map<WeaponId, ModelRig>();
-  private readonly gloveMaterial: THREE.MeshBasicMaterial;
-  private readonly darkMetal: THREE.MeshBasicMaterial;
-  private readonly steel: THREE.MeshBasicMaterial;
-  private readonly amber: THREE.MeshBasicMaterial;
-  private readonly cyan: THREE.MeshBasicMaterial;
   private readonly pickaxeMaterials: PickaxeMaterials;
   private active: WeaponId = 'pickaxe';
   private visible = false;
@@ -102,19 +66,11 @@ export class ToolView {
     this.viewCamera.add(this.root);
     this.buildViewLights();
 
-    this.gloveMaterial = standardMaterial(0x4a4033, 0, 0);
-    this.darkMetal = standardMaterial(0x202728, 0, 0);
-    this.steel = standardMaterial(0x727c77, 0, 0);
-    this.amber = standardMaterial(0xd88631, 0, 0);
-    this.cyan = standardMaterial(0x57d5de, 0, 0);
     this.pickaxeMaterials = createPickaxeMaterials();
 
     this.rigs.set('pickaxe', this.buildPickaxe());
-    this.rigs.set('tesla', this.buildTesla());
-    this.rigs.set('drill', this.buildDrill());
-    this.rigs.set('shotgun', this.buildShotgun());
     for (const id of WEAPON_FAMILY_ORDER) {
-      if (this.rigs.has(id)) {
+      if (id === 'pickaxe') {
         continue;
       }
       const family = weaponFamily(id);
@@ -148,11 +104,13 @@ export class ToolView {
     rim.target.position.set(0, 0, -0.7);
     const warm = new THREE.PointLight(0xffa860, 1.1, 3.5, 2);
     warm.position.set(0.65, -0.35, 0.35);
-    this.viewScene.add(ambient, hemisphere, key, key.target, rim, rim.target, warm);
+    const fill = new THREE.PointLight(0xffe3c2, 0.85, 4, 2);
+    fill.position.set(0.12, 0.05, 0.55);
+    this.viewScene.add(ambient, hemisphere, key, key.target, rim, rim.target, warm, fill);
   }
 
   private buildPickaxe(): ModelRig {
-    const pose = WEAPON_POSES.pickaxe;
+    const pose = PICKAXE_POSE;
     const { group, muzzle } = buildPickaxeModel(this.pickaxeMaterials);
     group.position.copy(pose.position);
     group.rotation.copy(pose.rotation);
@@ -165,196 +123,6 @@ export class ToolView {
       restRotation: pose.rotation.clone(),
       muzzle,
     };
-  }
-
-  private buildTesla(): ModelRig {
-    const group = new THREE.Group();
-    const pose = WEAPON_POSES.tesla;
-    group.position.copy(pose.position);
-    group.rotation.copy(pose.rotation);
-    group.scale.setScalar(0.72);
-
-    const handle = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.03, 0.045, 0.8, 7),
-      this.darkMetal,
-    );
-    handle.position.y = -0.05;
-    handle.rotation.z = 0.06;
-    group.add(handle);
-    const core = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.36, 6), this.cyan);
-    core.position.set(0.02, 0.25, 0);
-    group.add(core);
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.12, 0.16), this.steel);
-    head.position.set(0.02, 0.49, 0);
-    group.add(head);
-    const prongLeft = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.26, 4), this.steel);
-    prongLeft.position.set(-0.29, 0.49, 0);
-    prongLeft.rotation.z = Math.PI / 2;
-    group.add(prongLeft);
-    const prongRight = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.26, 4), this.steel);
-    prongRight.position.set(0.31, 0.49, 0);
-    prongRight.rotation.z = -Math.PI / 2;
-    group.add(prongRight);
-
-    const coilGroup = new THREE.Group();
-    coilGroup.position.set(0.02, 0.25, 0);
-    for (let index = 0; index < 4; index += 1) {
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(0.085 + index * 0.018, 0.012, 4, 10),
-        this.cyan,
-      );
-      ring.rotation.x = Math.PI / 2;
-      ring.position.y = -0.12 + index * 0.08;
-      coilGroup.add(ring);
-    }
-    group.add(coilGroup);
-    this.addFist(group, -0.18, -0.35, 0.12, 0.45);
-
-    const muzzle = new THREE.Object3D();
-    muzzle.position.set(0.02, 0.48, -0.14);
-    group.add(muzzle);
-    this.root.add(group);
-    this.prepareGroup(group);
-    return {
-      group,
-      restPosition: pose.position.clone(),
-      restRotation: pose.rotation.clone(),
-      muzzle,
-      movingPart: coilGroup,
-      ...this.makeFlash(group, 0x7beaff, 0.15),
-    };
-  }
-
-  private buildDrill(): ModelRig {
-    const group = new THREE.Group();
-    const pose = WEAPON_POSES.drill;
-    group.position.copy(pose.position);
-    group.rotation.copy(pose.rotation);
-    group.scale.setScalar(0.7);
-
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.28, 0.55), this.darkMetal);
-    body.position.set(0, 0.1, 0.02);
-    group.add(body);
-    const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 0.23, 8), this.steel);
-    collar.rotation.x = Math.PI / 2;
-    collar.position.set(0, 0.06, -0.32);
-    group.add(collar);
-
-    const bitGroup = new THREE.Group();
-    bitGroup.position.set(0, 0.06, -0.43);
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.58, 6), this.steel);
-    shaft.rotation.x = Math.PI / 2;
-    bitGroup.add(shaft);
-    for (let index = 0; index < 4; index += 1) {
-      const flight = new THREE.Mesh(
-        new THREE.BoxGeometry(0.22, 0.035, 0.11),
-        index % 2 === 0 ? this.steel : this.darkMetal,
-      );
-      flight.position.z = -0.2 + index * 0.13;
-      flight.rotation.z = index * 1.7;
-      flight.rotation.y = 0.45;
-      bitGroup.add(flight);
-    }
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.26, 6), this.amber);
-    tip.rotation.x = -Math.PI / 2;
-    tip.position.z = -0.4;
-    bitGroup.add(tip);
-    group.add(bitGroup);
-
-    const tankLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.38, 7), this.cyan);
-    tankLeft.position.set(-0.18, 0.26, 0.12);
-    tankLeft.rotation.z = 0.16;
-    group.add(tankLeft);
-    const tankRight = tankLeft.clone();
-    tankRight.position.x = 0.18;
-    tankRight.rotation.z = -0.16;
-    group.add(tankRight);
-    const pipe = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.015, 4, 12, Math.PI), this.steel);
-    pipe.position.set(0, 0.42, 0.08);
-    pipe.rotation.z = 0;
-    group.add(pipe);
-    const vent = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.06, 0.16), this.amber);
-    vent.position.set(0, 0.27, 0.24);
-    group.add(vent);
-    this.addFist(group, -0.11, -0.19, 0.16, 0.35);
-
-    const muzzle = new THREE.Object3D();
-    muzzle.position.set(0, 0.06, -0.7);
-    group.add(muzzle);
-    this.root.add(group);
-    this.prepareGroup(group);
-    return {
-      group,
-      restPosition: pose.position.clone(),
-      restRotation: pose.rotation.clone(),
-      muzzle,
-      movingPart: bitGroup,
-      ...this.makeFlash(group, 0xfcb45c, 0.18),
-    };
-  }
-
-  private buildShotgun(): ModelRig {
-    const group = new THREE.Group();
-    const pose = WEAPON_POSES.shotgun;
-    group.position.copy(pose.position);
-    group.rotation.copy(pose.rotation);
-    group.scale.setScalar(0.74);
-
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.86, 7), this.steel);
-    barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.14, -0.18);
-    group.add(barrel);
-    const under = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.032, 0.65, 6), this.darkMetal);
-    under.rotation.x = Math.PI / 2;
-    under.position.set(0, 0.02, -0.15);
-    group.add(under);
-    const pump = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.1, 0.22, 7), this.gloveMaterial);
-    pump.rotation.x = Math.PI / 2;
-    pump.position.set(0, 0.02, -0.27);
-    group.add(pump);
-    const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.19, 0.3), this.darkMetal);
-    receiver.position.set(0, 0.09, 0.2);
-    group.add(receiver);
-    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.2, 0.36), this.gloveMaterial);
-    stock.position.set(0, 0.0, 0.45);
-    stock.rotation.x = -0.24;
-    group.add(stock);
-    const sight = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.06, 0.03), this.amber);
-    sight.position.set(0, 0.23, -0.43);
-    group.add(sight);
-    this.addFist(group, -0.04, -0.16, 0.22, 0.25);
-
-    const muzzle = new THREE.Object3D();
-    muzzle.position.set(0, 0.14, -0.62);
-    group.add(muzzle);
-    this.root.add(group);
-    this.prepareGroup(group);
-    return {
-      group,
-      restPosition: pose.position.clone(),
-      restRotation: pose.rotation.clone(),
-      muzzle,
-      movingPart: pump,
-      ...this.makeFlash(group, 0xffce7d, 0.26),
-    };
-  }
-
-  private addFist(
-    group: THREE.Group,
-    x: number,
-    y: number,
-    z: number,
-    rotationZ: number,
-  ): void {
-    const fist = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.2, 0.19), this.gloveMaterial);
-    fist.position.set(x, y, z);
-    fist.rotation.z = rotationZ;
-    group.add(fist);
-    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.24, 7), this.darkMetal);
-    cuff.position.set(x - 0.1, y - 0.18, z + 0.1);
-    cuff.rotation.z = rotationZ + 0.3;
-    cuff.rotation.x = 0.25;
-    group.add(cuff);
   }
 
   private makeFlash(
@@ -503,13 +271,11 @@ export class ToolView {
     if (tier <= 0 || !PATENTS[tier]) {
       this.pickaxeMaterials.edge.emissive.setHex(0x101617);
       this.pickaxeMaterials.edge.emissiveIntensity = 0.12;
-      this.cyan.color.setHex(0x59d7e7);
       return;
     }
     const patent = PATENTS[tier];
     this.pickaxeMaterials.edge.emissive.setHex(patent.emissive);
     this.pickaxeMaterials.edge.emissiveIntensity = 0.55;
-    this.cyan.color.setHex(patent.emissive);
   }
 
   setFiringHeld(firing: boolean): void {
@@ -729,6 +495,7 @@ export class ToolView {
     for (const light of lights) {
       light.dispose();
     }
+    resetWeaponModelMaterials();
   }
 
   getActive(): WeaponId {
@@ -749,28 +516,37 @@ function weaponScale(weapon: WeaponId): number {
     case 'pickaxe':
       return 1.08;
     case 'tesla':
-      return 1.04;
+      return 1.15;
     case 'drill':
-      return 0.98;
+      return 1.1;
     case 'shotgun':
-      return 1;
+    case 'pistol':
+    case 'rifle':
+    case 'minigun':
+      return 1.45;
     case 'axe':
     case 'battleaxe':
-      return 1.1;
+      return 1;
     case 'boxingGlove':
-      return 1.55;
+      return 0.7;
     case 'roundhouseKick':
-      return 1.3;
+      return 0.75;
     case 'magicStaff':
     case 'poisonStaff':
     case 'waterStaff':
-      return 1.05;
-    case 'orb':
       return 1.15;
+    case 'orb':
+      return 1.7;
+    case 'jet':
+      return 1.35;
     case 'tank':
     case 'mortar':
     case 'earthquake':
-      return 1.12;
+      return 1.35;
+    case 'flamethrower':
+    case 'poisonGun':
+    case 'waterGun':
+      return 1.4;
     default:
       return 1;
   }
