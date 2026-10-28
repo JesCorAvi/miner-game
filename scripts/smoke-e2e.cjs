@@ -55,6 +55,25 @@ async function runE2E() {
       logs.push('[E2E] 3. Excavación realizada: sólidos=' + initialSolids + ' -> ' + postCarveSolids);
       if (postCarveSolids >= initialSolids) throw new Error('El carve de terreno no redujo los sólidos');
 
+      // 3.5 Probar familias con comportamientos únicos
+      game.run.loadout.weapons.tank = true;
+      game.run.loadout.weaponTiers.tank = 1;
+      game.syncEquipmentInventory();
+      game.activeWeapon = 'tank';
+      game.tools.setActive('tank', false);
+      game.tryUseWeapon();
+      if (game.projectiles.length === 0) {
+        throw new Error('La familia de proyectil no generó un proyectil');
+      }
+      await wait(250);
+      game.activeWeapon = 'battleaxe';
+      game.tools.setActive('battleaxe', false);
+      game.tryUseWeapon();
+      game.activeWeapon = 'earthquake';
+      game.tools.setActive('earthquake', false);
+      game.tryUseWeapon();
+      logs.push('[E2E] 3.5 Familias de arma: proyectil, órbita y sísmica ejecutadas');
+
       // 4. Recoger mineral y carbón en inventario
       game.inventory.addMineral('coal', 15, 0, 1.2);
       game.inventory.addMineral('iron', 0, 120, 0.8);

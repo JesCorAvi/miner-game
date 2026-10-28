@@ -1,38 +1,39 @@
 import * as THREE from 'three';
 import {
-  GRENADE_AREA_RADIUS,
-  GRENADE_BLAST_RADIUS,
-  GRENADE_FUSE,
-  GRENADE_TIERS,
-  PIT_HALF,
   WEAPONS,
   carveRadiusMultiplier,
   cooldownMultiplier,
   damageMultiplier,
   layerAtDepth,
   weaponDamageScale,
+  weaponFamily,
   weaponPassiveMultiplier,
   weaponProfessionMultiplier,
   professionCarveMultiplier,
-  professionGrenadeDamageMultiplier,
 } from '../config';
 import {
   PATENTS,
   computeEffectiveRadius,
   computeTotalCarveMultiplier,
 } from './Progression';
-import { passiveMultiplier } from '../config';
 import {
   PROTOCOL_VERSION,
   type FxWire,
 } from '../network/Protocol';
-import type { CarveEvent, GrenadeTierId, WeaponId } from '../types';
+import type { CarveEvent, WeaponId } from '../types';
 import type { NodeRayHit, ResourceNode } from '../world/Resources';
 import { CARVE_HISTORY_LIMIT } from './GameConstants';
 import type { AimTarget } from './GameTypes';
 import { hashString } from './Rng';
 import { cloneLoadout, roundCoordinate } from './RunState';
 import { PICKAXE_IMPACT_FRACTION } from '../player/PickaxeModel';
+import {
+  fireOrbitWeapon,
+  fireProjectileWeapon,
+  fireQuakeWeapon,
+} from './Projectiles';
+
+export { throwGrenade, updateProjectiles, clearProjectiles } from './Projectiles';
 import type { Game } from './Game';
 export function breakNodeAsHost(game: Game, node: ResourceNode, by: string): void {
   if (node.broken) {
@@ -318,6 +319,33 @@ export function applyLocalCarve(game: Game, event: CarveEvent): void {
   }
 }
 
+type WeaponBehavior =
+  | 'melee'
+  | 'chain'
+  | 'continuous'
+  | 'hitscan'
+  | 'projectile'
+  | 'orbit'
+  | 'quake';
+
+function weaponBehavior(weaponId: WeaponId): WeaponBehavior {
+  const family = weaponFamily(weaponId);
+  if (family.id === 'battleaxe') return 'orbit';
+  if (family.id === 'earthquake') return 'quake';
+  if (
+    family.model === 'staff' ||
+    family.model === 'mortar' ||
+    family.model === 'tank' ||
+    family.model === 'jet'
+  ) {
+    return 'projectile';
+  }
+  if (family.style === 'melee') return 'melee';
+  if (family.style === 'chain') return 'chain';
+  if (family.style === 'continuous') return 'continuous';
+  return 'hitscan';
+}
+
 export function tryUseWeapon(game: Game): void {
   if (game.cooldowns[game.activeWeapon] > 0) {
     return;
@@ -330,7 +358,7 @@ export function tryUseWeapon(game: Game): void {
   const cooldown = weapon.cooldown * cooldownMultiplier(game.run.loadout);
   game.cooldowns[weaponId] = cooldown;
   game.tools.playFire(weaponId, weapon.style === 'melee' ? cooldown : undefined);
-  switch (weapon.style) {
+  switch (weaponBehavior(weaponId)) {
     case 'melee':
       game.pendingPickaxeStrike = cooldown * PICKAXE_IMPACT_FRACTION;
       break;
@@ -340,8 +368,17 @@ export function tryUseWeapon(game: Game): void {
     case 'continuous':
       fireDrill(game);
       break;
-    case 'shotgun':
+    case 'hitscan':
       fireShotgun(game);
+      break;
+    case 'projectile':
+      fireProjectileWeapon(game);
+      break;
+    case 'orbit':
+      fireOrbitWeapon(game);
+      break;
+    case 'quake':
+      fireQuakeWeapon(game);
       break;
   }
 }
@@ -666,153 +703,6 @@ function fireShotgun(game: Game): void {
       9,
     );
   }
-}
-
-export function throwGrenade(game: Game, tier: GrenadeTierId): boolean {
-  const definition = GRENADE_TIERS[tier];
-  if (!definition) {
-    return false;
-  }
-  const origin = game.player.getEyePosition().clone();
-  const direction = game.player.getAimDirection();
-  origin.addScaledVector(direction, 0.7);
-  const mesh = new THREE.Mesh(game.grenadeGeometry, game.grenadeMaterial);
-  mesh.position.copy(origin);
-  game.scene.add(mesh);
-  game.projectiles.push({
-    mesh,
-    position: origin.clone(),
-    velocity: direction
-      .clone()
-      .multiplyScalar(18)
-      .add(game.player.getVelocity().clone().multiplyScalar(0.35)),
-    fuse: GRENADE_FUSE,
-    bounces: 0,
-    tier,
-  });
-  game.audio.playShot(origin, 'grenade');
-  game.player.addShake(0.12);
-  return true;
-}
-
-export function updateProjectiles(game: Game, dt: number): void {
-  for (let index = game.projectiles.length - 1; index >= 0; index -= 1) {
-    const projectile = game.projectiles[index];
-    projectile.fuse -= dt;
-    projectile.velocity.y -= 19 * dt;
-    const candidate = projectile.position
-      .clone()
-      .addScaledVector(projectile.velocity, dt);
-    let detonate = false;
-    if (game.terrain.isSolid(candidate.x, candidate.y, candidate.z)) {
-      const normal = game.terrain.getNormal(candidate.x, candidate.y, candidate.z);
-      const dot =
-        projectile.velocity.x * normal.x +
-        projectile.velocity.y * normal.y +
-        projectile.velocity.z * normal.z;
-      projectile.velocity.addScaledVector(normal, -1.35 * dot).multiplyScalar(0.45);
-      projectile.position.addScaledVector(normal, 0.22);
-      projectile.bounces += 1;
-      game.effects.spawnHit(candidate.clone(), 0xffad5e, 0.35);
-      if (projectile.bounces >= 3 && projectile.velocity.length() < 2.2) {
-        detonate = true;
-      }
-    } else {
-      projectile.position.copy(candidate);
-    }
-    if (
-      projectile.position.x < -PIT_HALF + 0.4 ||
-      projectile.position.x > PIT_HALF - 0.4 ||
-      projectile.position.z < -PIT_HALF + 0.4 ||
-      projectile.position.z > PIT_HALF - 0.4
-    ) {
-      projectile.position.x = THREE.MathUtils.clamp(
-        projectile.position.x,
-        -PIT_HALF + 0.5,
-        PIT_HALF - 0.5,
-      );
-      projectile.position.z = THREE.MathUtils.clamp(
-        projectile.position.z,
-        -PIT_HALF + 0.5,
-        PIT_HALF - 0.5,
-      );
-      projectile.velocity.x *= -0.3;
-      projectile.velocity.z *= -0.3;
-    }
-    projectile.mesh.position.copy(projectile.position);
-    if (projectile.fuse <= 0 || detonate) {
-      explodeGrenade(game, projectile.position.clone(), projectile.tier);
-      game.scene.remove(projectile.mesh);
-      game.projectiles.splice(index, 1);
-    }
-  }
-}
-
-function explodeGrenade(
-  game: Game,
-  position: THREE.Vector3,
-  tier: GrenadeTierId,
-): void {
-  const definition = GRENADE_TIERS[tier];
-  const radiusBonus = Math.max(0, carveRadiusMultiplier(game.run.loadout) - 1);
-  const { effectiveRadius, extraFracture } = computeEffectiveRadius('grenade', GRENADE_AREA_RADIUS, radiusBonus);
-  game.effects.spawnExplosion(position, effectiveRadius, definition.color);
-  game.audio.playExplosion(position, effectiveRadius);
-  const distance = game.player.getPosition().distanceTo(position);
-  game.player.addShake(THREE.MathUtils.clamp(1.2 - distance / 18, 0.2, 1.1));
-  const layer = layerAtDepth(Math.max(0, -position.y));
-  const canBreak = layer.biomeIndex <= definition.maxLayer;
-  if (canBreak) {
-    const patentCarve = computeTotalCarveMultiplier(game.run.loadout);
-    const professionCarve = professionCarveMultiplier(game.run.loadout.profession);
-    applyLocalCarve(game, {
-      x: roundCoordinate(position.x, 3),
-      y: roundCoordinate(position.y, 3),
-      z: roundCoordinate(position.z, 3),
-      r: roundCoordinate(effectiveRadius * professionCarve, 2),
-      s: roundCoordinate(definition.carveStrength * patentCarve * professionCarve, 2),
-      shape: definition.shape,
-      length: definition.length,
-      dirX: 0,
-      dirY: -1,
-      dirZ: 0,
-    });
-    const nodes = game.resources.getNearby(position, GRENADE_BLAST_RADIUS);
-    for (const node of nodes) {
-      if (layerAtDepth(Math.max(0, -node.y)).biomeIndex > definition.maxLayer) {
-        continue;
-      }
-      damageNodeLocally(
-        game,
-        node,
-        definition.damage *
-          damageMultiplier(game.run.loadout, 'grenade') *
-          extraFracture *
-          passiveMultiplier('bombDamage', game.run.loadout.passives.bombDamage ?? 0) *
-          professionGrenadeDamageMultiplier(game.run.loadout.profession),
-      );
-    }
-  } else {
-    game.ui.spawnFloat(
-      position,
-      `POTENCIA INSUFICIENTE · BIOMA ${layer.biomeIndex} · NECESITA BIOMA ${definition.maxLayer}+`,
-      'amber',
-    );
-  }
-  sendFx(game, {
-    kind: 'explosion',
-    x: position.x,
-    y: position.y,
-    z: position.z,
-    radius: GRENADE_AREA_RADIUS,
-  });
-}
-
-export function clearProjectiles(game: Game): void {
-  for (const projectile of game.projectiles) {
-    game.scene.remove(projectile.mesh);
-  }
-  game.projectiles.length = 0;
 }
 
 function weaponSound(weaponId: WeaponId): 'pickaxe' | 'tesla' | 'drill' | 'shotgun' {

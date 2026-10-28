@@ -10,7 +10,15 @@ export interface GrenadeProjectile {
   velocity: THREE.Vector3;
   fuse: number;
   bounces: number;
-  tier: GrenadeTierId;
+  tier?: GrenadeTierId;
+  kind?: 'grenade' | 'weapon';
+  weaponId?: string;
+  damage?: number;
+  blastRadius?: number;
+  carveRadius?: number;
+  carveStrength?: number;
+  color?: number;
+  gravity?: number;
 }
 
 export interface AimTarget {
