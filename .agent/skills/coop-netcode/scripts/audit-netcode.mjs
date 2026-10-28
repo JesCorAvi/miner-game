@@ -226,7 +226,7 @@ if (
 ) {
   fail('parseLadder(): debe validar orientation vertical/horizontal/diagonal');
 }
-if (!protocol.includes('bounded(parsed.dmg, 1, 500)')) {
+if (!protocol.includes('bounded(parsed.dmg, 1, 1e30)')) {
   warn('parseClientMessage(node_hit): el daño del cliente debería acotarse');
 }
 if (!protocol.includes('bounded(parsed.coal, 0,')) {

@@ -4,6 +4,7 @@ import {
   WEAPON_FAMILIES,
   WEAPON_ORDER,
   WEAPONS,
+  cooldownMultiplier,
   familyTierBuy,
   familyTierDamage,
   familyTierSell,
@@ -119,8 +120,13 @@ describe('Familias de armas y profesiones', () => {
     expect(professionJumpMultiplier('martialArtist')).toBeGreaterThan(1);
   });
 
-  it('cada clase entrega su arma inicial y el jetpack de serie', () => {
+  it('cada clase entrega solo su arma inicial y el jetpack de serie', () => {
     for (const profession of PROFESSION_ORDER) {
+      const loadout = makeDefaultLoadout();
+      loadout.profession = profession;
+      applyProfessionStartingKit(loadout);
+      const owned = WEAPON_ORDER.filter((weapon) => loadout.weapons[weapon]);
+      expect(owned).toEqual([professionStartingWeapon(profession)]);
       expect(professionCanUseWeapon(profession, professionStartingWeapon(profession))).toBe(true);
     }
     const shotgunner = makeDefaultLoadout();
@@ -128,6 +134,15 @@ describe('Familias de armas y profesiones', () => {
     applyProfessionStartingKit(shotgunner);
     expect(shotgunner.weapons.shotgun).toBe(true);
     expect(shotgunner.weaponTiers?.shotgun).toBe(1);
+    expect(shotgunner.weapons.pickaxe).toBe(false);
+    expect(shotgunner.weaponTiers?.pickaxe).toBe(0);
+    expect(shotgunner.pickaxeTier).toBe(0);
+
+    const internship = makeDefaultLoadout();
+    internship.profession = 'internship';
+    applyProfessionStartingKit(internship);
+    expect(internship.weapons.pickaxe).toBe(true);
+    expect(internship.weapons.shotgun).toBe(false);
 
     const maverick = makeDefaultLoadout();
     maverick.profession = 'maverick';
@@ -145,6 +160,7 @@ describe('Familias de armas y profesiones', () => {
   it('la tienda aplica descuentos y bloqueos de clase', () => {
     const shotgunner = defaultRun();
     shotgunner.loadout.profession = 'shotgunner';
+    applyProfessionStartingKit(shotgunner.loadout);
     shotgunner.money = 1_000_000;
     const shotgunnerItems = buildShopItems(shotgunner);
     expect(shotgunnerItems.find((item) => item.id === 'upgrade:jetpack')?.level).toContain(
@@ -164,7 +180,13 @@ describe('Familias de armas y profesiones', () => {
       weaponUpgradeCost('shotgun', 0, 'generalist'),
     );
     expect(applyPurchaseToRun(shotgunner, 'weapon:shotgun')).not.toBeNull();
-    expect(shotgunner.loadout.weaponTiers?.shotgun).toBe(1);
+    expect(shotgunner.loadout.weaponTiers?.shotgun).toBe(2);
+
+    const pickaxeCard = shotgunnerItems.find((item) => item.id === 'pickaxe:1');
+    expect(pickaxeCard).toBeDefined();
+    expect(applyPurchaseToRun(shotgunner, 'pickaxe:1')).not.toBeNull();
+    expect(shotgunner.loadout.weapons.pickaxe).toBe(true);
+    expect(shotgunner.loadout.pickaxeTier).toBe(1);
 
     const martial = defaultRun();
     martial.loadout.profession = 'martialArtist';
@@ -209,5 +231,18 @@ describe('Familias de armas y profesiones', () => {
     expect(weaponProfessionMultiplier(loadout, 'pistol')).toBeGreaterThan(1);
     loadout.passives.bulletDamage = 4;
     expect(weaponPassiveMultiplier(loadout, 'pistol')).toBeGreaterThan(1);
+  });
+
+  it('las pasivas de cadencia reducen el enfriamiento de su familia', () => {
+    const loadout = makeDefaultLoadout();
+    const baseTank = cooldownMultiplier(loadout, 'tank');
+    const baseMortar = cooldownMultiplier(loadout, 'mortar');
+    loadout.passives.tankRate = 4;
+    loadout.passives.mortarRate = 2;
+    expect(cooldownMultiplier(loadout, 'tank')).toBeLessThan(baseTank);
+    expect(cooldownMultiplier(loadout, 'mortar')).toBeLessThan(baseMortar);
+    expect(cooldownMultiplier(loadout, 'pistol')).toBe(
+      cooldownMultiplier(makeDefaultLoadout(), 'pistol'),
+    );
   });
 });

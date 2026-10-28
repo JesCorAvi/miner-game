@@ -7,7 +7,10 @@ import {
 } from '../config';
 import { PeerNetwork } from '../network/PeerNetwork';
 import type { DifficultyModifier, GameMode, LadderOrientation, Loadout, WeaponId } from '../types';
-import { applyProfessionStartingKit } from '../data/professions';
+import {
+  applyProfessionStartingKit,
+  professionCanUseWeapon,
+} from '../data/professions';
 import { BigValue } from './BigValue';
 import { randomSeed } from './Rng';
 import { cloneLoadout, cloneStats, defaultRun } from './RunState';
@@ -406,7 +409,10 @@ export function closeLadderDial(game: Game, commit: boolean): void {
 
 export function firstOwnedWeapon(loadout: Loadout): WeaponId {
   for (const weapon of WEAPON_ORDER) {
-    if (loadout.weapons[weapon]) {
+    if (
+      loadout.weapons[weapon] &&
+      professionCanUseWeapon(loadout.profession, weapon)
+    ) {
       return weapon;
     }
   }

@@ -582,9 +582,32 @@ export function weaponDamageScale(
   return familyTierDamage(weaponId, tier) / Math.max(1, familyTierDamage(weaponId, 1));
 }
 
-export function cooldownMultiplier(loadout: Loadout): number {
+export function cooldownMultiplier(
+  loadout: Loadout,
+  weaponId?: WeaponId,
+): number {
   const base = Math.max(0.36, 1 - loadout.upgrades.speed * 0.06);
-  const speed = passiveMultiplier('pickaxeSpeed', loadout.passives.pickaxeSpeed ?? 0);
+  let passiveId: string | null =
+    weaponId === 'tank'
+      ? 'tankRate'
+      : weaponId === 'mortar'
+        ? 'mortarRate'
+        : weaponId === 'boxingGlove'
+          ? 'punchSpeed'
+          : weaponId === 'roundhouseKick'
+            ? 'kickSpeed'
+            : weaponId === 'jet'
+              ? 'airstrikeRate'
+              : weaponId === 'magicStaff' ||
+                  weaponId === 'poisonStaff' ||
+                  weaponId === 'waterStaff'
+                ? 'magicRegen'
+                : weaponId === undefined || weaponId === 'pickaxe' || weaponId === 'tesla'
+                  ? 'pickaxeSpeed'
+                  : null;
+  const speed = passiveId
+    ? passiveMultiplier(passiveId, loadout.passives[passiveId] ?? 0)
+    : 1;
   return Math.max(0.08, base / speed);
 }
 

@@ -44,6 +44,12 @@ export interface ResourceNode {
   meshType: ResourceType;
   hitSpheres: NodeHitSphere[];
   aimRadius: number;
+  /** Instante (ms) hasta el que la veta recibe daño doble por Mojado. */
+  wetUntil: number;
+  /** Estado de veneno activo sobre la veta. */
+  poisonUntil: number;
+  poisonDps: number;
+  poisonNextTick: number;
 }
 
 export interface NodeRayHit {
@@ -324,6 +330,10 @@ export class Resources {
             meshType: spec.type,
             hitSpheres,
             aimRadius: aimRadiusFor(placed.x, placed.y, placed.z, hitSpheres),
+            wetUntil: 0,
+            poisonUntil: 0,
+            poisonDps: 0,
+            poisonNextTick: 0,
           };
           this.nodes.push(node);
           this.byId.set(id, node);
@@ -384,6 +394,10 @@ export class Resources {
         meshType: 'chest',
         hitSpheres,
         aimRadius: aimRadiusFor(placed.x, placed.y, placed.z, hitSpheres),
+        wetUntil: 0,
+        poisonUntil: 0,
+        poisonDps: 0,
+        poisonNextTick: 0,
       };
       this.nodes.push(node);
       this.byId.set(id, node);

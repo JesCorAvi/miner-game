@@ -17,7 +17,7 @@
 | `hello` | `name` | Handshake al conectar | `sanitizeName`, 16 chars |
 | `state` | `state: PlayerWireState` | 20 Hz | posiciones ±13/±125, yaw finito, pitch ±1.6, arma válida |
 | `carve` | `e: CarveEvent` | Cada excavación | `x ±12.5`, `y -121..6`, `z ±12.5`, `r 0.1..5.5`, `s 0.05..2.5` |
-| `node_hit` | `id`, `dmg` | Cada golpe | `dmg 1..500`, `id` 96 chars |
+| `node_hit` | `id`, `dmg` | Cada golpe | `dmg 1..1e30` (tiers profundos), `id` 96 chars |
 | `node_break` | `id`, `dropSeed` | Rotura predicha | `dropSeed` uint32, `id` 96 chars |
 | `deposit` | `coal`, `money`, `lines: DaySaleLine[]` | `E` junto a la tolva | enteros 0..1.000.000; `lines` ≤32, mineral válido, importes acotados |
 | `grenade_use` | `tier` | Cliente lanza una granada | `tier` ∈ frag/charge/breach/seismic |

@@ -11,6 +11,7 @@ import {
   pickaxeSwingCurve,
   type PickaxeMaterials,
 } from './PickaxeModel';
+import { buildFamilyWeaponModel, familyWeaponPose } from './WeaponModels';
 
 interface ModelRig {
   group: THREE.Group;
@@ -117,18 +118,21 @@ export class ToolView {
         continue;
       }
       const family = weaponFamily(id);
-      const base =
-        family.style === 'melee'
-          ? 'pickaxe'
-          : family.style === 'chain'
-            ? 'tesla'
-            : family.style === 'continuous'
-              ? 'drill'
-              : 'shotgun';
-      const rig = this.rigs.get(base);
-      if (rig) {
-        this.rigs.set(id, rig);
-      }
+      const built = buildFamilyWeaponModel(family);
+      const pose = familyWeaponPose(family);
+      built.group.position.copy(pose.position);
+      built.group.rotation.copy(pose.rotation);
+      built.group.scale.setScalar(pose.scale);
+      this.root.add(built.group);
+      this.prepareGroup(built.group);
+      this.rigs.set(id, {
+        group: built.group,
+        restPosition: pose.position.clone(),
+        restRotation: pose.rotation.clone(),
+        muzzle: built.muzzle,
+        movingPart: built.movingPart,
+        ...this.makeFlash(built.group, built.flashColor, built.flashSize),
+      });
     }
     this.setActive('pickaxe', false);
   }
@@ -633,7 +637,9 @@ export class ToolView {
           (Math.random() - 0.5) * impactJolt * 0.02,
         'YXZ',
       );
-      rig.group.scale.setScalar(PICKAXE_SCALE * (0.97 + this.switchProgress * 0.03));
+      rig.group.scale.setScalar(
+        PICKAXE_SCALE * weaponScale(this.active) * (0.97 + this.switchProgress * 0.03),
+      );
     } else {
       const targetX = rig.restPosition.x + bobX;
       const targetY = rig.restPosition.y + bobY + switchOffset - jetTilt * 0.4;
@@ -676,6 +682,8 @@ export class ToolView {
       }
     } else if (WEAPONS[this.active]?.style === 'chain' && rig.movingPart) {
       rig.movingPart.rotation.y += safeDt * 1.6;
+    } else if (this.active === 'minigun' && rig.movingPart) {
+      rig.movingPart.rotation.z += safeDt * (this.swingTimer > 0 ? 42 : 5);
     }
 
     if (rig.flash && this.active !== 'drill' && rig.flash.visible) {
@@ -746,6 +754,23 @@ function weaponScale(weapon: WeaponId): number {
       return 0.98;
     case 'shotgun':
       return 1;
+    case 'axe':
+    case 'battleaxe':
+      return 1.1;
+    case 'boxingGlove':
+      return 1.55;
+    case 'roundhouseKick':
+      return 1.3;
+    case 'magicStaff':
+    case 'poisonStaff':
+    case 'waterStaff':
+      return 1.05;
+    case 'orb':
+      return 1.15;
+    case 'tank':
+    case 'mortar':
+    case 'earthquake':
+      return 1.12;
     default:
       return 1;
   }

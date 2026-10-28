@@ -1,4 +1,4 @@
-import { GRENADE_TIERS, WEAPONS } from '../config';
+import { GRENADE_TIERS, WEAPONS, weaponFamily } from '../config';
 import type {
   EmployeeKind,
   GrenadeTierId,
@@ -137,6 +137,160 @@ function drawShotgun(context: CanvasRenderingContext2D): void {
   context.closePath();
   context.fill();
   outline(context);
+}
+
+function drawAxeIcon(context: CanvasRenderingContext2D): void {
+  context.strokeStyle = '#6d4526';
+  context.lineWidth = 6;
+  context.lineCap = 'round';
+  context.beginPath();
+  context.moveTo(23, 56);
+  context.lineTo(38, 14);
+  context.stroke();
+  context.fillStyle = '#9aa7a4';
+  context.beginPath();
+  context.moveTo(35, 13);
+  context.lineTo(57, 20);
+  context.lineTo(53, 40);
+  context.lineTo(34, 31);
+  context.closePath();
+  context.fill();
+  context.fillStyle = '#d7e0dc';
+  context.beginPath();
+  context.moveTo(52, 21);
+  context.lineTo(59, 24);
+  context.lineTo(56, 37);
+  context.lineTo(51, 39);
+  context.closePath();
+  context.fill();
+  outline(context);
+}
+
+function drawStaffIcon(context: CanvasRenderingContext2D, color: string): void {
+  context.strokeStyle = '#6d4526';
+  context.lineWidth = 6;
+  context.lineCap = 'round';
+  context.beginPath();
+  context.moveTo(28, 57);
+  context.lineTo(36, 16);
+  context.stroke();
+  context.fillStyle = color;
+  context.beginPath();
+  context.arc(38, 13, 9, 0, Math.PI * 2);
+  context.fill();
+  outline(context);
+  context.strokeStyle = color;
+  context.lineWidth = 3;
+  context.beginPath();
+  context.arc(38, 13, 13, 0, Math.PI * 2);
+  context.stroke();
+}
+
+function drawOrbIcon(context: CanvasRenderingContext2D, color: string): void {
+  context.fillStyle = color;
+  context.beginPath();
+  context.arc(32, 30, 12, 0, Math.PI * 2);
+  context.fill();
+  outline(context);
+  context.strokeStyle = color;
+  context.lineWidth = 3;
+  context.beginPath();
+  context.ellipse(32, 30, 21, 8, -0.35, 0, Math.PI * 2);
+  context.stroke();
+  context.beginPath();
+  context.ellipse(32, 30, 8, 21, 0.35, 0, Math.PI * 2);
+  context.stroke();
+}
+
+function drawGloveIcon(context: CanvasRenderingContext2D): void {
+  context.fillStyle = '#8c4a42';
+  context.beginPath();
+  context.roundRect(15, 18, 30, 32, 8);
+  context.fill();
+  outline(context);
+  context.fillStyle = '#c46a5c';
+  context.fillRect(20, 37, 20, 7);
+  context.fillStyle = '#4a4033';
+  context.fillRect(25, 48, 12, 9);
+}
+
+function drawBootIcon(context: CanvasRenderingContext2D): void {
+  context.fillStyle = '#4a4033';
+  context.fillRect(24, 10, 16, 28);
+  context.fillStyle = '#6b5642';
+  context.beginPath();
+  context.moveTo(24, 34);
+  context.lineTo(52, 38);
+  context.lineTo(54, 51);
+  context.lineTo(24, 51);
+  context.closePath();
+  context.fill();
+  outline(context);
+  context.fillStyle = '#2f2b27';
+  context.fillRect(24, 48, 32, 6);
+}
+
+function drawCannonIcon(context: CanvasRenderingContext2D, color: string): void {
+  context.fillStyle = '#3b403a';
+  context.beginPath();
+  context.roundRect(10, 22, 30, 22, 4);
+  context.fill();
+  outline(context);
+  context.fillStyle = color;
+  context.fillRect(38, 27, 20, 12);
+  context.strokeStyle = '#202728';
+  context.lineWidth = 3;
+  context.strokeRect(38, 27, 20, 12);
+  context.fillStyle = '#6d4526';
+  context.fillRect(17, 40, 12, 13);
+}
+
+function drawWeaponIcon(context: CanvasRenderingContext2D, weapon: WeaponId): void {
+  const family = weaponFamily(weapon);
+  if (weapon === 'pickaxe') {
+    drawPickaxe(context);
+    return;
+  }
+  if (weapon === 'tesla') {
+    drawTesla(context);
+    return;
+  }
+  if (weapon === 'drill') {
+    drawDrill(context);
+    return;
+  }
+  if (weapon === 'axe' || weapon === 'battleaxe') {
+    drawAxeIcon(context);
+    return;
+  }
+  if (weapon === 'boxingGlove') {
+    drawGloveIcon(context);
+    return;
+  }
+  if (weapon === 'roundhouseKick') {
+    drawBootIcon(context);
+    return;
+  }
+  if (family.model === 'staff') {
+    drawStaffIcon(context, cssHex(family.color));
+    return;
+  }
+  if (family.model === 'orb') {
+    drawOrbIcon(context, cssHex(family.color));
+    return;
+  }
+  if (
+    family.model === 'tank' ||
+    family.model === 'mortar' ||
+    family.model === 'quake' ||
+    family.model === 'jet'
+  ) {
+    drawCannonIcon(context, cssHex(family.color));
+    return;
+  }
+  drawShotgun(context);
+  context.fillStyle = cssHex(family.color);
+  context.fillRect(12, 20, 8, 4);
 }
 
 function drawLadder(context: CanvasRenderingContext2D): void {
@@ -466,17 +620,9 @@ export function itemIconUrl(item: ItemIconKind): string {
     case 'mineral':
       return mineralIconUrl(item.mineral);
     case 'tool':
-      return canvasFor(`tool-${item.weapon}`, (context) => {
-        if (item.weapon === 'pickaxe') {
-          drawPickaxe(context);
-        } else if (item.weapon === 'tesla') {
-          drawTesla(context);
-        } else if (item.weapon === 'drill') {
-          drawDrill(context);
-        } else {
-          drawShotgun(context);
-        }
-      });
+      return canvasFor(`tool-${item.weapon}`, (context) =>
+        drawWeaponIcon(context, item.weapon),
+      );
     case 'grenade':
       return canvasFor(`grenade-${item.tier}`, (context) => drawGrenade(context, item.tier));
     case 'ladder':

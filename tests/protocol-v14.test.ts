@@ -12,6 +12,34 @@ describe('Protocolo de Red v18 (P2P WebRTC)', () => {
     expect(PEER_ID_PREFIX).toContain('v18');
   });
 
+  it('acepta daño de arma de alto tier en node_hit', () => {
+    const client = parseClientMessage(
+      JSON.stringify({
+        v: PROTOCOL_VERSION,
+        t: 'node_hit',
+        id: 'd1-gold-1',
+        dmg: 1e24,
+      }),
+    );
+    expect(client?.t).toBe('node_hit');
+    if (client && client.t === 'node_hit') {
+      expect(client.dmg).toBe(1e24);
+    }
+    const host = parseHostMessage(
+      JSON.stringify({
+        v: PROTOCOL_VERSION,
+        t: 'node_hit',
+        id: 'd1-gold-1',
+        dmg: 1e24,
+        by: 'p1',
+      }),
+    );
+    expect(host?.t).toBe('node_hit');
+    if (host && host.t === 'node_hit') {
+      expect(host.dmg).toBe(1e24);
+    }
+  });
+
   it('rechaza mensajes con versión de protocolo incompatible', () => {
     const rawOldClient = JSON.stringify({
       v: 11, // versión antigua

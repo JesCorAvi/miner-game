@@ -18,7 +18,7 @@ import {
 } from '../network/Protocol';
 import type { RunStats } from '../types';
 import { formatNumber } from '../ui/format';
-import { clearProjectiles } from './Combat';
+import { clearProjectiles } from './Projectiles';
 import { buildDayReport, computeFootprintStage } from './DaySettlement';
 import { discardCargo } from './Interaction';
 import { randomSeed } from './Rng';
@@ -136,6 +136,7 @@ export function loadSnapshot(game: Game, snapshot: DaySnapshot, authority: boole
     game.cooldowns[weapon] = 0;
   }
   clearProjectiles(game);
+  game.poisonedNodes.clear();
   game.clearCargo();
   game.closeInventory();
   game.syncEquipmentInventory();
@@ -255,6 +256,7 @@ export function applyShopSnapshot(game: Game, snapshot: DaySnapshot): void {
     (snapshot.day === VICTORY_DAY || snapshot.day === TRUE_VICTORY_DAY) &&
     !snapshot.infinite &&
     (snapshot.mode ?? 'normal') !== 'peaceful';
+  game.poisonedNodes.clear();
   game.syncEquipmentInventory();
   game.input.setEnabled(false);
   game.input.unlock();

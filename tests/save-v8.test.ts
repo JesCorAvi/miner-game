@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { SAVE_KEY, makeDefaultLoadout } from '../src/config';
+import { applyProfessionStartingKit } from '../src/data/professions';
 import { SaveManager } from '../src/save/SaveManager';
 
 describe('Migración de Guardado v9 y Carga de Partida', () => {
@@ -22,6 +23,32 @@ describe('Migración de Guardado v9 y Carga de Partida', () => {
     (globalThis as unknown as { window: { localStorage: typeof mockLocalStorage } }).window = {
       localStorage: mockLocalStorage,
     };
+  });
+
+  it('conserva una clase sin pico al guardar y cargar', () => {
+    const manager = new SaveManager();
+    const loadout = makeDefaultLoadout();
+    loadout.profession = 'shotgunner';
+    applyProfessionStartingKit(loadout);
+    expect(manager.save({
+      day: 1,
+      money: 0,
+      infinite: false,
+      loadout,
+      stats: {
+        coalMined: 0,
+        moneyEarned: 0,
+        nodesBroken: 0,
+        chestsOpened: 0,
+        daysCompleted: 0,
+        playSeconds: 0,
+      },
+      playerName: 'Escopetero',
+    })).toBe(true);
+    const loaded = manager.load();
+    expect(loaded?.loadout.weapons.shotgun).toBe(true);
+    expect(loaded?.loadout.weapons.pickaxe).toBe(false);
+    expect(loaded?.loadout.pickaxeTier).toBe(0);
   });
 
   it('guarda en la clave v9 con versión 9 y limpia claves legacy', () => {

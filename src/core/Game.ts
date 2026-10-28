@@ -66,6 +66,9 @@ import { emptyDayLedger, recordDeposit, type DayLedger } from './DaySettlement';
 import type { ActiveRole, AimTarget, GrenadeProjectile } from './GameTypes';
 import { defaultRun } from './RunState';
 import * as Combat from './Combat';
+import * as Projectiles from './Projectiles';
+import * as WeaponCombat from './WeaponCombat';
+import { updatePoisonStatuses } from './WeaponStatus';
 import * as DayCycle from './DayCycle';
 import * as Hud from './Hud';
 import * as Interaction from './Interaction';
@@ -136,9 +139,8 @@ export class Game {
   activeWeapon: WeaponId = 'pickaxe';
   activeHotbarSlot = 0;
   grenadeCooldown = 0;
-  readonly cooldowns: Record<WeaponId, number> = Object.fromEntries(
-    WEAPON_ORDER.map((weapon) => [weapon, 0]),
-  ) as Record<WeaponId, number>;
+  readonly cooldowns = Object.fromEntries(WEAPON_ORDER.map((weapon) => [weapon, 0])) as Record<WeaponId, number>;
+  readonly poisonedNodes = new Map<string, ResourceNode>();
   aim: AimTarget | null = null;
   aimAccumulator = 0;
   hudAccumulator = 0;
@@ -450,7 +452,7 @@ export class Game {
         this.input.isLocked() &&
         this.input.isAttacking() &&
         hasTool &&
-        this.activeWeapon === 'drill',
+        WeaponCombat.isContinuousWeapon(this.activeWeapon),
     );
     this.player.headlamp.visible =
       this.phase === 'playing' && this.input.isLocked();
@@ -464,7 +466,7 @@ export class Game {
         this.input.isLocked() &&
         this.input.isAttacking() &&
         hasTool &&
-        this.activeWeapon === 'drill',
+        WeaponCombat.isContinuousWeapon(this.activeWeapon),
     );
     this.perf.end('audio');
     this.ui.updateFloats();
@@ -494,6 +496,7 @@ export class Game {
 
     this.updatePendingPickaxeStrike(dt);
     this.updateProjectiles(dt);
+    updatePoisonStatuses(this, dt);
     this.perf.begin('terrain');
     this.terrain.update(this.camera.position, dt > 0.033 || this.perf.isDegraded());
     this.perf.end('terrain');
@@ -626,7 +629,7 @@ export class Game {
   updateHud(): void { Hud.updateHud(this); }
   updateAim(forceUi: boolean): void { Hud.updateAim(this, forceUi); }
   computeObjective(): string { return Hud.computeObjective(this); }
-  tryUseWeapon(): void { Combat.tryUseWeapon(this); }
+  tryUseWeapon(): void { WeaponCombat.tryUseWeapon(this); }
 
   getActiveHotbarItem(): InventoryItem | null {
     return this.inventory.slots[this.activeHotbarSlot] ?? null;
@@ -654,8 +657,9 @@ export class Game {
       this.tools.setActive(item.weapon, true);
       this.tools.setPatent(this.run.loadout.patent ?? 0);
     } else {
-      this.activeWeapon = 'pickaxe';
-      this.tools.setActive('pickaxe', false);
+      const fallback = Session.firstOwnedWeapon(this.run.loadout);
+      this.activeWeapon = fallback;
+      this.tools.setActive(fallback, false);
       this.tools.setPatent(this.run.loadout.patent ?? 0);
     }
     if (item?.kind !== 'winch') {
@@ -678,7 +682,7 @@ export class Game {
       return;
     }
     if (item.kind === 'tool') {
-      Combat.tryUseWeapon(this);
+      WeaponCombat.tryUseWeapon(this);
     } else if (item.kind === 'grenade') {
       this.throwGrenade(item.tier);
     }
@@ -692,7 +696,7 @@ export class Game {
     if (item?.kind !== 'grenade' || item.tier !== tier || item.count <= 0) {
       return;
     }
-    if (!Combat.throwGrenade(this, tier)) {
+    if (!Projectiles.throwGrenade(this, tier)) {
       return;
     }
     this.grenadeCooldown = GRENADE_COOLDOWN;
@@ -776,9 +780,9 @@ export class Game {
     this.ui.showShop(ShopView.buildShopView(this));
   }
 
-  updatePendingPickaxeStrike(dt: number): void { Combat.updatePendingPickaxeStrike(this, dt); }
-  updateProjectiles(dt: number): void { Combat.updateProjectiles(this, dt); }
-  clearProjectiles(): void { Combat.clearProjectiles(this); }
+  updatePendingPickaxeStrike(dt: number): void { WeaponCombat.updatePendingWeaponStrike(this, dt); }
+  updateProjectiles(dt: number): void { Projectiles.updateProjectiles(this, dt); }
+  clearProjectiles(): void { Projectiles.clearProjectiles(this); }
   onLootCollected(collected: CollectedLoot): boolean { return Interaction.onLootCollected(this, collected); }
   staffCollect(collected: CollectedLoot, count: number): void { Interaction.staffCollect(this, collected, count); }
   carveFromStaff(event: CarveEvent): void { Combat.carveFromStaff(this, event); }

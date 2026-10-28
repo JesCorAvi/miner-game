@@ -2,15 +2,8 @@ import * as THREE from 'three';
 import {
   WEAPONS,
   carveRadiusMultiplier,
-  cooldownMultiplier,
-  damageMultiplier,
   layerAtDepth,
-  weaponDamageScale,
-  weaponFamily,
-  weaponPassiveMultiplier,
-  weaponProfessionMultiplier,
   professionCarveMultiplier,
-  professionCanUseWeapon,
 } from '../config';
 import {
   PATENTS,
@@ -22,20 +15,12 @@ import {
   type FxWire,
 } from '../network/Protocol';
 import type { CarveEvent, WeaponId } from '../types';
-import type { NodeRayHit, ResourceNode } from '../world/Resources';
+import type { ResourceNode } from '../world/Resources';
 import { CARVE_HISTORY_LIMIT } from './GameConstants';
-import type { AimTarget } from './GameTypes';
 import { hashString } from './Rng';
 import { cloneLoadout, roundCoordinate } from './RunState';
 import { addMoney } from './Economy';
-import { PICKAXE_IMPACT_FRACTION } from '../player/PickaxeModel';
-import {
-  fireOrbitWeapon,
-  fireProjectileWeapon,
-  fireQuakeWeapon,
-} from './Projectiles';
 
-export { throwGrenade, updateProjectiles, clearProjectiles } from './Projectiles';
 import type { Game } from './Game';
 export function breakNodeAsHost(game: Game, node: ResourceNode, by: string): void {
   if (node.broken) {
@@ -210,8 +195,16 @@ export function damageNodeLocally(
   if (node.broken) {
     return;
   }
-  const effectiveDamage = damage;
+  const wet = node.wetUntil > performance.now();
+  const effectiveDamage = damage * (wet ? 2 : 1);
   const result = game.resources.damage(node.id, effectiveDamage);
+  if (wet && Math.random() < 0.25) {
+    game.ui.spawnFloat(
+      new THREE.Vector3(node.x, node.y + 0.4, node.z),
+      'MOJADO ×2',
+      'cyan',
+    );
+  }
   if (!result) {
     return;
   }
@@ -321,152 +314,6 @@ export function applyLocalCarve(game: Game, event: CarveEvent): void {
   }
 }
 
-type WeaponBehavior =
-  | 'melee'
-  | 'chain'
-  | 'continuous'
-  | 'hitscan'
-  | 'projectile'
-  | 'orbit'
-  | 'quake';
-
-function weaponBehavior(weaponId: WeaponId): WeaponBehavior {
-  const family = weaponFamily(weaponId);
-  if (family.id === 'battleaxe') return 'orbit';
-  if (family.id === 'earthquake') return 'quake';
-  if (
-    family.model === 'staff' ||
-    family.model === 'mortar' ||
-    family.model === 'tank' ||
-    family.model === 'jet'
-  ) {
-    return 'projectile';
-  }
-  if (family.style === 'melee') return 'melee';
-  if (family.style === 'chain') return 'chain';
-  if (family.style === 'continuous') return 'continuous';
-  return 'hitscan';
-}
-
-export function tryUseWeapon(game: Game): void {
-  if (game.cooldowns[game.activeWeapon] > 0) {
-    return;
-  }
-  const weaponId = game.activeWeapon;
-  const weapon = WEAPONS[weaponId];
-  if (!weapon || !game.run.loadout.weapons[weaponId]) {
-    return;
-  }
-  if (!professionCanUseWeapon(game.run.loadout.profession, weaponId)) {
-    return;
-  }
-  const cooldown = weapon.cooldown * cooldownMultiplier(game.run.loadout);
-  game.cooldowns[weaponId] = cooldown;
-  game.tools.playFire(weaponId, weapon.style === 'melee' ? cooldown : undefined);
-  switch (weaponBehavior(weaponId)) {
-    case 'melee':
-      game.pendingPickaxeStrike = cooldown * PICKAXE_IMPACT_FRACTION;
-      break;
-    case 'chain':
-      fireTesla(game);
-      break;
-    case 'continuous':
-      fireDrill(game);
-      break;
-    case 'hitscan':
-      fireShotgun(game);
-      break;
-    case 'projectile':
-      fireProjectileWeapon(game);
-      break;
-    case 'orbit':
-      fireOrbitWeapon(game);
-      break;
-    case 'quake':
-      fireQuakeWeapon(game);
-      break;
-  }
-}
-
-export function updatePendingPickaxeStrike(game: Game, dt: number): void {
-  if (game.pendingPickaxeStrike <= 0) {
-    return;
-  }
-  const weapon = WEAPONS[game.activeWeapon];
-  if (
-    game.phase !== 'playing' ||
-    weapon?.style !== 'melee' ||
-    !game.run.loadout.weapons[game.activeWeapon]
-  ) {
-    game.pendingPickaxeStrike = 0;
-    return;
-  }
-  game.pendingPickaxeStrike = Math.max(0, game.pendingPickaxeStrike - dt);
-  if (game.pendingPickaxeStrike === 0) {
-    firePickaxe(game);
-  }
-}
-
-function nodeAimTarget(
-  hit: NodeRayHit,
-  direction: THREE.Vector3,
-  terrainDistance: number,
-): AimTarget {
-  const normal = hit.point
-    .clone()
-    .sub(new THREE.Vector3(hit.node.x, hit.node.y, hit.node.z));
-  if (normal.lengthSq() < 1e-6) {
-    normal.copy(direction).negate();
-  } else {
-    normal.normalize();
-  }
-  return {
-    node: hit.node,
-    point: hit.point,
-    normal,
-    distance: hit.distance,
-    terrainDistance,
-    depth: Math.max(0, -hit.node.y),
-  };
-}
-
-export function findAimTarget(
-  game: Game,
-  range: number,
-  direction?: THREE.Vector3,
-): AimTarget {
-  const origin = game.player.getEyePosition();
-  const dir = (direction ?? game.player.getAimDirection()).clone().normalize();
-  const terrainHit = game.terrain.raycast(origin, dir, range + 0.8);
-  const terrainDistance = terrainHit?.distance ?? Number.POSITIVE_INFINITY;
-  const nodeHit = game.resources.raycast(origin, dir, range, terrainDistance);
-  if (nodeHit) {
-    return nodeAimTarget(nodeHit, dir, terrainDistance);
-  }
-  const assistHit = game.resources.raycastAssist(origin, dir, range, game.terrain);
-  if (assistHit) {
-    return nodeAimTarget(assistHit, dir, terrainDistance);
-  }
-  if (terrainHit) {
-    return {
-      node: null,
-      point: new THREE.Vector3(terrainHit.x, terrainHit.y, terrainHit.z),
-      normal: terrainHit.normal,
-      distance: terrainHit.distance,
-      terrainDistance,
-      depth: terrainHit.depth,
-    };
-  }
-  return {
-    node: null,
-    point: null,
-    normal: null,
-    distance: Number.POSITIVE_INFINITY,
-    terrainDistance,
-    depth: Math.max(0, -game.player.getPosition().y),
-  };
-}
-
 export function carveTerrainAt(
   game: Game,
   point: THREE.Vector3,
@@ -520,194 +367,6 @@ export function carveTerrainAt(
     );
   }
   return true;
-}
-
-function firePickaxe(game: Game): void {
-  const weapon = WEAPONS[game.activeWeapon] ?? WEAPONS.pickaxe;
-  const reach = weapon.range + (game.run.loadout.doctrine === 'precision' ? 1.0 : 0);
-  const target = findAimTarget(game, reach);
-  const damage =
-    weapon.damage *
-    damageMultiplier(game.run.loadout, 'melee') *
-    weaponDamageScale(game.run.loadout, weapon.id) *
-    weaponPassiveMultiplier(game.run.loadout, weapon.id) *
-    weaponProfessionMultiplier(game.run.loadout, weapon.id);
-  const patentPitch = PATENTS[game.run.loadout.patent ?? 0]?.soundPitch ?? 1.0;
-  sendShotFx(game, weapon.id);
-  if (target.node) {
-    const metallic = isHardOreNode(target.node);
-    const impactPoint = target.point ?? game.player.getPosition();
-    game.loot.spawnNodeHitChips(target.node, game.terrain);
-    damageNodeLocally(game, target.node, damage, target.point, target.normal);
-    game.audio.playPickaxe(
-      impactPoint,
-      layerAtDepth(target.depth).index,
-      true,
-      metallic,
-      patentPitch,
-    );
-    game.player.addImpactShake(metallic ? 0.78 : 0.62);
-    game.tools.playImpact(metallic || target.node.type === 'chest');
-    game.ui.spawnFloat(
-      impactPoint,
-      `-${Math.round(damage)} MINERAL`,
-      'amber',
-    );
-  } else if (target.point) {
-    carveTerrainAt(
-      game,
-      target.point,
-      weapon.carveRadius,
-      weapon.carveStrength,
-      1,
-      true,
-      'pickaxe',
-    );
-  } else {
-    game.audio.playPickaxe(
-      game.player.getPosition(),
-      game.player.getLayer(),
-      false,
-      false,
-      patentPitch,
-    );
-  }
-}
-
-function fireTesla(game: Game): void {
-  const weapon = WEAPONS[game.activeWeapon] ?? WEAPONS.tesla;
-  const target = findAimTarget(game, weapon.range);
-  const origin = game.tools.getMuzzleWorldPosition(new THREE.Vector3());
-  sendShotFx(game, weapon.id);
-  game.audio.playShot(origin, 'tesla');
-  if (target.node && target.node.type !== 'chest') {
-    const mineral = target.node.mineral;
-    const clusterNodes = game.resources.getNearby(
-      new THREE.Vector3(target.node.x, target.node.y, target.node.z),
-      weapon.chainRange,
-      target.node.clusterId,
-      mineral?.id,
-    );
-    clusterNodes.sort((a, b) => {
-      return (
-        Math.hypot(a.x - target.node!.x, a.y - target.node!.y, a.z - target.node!.z) -
-        Math.hypot(b.x - target.node!.x, b.y - target.node!.y, b.z - target.node!.z)
-      );
-    });
-    const targets = clusterNodes.slice(0, weapon.chainCount + 1);
-    const points: number[] = [origin.x, origin.y, origin.z];
-    const damage = weapon.damage * damageMultiplier(game.run.loadout, 'chain') * weaponDamageScale(game.run.loadout, weapon.id) * weaponPassiveMultiplier(game.run.loadout, weapon.id) * weaponProfessionMultiplier(game.run.loadout, weapon.id);
-    for (const node of targets) {
-      points.push(node.x, node.y, node.z);
-      game.effects.spawnLightning(
-        origin,
-        new THREE.Vector3(node.x, node.y, node.z),
-        0x92edff,
-        0.36,
-      );
-      damageNodeLocally(game, node, damage);
-    }
-    if (target.point) {
-      game.effects.spawnHit(target.point, 0x91ecff, 1.25);
-    }
-    sendFx(game, {
-      kind: 'lightning',
-      points,
-    });
-  } else if (target.point) {
-    carveTerrainAt(game, target.point, weapon.carveRadius, weapon.carveStrength, 1.2);
-    game.effects.spawnLightning(origin, target.point, 0x92edff, 0.3);
-    sendFx(game, {
-      kind: 'lightning',
-      points: [origin.x, origin.y, origin.z, target.point.x, target.point.y, target.point.z],
-    });
-  }
-}
-
-function fireDrill(game: Game): void {
-  const weapon = WEAPONS[game.activeWeapon] ?? WEAPONS.drill;
-  const target = findAimTarget(game, weapon.range);
-  const origin = game.tools.getMuzzleWorldPosition(new THREE.Vector3());
-  const end = target.point ?? origin.clone().add(game.player.getAimDirection().multiplyScalar(3));
-  game.effects.setDrillBeam(origin, end, true);
-  if (target.node) {
-    const damage =
-      weapon.damage *
-      damageMultiplier(game.run.loadout, 'continuous') *
-      weaponDamageScale(game.run.loadout, weapon.id) *
-      weaponPassiveMultiplier(game.run.loadout, weapon.id) *
-      weaponProfessionMultiplier(game.run.loadout, weapon.id);
-    damageNodeLocally(game, target.node, damage);
-  }
-  if (target.point) {
-    carveTerrainAt(game, target.point, weapon.carveRadius, weapon.carveStrength, 1.35, false);
-  }
-  game.drillFxAccumulator += weapon.cooldown;
-  if (game.drillFxAccumulator > 0.22) {
-    game.drillFxAccumulator = 0;
-    sendShotFx(game, 'drill');
-  }
-  game.audio.playShot(origin, 'drill');
-}
-
-function fireShotgun(game: Game): void {
-  const weapon = WEAPONS[game.activeWeapon] ?? WEAPONS.shotgun;
-  const origin = game.player.getEyePosition();
-  const baseDirection = game.player.getAimDirection();
-  const right = new THREE.Vector3().crossVectors(baseDirection, new THREE.Vector3(0, 1, 0));
-  if (right.lengthSq() < 0.001) {
-    right.set(1, 0, 0);
-  } else {
-    right.normalize();
-  }
-  const up = new THREE.Vector3().crossVectors(right, baseDirection).normalize();
-  const damage =
-    weapon.damage *
-    damageMultiplier(game.run.loadout, 'shotgun') *
-    weaponDamageScale(game.run.loadout, weapon.id) *
-    weaponPassiveMultiplier(game.run.loadout, weapon.id) *
-    weaponProfessionMultiplier(game.run.loadout, weapon.id);
-  const hitNodes = new Set<string>();
-  for (let pellet = 0; pellet < weapon.pellets; pellet += 1) {
-    const angle = Math.random() * Math.PI * 2;
-    const spread = Math.random() * weapon.spread;
-    const direction = baseDirection
-      .clone()
-      .addScaledVector(right, Math.cos(angle) * spread)
-      .addScaledVector(up, Math.sin(angle) * spread)
-      .normalize();
-    const target = findAimTarget(game, weapon.range, direction);
-    if (target.node && !hitNodes.has(target.node.id)) {
-      hitNodes.add(target.node.id);
-      damageNodeLocally(game, target.node, damage);
-    } else if (target.point) {
-      carveTerrainAt(
-        game,
-        target.point,
-        weapon.carveRadius,
-        weapon.carveStrength,
-        0.85,
-        false,
-      );
-    }
-  }
-  sendShotFx(game, 'shotgun');
-  game.audio.playShot(origin, 'shotgun');
-  game.player.addShake(0.26);
-  if (!game.player.isGrounded() && baseDirection.y < -0.24) {
-    const impulse = new THREE.Vector3(
-      -baseDirection.x * 2.1,
-      5.4 + Math.abs(baseDirection.y) * 7.2,
-      -baseDirection.z * 2.1,
-    );
-    game.player.addImpulse(impulse);
-    game.ui.spawnFloat(game.player.getPosition(), 'SHOTGUN JUMP', 'cyan');
-    game.effects.spawnMuzzle(
-      game.player.getPosition().clone().add(new THREE.Vector3(0, 0.6, 0)),
-      0xffba74,
-      9,
-    );
-  }
 }
 
 function weaponSound(weaponId: WeaponId): 'pickaxe' | 'tesla' | 'drill' | 'shotgun' {

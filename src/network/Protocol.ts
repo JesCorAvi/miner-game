@@ -376,7 +376,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return event ? { t: 'carve', v, e: event } : null;
     }
     case 'node_hit': {
-      const dmg = bounded(parsed.dmg, 1, 500);
+      const dmg = bounded(parsed.dmg, 1, 1e30);
       if (dmg === null || typeof parsed.id !== 'string') {
         return null;
       }
@@ -780,7 +780,7 @@ export function parseHostMessage(raw: string): HostMessage | null {
       return e ? { t: 'carve', v, e, by: String(parsed.by ?? '').slice(0, 96) } : null;
     }
     case 'node_hit': {
-      const dmg = bounded(parsed.dmg, 0, 500);
+      const dmg = bounded(parsed.dmg, 0, 1e30);
       if (dmg === null || typeof parsed.id !== 'string') return null;
       return { t: 'node_hit', v, id: parsed.id.slice(0, 96), dmg, by: String(parsed.by ?? '').slice(0, 96) };
     }

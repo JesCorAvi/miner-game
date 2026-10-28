@@ -272,20 +272,25 @@ export function professionShopLockReason(
   return null;
 }
 
-/** Aplica el kit inicial de la clase: arma característica y jetpack de serie. */
+/**
+ * Aplica el kit inicial de la clase. La clase empieza con UNA sola arma:
+ * su arma característica. El pico solo se entrega al Becario; las demás
+ * clases deben comprarlo en la oficina si lo quieren recuperar.
+ */
 export function applyProfessionStartingKit(loadout: Loadout): void {
   const traits = professionTraits(loadout.profession);
-  loadout.weapons.pickaxe = true;
+  const startingWeapon = WEAPON_FAMILY_ORDER.includes(traits.startingWeapon)
+    ? traits.startingWeapon
+    : 'pickaxe';
   if (!loadout.weaponTiers) {
     loadout.weaponTiers = {};
   }
-  loadout.weaponTiers.pickaxe = Math.max(1, loadout.weaponTiers.pickaxe ?? 0);
-  loadout.pickaxeTier = Math.max(1, loadout.pickaxeTier ?? 1);
-  const weapon = traits.startingWeapon;
-  if (weapon && weapon !== 'pickaxe') {
-    loadout.weapons[weapon] = true;
-    loadout.weaponTiers[weapon] = Math.max(1, loadout.weaponTiers[weapon] ?? 0);
+  for (const weapon of WEAPON_FAMILY_ORDER) {
+    const owned = weapon === startingWeapon;
+    loadout.weapons[weapon] = owned;
+    loadout.weaponTiers[weapon] = owned ? 1 : 0;
   }
+  loadout.pickaxeTier = startingWeapon === 'pickaxe' ? 1 : 0;
   if ((traits.startingJetpack ?? 0) > 0) {
     loadout.upgrades.jetpack = Math.max(
       loadout.upgrades.jetpack,

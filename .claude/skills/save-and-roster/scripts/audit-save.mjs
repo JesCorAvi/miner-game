@@ -151,7 +151,7 @@ if (!save.includes('function normalizeLoadout(value: unknown): Loadout')) {
   for (const token of [
     'const fallback = makeDefaultLoadout();',
     'for (const id of WEAPON_ORDER)',
-    "weapons[id] = id === 'pickaxe' ? true : weaponTiers[id] > 0;",
+    "weapons[id] = id === 'pickaxe' ? wantsPickaxe : weaponTiers[id] > 0;",
     'UPGRADES[key].max',
     'for (const key of PASSIVE_ORDER)',
     'normalizeEmployees(employeesRecord)',

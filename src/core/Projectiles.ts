@@ -16,6 +16,7 @@ import {
   weaponFamily,
   weaponPassiveMultiplier,
   weaponProfessionMultiplier,
+  weaponTier,
 } from '../config';
 import {
   computeEffectiveRadius,
@@ -27,6 +28,7 @@ import type { GrenadeTierId } from '../types';
 import { roundCoordinate } from './RunState';
 import { sendFx } from './Combat';
 import { applyLocalCarve, carveTerrainAt, damageNodeLocally } from './Combat';
+import { applyPoisonArea, applyWetArea } from './WeaponStatus';
 
 const PROJECTILE_GEOMETRY = new THREE.SphereGeometry(0.16, 6, 4);
 
@@ -73,43 +75,74 @@ export function throwGrenade(game: Game, tier: GrenadeTierId): boolean {
   return true;
 }
 
+function projectileCount(game: Game, weaponId: string): number {
+  if (weaponId === 'magicStaff') {
+    const tier = Math.max(1, weaponTier(game.run.loadout, weaponId));
+    return Math.min(30, 2 + (tier - 1) * 2);
+  }
+  if (weaponId === 'jet' && !game.player.isGrounded()) {
+    return 3;
+  }
+  return 1;
+}
+
 export function fireProjectileWeapon(game: Game): void {
   const weapon = WEAPONS[game.activeWeapon];
   if (!weapon) return;
   const family = weaponFamily(weapon.id);
   const physics = projectilePhysics(family.model);
   const origin = game.tools.getMuzzleWorldPosition(new THREE.Vector3());
-  const direction = game.player.getAimDirection();
-  const material = new THREE.MeshBasicMaterial({ color: family.color });
-  const mesh = new THREE.Mesh(PROJECTILE_GEOMETRY, material);
-  mesh.position.copy(origin);
-  game.scene.add(mesh);
+  const baseDirection = game.player.getAimDirection();
+  const right = new THREE.Vector3().crossVectors(baseDirection, new THREE.Vector3(0, 1, 0));
+  if (right.lengthSq() < 0.001) {
+    right.set(1, 0, 0);
+  } else {
+    right.normalize();
+  }
+  const up = new THREE.Vector3().crossVectors(right, baseDirection).normalize();
   const damage =
     weapon.damage *
     damageMultiplier(game.run.loadout, weapon.style) *
     weaponDamageScale(game.run.loadout, weapon.id) *
     weaponPassiveMultiplier(game.run.loadout, weapon.id) *
     weaponProfessionMultiplier(game.run.loadout, weapon.id);
-  game.projectiles.push({
-    mesh,
-    position: origin.clone(),
-    velocity: direction
+  const count = projectileCount(game, weapon.id);
+  for (let index = 0; index < count; index += 1) {
+    const centered = count > 1 ? (index / (count - 1) - 0.5) * 2 : 0;
+    const jitter = count > 1 ? (Math.random() - 0.5) * 0.06 : 0;
+    const direction = baseDirection
       .clone()
-      .multiplyScalar(physics.speed)
-      .add(game.player.getVelocity().clone().multiplyScalar(0.2)),
-    fuse: physics.fuse,
-    bounces: 0,
-    kind: 'weapon',
-    weaponId: weapon.id,
-    damage,
-    blastRadius: Math.max(1.1, weapon.blastRadius),
-    carveRadius: weapon.carveRadius,
-    carveStrength: weapon.carveStrength,
-    color: family.color,
-    gravity: physics.gravity,
-  });
+      .addScaledVector(right, centered * 0.075 + jitter)
+      .addScaledVector(up, (Math.random() - 0.5) * 0.04)
+      .normalize();
+    const material = new THREE.MeshBasicMaterial({ color: family.color });
+    const mesh = new THREE.Mesh(PROJECTILE_GEOMETRY, material);
+    mesh.position.copy(origin);
+    mesh.scale.setScalar(
+      family.model === 'tank' ? 1.8 : family.model === 'mortar' ? 1.4 : family.model === 'staff' ? 0.8 : 1,
+    );
+    game.scene.add(mesh);
+    game.projectiles.push({
+      mesh,
+      position: origin.clone(),
+      velocity: direction
+        .clone()
+        .multiplyScalar(physics.speed)
+        .add(game.player.getVelocity().clone().multiplyScalar(0.2)),
+      fuse: physics.fuse,
+      bounces: 0,
+      kind: 'weapon',
+      weaponId: weapon.id,
+      damage,
+      blastRadius: Math.max(1.1, weapon.blastRadius),
+      carveRadius: weapon.carveRadius,
+      carveStrength: weapon.carveStrength,
+      color: family.color,
+      gravity: physics.gravity,
+    });
+  }
   game.audio.playShot(origin, 'shotgun');
-  game.effects.spawnMuzzle(origin, family.color, 6);
+  game.effects.spawnMuzzle(origin, family.color, count > 1 ? 9 : 6);
   game.player.addShake(0.1);
 }
 
@@ -269,6 +302,12 @@ function explodeWeaponProjectile(game: Game, projectile: GrenadeProjectile): voi
   );
   for (const node of game.resources.getNearby(position, radius)) {
     damageNodeLocally(game, node, damage);
+  }
+  const family = projectile.weaponId ? weaponFamily(projectile.weaponId) : null;
+  if (family?.id === 'poisonStaff') {
+    applyPoisonArea(game, position, radius * 1.2, damage * 0.35, 5);
+  } else if (family?.id === 'waterStaff') {
+    applyWetArea(game, position, Math.max(radius, 4), 8);
   }
   const distance = game.player.getPosition().distanceTo(position);
   game.player.addShake(THREE.MathUtils.clamp(0.8 - distance / 22, 0.1, 0.7));

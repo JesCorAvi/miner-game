@@ -50,7 +50,13 @@ async function runE2E() {
       if (!game.run.loadout.weapons.shotgun || game.run.loadout.weaponTiers.shotgun !== 1) {
         throw new Error('El kit inicial del Escopetero no entregó la escopeta T1');
       }
-      logs.push('[E2E] 2. Partida iniciada: fase=' + game.phase + ', día=' + game.run.day + ', clase=' + game.run.loadout.profession);
+      if (game.run.loadout.weapons.pickaxe || game.run.loadout.pickaxeTier !== 0) {
+        throw new Error('El Escopetero no debe empezar con pico además de su escopeta');
+      }
+      if (!(game.tools.rigs instanceof Map) || game.tools.rigs.size !== 22) {
+        throw new Error('No se construyeron los 22 modelos de arma');
+      }
+      logs.push('[E2E] 2. Partida iniciada: fase=' + game.phase + ', día=' + game.run.day + ', clase=' + game.run.loadout.profession + ', modelos=' + game.tools.rigs.size);
       if (game.phase !== 'playing' || game.run.day !== 1) {
         throw new Error('Fallo al iniciar Día 1, fase=' + game.phase + ' día=' + game.run.day);
       }
@@ -74,13 +80,48 @@ async function runE2E() {
         throw new Error('La familia de proyectil no generó un proyectil');
       }
       await wait(250);
+      game.run.loadout.weapons.battleaxe = true;
+      game.run.loadout.weaponTiers.battleaxe = 1;
+      game.run.loadout.weapons.earthquake = true;
+      game.run.loadout.weaponTiers.earthquake = 1;
+      game.syncEquipmentInventory();
       game.activeWeapon = 'battleaxe';
       game.tools.setActive('battleaxe', false);
       game.tryUseWeapon();
       game.activeWeapon = 'earthquake';
       game.tools.setActive('earthquake', false);
       game.tryUseWeapon();
-      logs.push('[E2E] 3.5 Familias de arma: proyectil, órbita y sísmica ejecutadas');
+      game.clearProjectiles();
+      game.run.loadout.weapons.magicStaff = true;
+      game.run.loadout.weaponTiers.magicStaff = 1;
+      game.syncEquipmentInventory();
+      game.activeWeapon = 'magicStaff';
+      game.tools.setActive('magicStaff', false);
+      game.tryUseWeapon();
+      if (game.projectiles.length < 2) {
+        throw new Error('El bastón mágico no lanzó su salva de misiles');
+      }
+      game.clearProjectiles();
+      const allWeapons = [
+        'pickaxe', 'tesla', 'drill', 'shotgun', 'pistol', 'rifle', 'minigun',
+        'axe', 'battleaxe', 'boxingGlove', 'roundhouseKick', 'magicStaff', 'orb',
+        'jet', 'tank', 'flamethrower', 'poisonGun', 'poisonStaff', 'waterGun',
+        'waterStaff', 'mortar', 'earthquake',
+      ];
+      for (const weapon of allWeapons) {
+        game.run.loadout.weapons[weapon] = true;
+        game.run.loadout.weaponTiers[weapon] = 1;
+      }
+      game.syncEquipmentInventory();
+      for (const weapon of allWeapons) {
+        game.cooldowns[weapon] = 0;
+        game.activeWeapon = weapon;
+        game.tools.setActive(weapon, false);
+        game.tryUseWeapon();
+        game.updatePendingPickaxeStrike(1);
+      }
+      game.clearProjectiles();
+      logs.push('[E2E] 3.6 Las 22 familias ejecutaron su comportamiento sin errores');
 
       // 4. Recoger mineral y carbón en inventario
       game.inventory.addMineral('coal', 15, 0, 1.2);

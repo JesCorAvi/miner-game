@@ -878,7 +878,7 @@ export class Player {
   getEyePosition(): THREE.Vector3 { return this.camera.position; }
   getAimDirection(): THREE.Vector3 { return this.camera.getWorldDirection(new THREE.Vector3()); }
   getLookAngles(): { yaw: number; pitch: number } { return { yaw: this.yaw, pitch: this.pitch }; }
-  getDepth(): number { return Math.max(0, Math.min(120, -this.position.y)); }
+  getDepth(): number { return Math.max(0, Math.min(MINE_DEPTH, -this.position.y)); }
   getLayer(): number { return layerAtDepth(this.getDepth()).index; }
   getSpeed(): number { return this.currentSpeed; }
   isMoving(): boolean { return this.currentSpeed > 0.18; }

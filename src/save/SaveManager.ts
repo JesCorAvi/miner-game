@@ -60,20 +60,30 @@ function normalizeLoadout(value: unknown): Loadout {
       ? (record.weaponTiers as Record<string, unknown>)
       : {};
   const weaponTiers = { ...(fallback.weaponTiers ?? {}) } as Record<string, number>;
+  const explicitPickaxe = Object.prototype.hasOwnProperty.call(weaponsRecord, 'pickaxe');
+  const wantsPickaxe = explicitPickaxe ? Boolean(weaponsRecord.pickaxe) : true;
   for (const id of WEAPON_ORDER) {
     const maxTier = familyTierCount(id);
-    const fallbackTier = id === 'pickaxe' ? 1 : 0;
+    const fallbackTier = id === 'pickaxe' && wantsPickaxe ? 1 : 0;
     const requested = Math.floor(
       num(tiersRecord[id], fallbackTier, 0, maxTier),
     );
-    const ownedByLegacy = id === 'pickaxe' || Boolean(weaponsRecord[id]);
-    const tier = Math.max(requested, ownedByLegacy ? Math.max(1, fallbackTier) : 0);
+    const ownedByLegacy =
+      id === 'pickaxe' ? wantsPickaxe : Boolean(weaponsRecord[id]);
+    const tier =
+      id === 'pickaxe' && !wantsPickaxe
+        ? 0
+        : Math.max(requested, ownedByLegacy ? Math.max(1, fallbackTier) : 0);
     weaponTiers[id] = Math.max(0, Math.min(maxTier, tier));
-    weapons[id] = id === 'pickaxe' ? true : weaponTiers[id] > 0;
+    weapons[id] = id === 'pickaxe' ? wantsPickaxe : weaponTiers[id] > 0;
   }
-  const savedPickaxeTier = Math.floor(num(record.pickaxeTier, 1, 1, 15));
-  weaponTiers.pickaxe = Math.max(weaponTiers.pickaxe ?? 1, savedPickaxeTier);
-  weapons.pickaxe = true;
+  const savedPickaxeTier = Math.floor(
+    num(record.pickaxeTier, wantsPickaxe ? 1 : 0, 0, 15),
+  );
+  weaponTiers.pickaxe = wantsPickaxe
+    ? Math.max(weaponTiers.pickaxe ?? 1, savedPickaxeTier, 1)
+    : 0;
+  weapons.pickaxe = wantsPickaxe;
   const upgradesRecord =
     typeof record.upgrades === 'object' && record.upgrades !== null
       ? (record.upgrades as Record<string, unknown>)
@@ -123,7 +133,7 @@ function normalizeLoadout(value: unknown): Loadout {
     beacons: Math.floor(num(record.beacons, fallback.beacons, 0, 999)),
     conveyors: Math.floor(num(record.conveyors, fallback.conveyors ?? 0, 0, 32)),
     patent: Math.floor(num(record.patent, fallback.patent ?? 0, 0, 6)),
-    pickaxeTier: weaponTiers.pickaxe ?? 1,
+    pickaxeTier: weapons.pickaxe ? (weaponTiers.pickaxe ?? 1) : 0,
     profession:
       typeof record.profession === 'string'
         ? record.profession.slice(0, 32)

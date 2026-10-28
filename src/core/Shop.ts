@@ -189,26 +189,44 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
     });
   }
 
-  const currentPickaxe = run.loadout.pickaxeTier ?? 1;
-  const nextPickaxe = pickaxeTierDefinition(Math.min(15, currentPickaxe + 1));
-  const canUpgradePickaxe = currentPickaxe < 15;
-  const tradeIn = currentPickaxe > 1 ? pickaxeTierDefinition(currentPickaxe).sell : 0;
-  const pickaxeCost = canUpgradePickaxe ? Math.max(0, nextPickaxe.buy - tradeIn) : 0;
-  items.push({
-    id: `pickaxe:${Math.min(15, currentPickaxe + 1)}`,
-    kind: 'pickaxe',
-    title: canUpgradePickaxe
-      ? `PICO · ${nextPickaxe.name}`
-      : `PICO · ${pickaxeTierDefinition(currentPickaxe).name}`,
-    description: canUpgradePickaxe
-      ? `Fuerza ${formatNumber(nextPickaxe.strength)} · recompra del pico actual incluida (${formatMoney(tradeIn)}).`
-      : 'Pico de máxima potencia homologado.',
-    cost: pickaxeCost,
-    level: `TIER ${Math.min(15, currentPickaxe + 1)} / 15`,
-    owned: false,
-    maxed: !canUpgradePickaxe,
-    affordable: canUpgradePickaxe && canAfford(run, pickaxeCost),
-  });
+  const ownsPickaxe = Boolean(run.loadout.weapons.pickaxe);
+  const currentPickaxe = ownsPickaxe
+    ? Math.max(1, run.loadout.pickaxeTier ?? 1)
+    : 0;
+  if (!ownsPickaxe) {
+    const firstPickaxe = pickaxeTierDefinition(1);
+    items.push({
+      id: 'pickaxe:1',
+      kind: 'pickaxe',
+      title: `PICO · ${firstPickaxe.name}`,
+      description: `Tu clase empieza sin pico. Cómpralo para poder excavar con él. Fuerza ${formatNumber(firstPickaxe.strength)}.`,
+      cost: firstPickaxe.buy,
+      level: 'TIER 1 / 15',
+      owned: false,
+      maxed: false,
+      affordable: canAfford(run, firstPickaxe.buy),
+    });
+  } else {
+    const nextPickaxe = pickaxeTierDefinition(Math.min(15, currentPickaxe + 1));
+    const canUpgradePickaxe = currentPickaxe < 15;
+    const tradeIn = currentPickaxe > 1 ? pickaxeTierDefinition(currentPickaxe).sell : 0;
+    const pickaxeCost = canUpgradePickaxe ? Math.max(0, nextPickaxe.buy - tradeIn) : 0;
+    items.push({
+      id: `pickaxe:${Math.min(15, currentPickaxe + 1)}`,
+      kind: 'pickaxe',
+      title: canUpgradePickaxe
+        ? `PICO · ${nextPickaxe.name}`
+        : `PICO · ${pickaxeTierDefinition(currentPickaxe).name}`,
+      description: canUpgradePickaxe
+        ? `Fuerza ${formatNumber(nextPickaxe.strength)} · recompra del pico actual incluida (${formatMoney(tradeIn)}).`
+        : 'Pico de máxima potencia homologado.',
+      cost: pickaxeCost,
+      level: `TIER ${Math.min(15, currentPickaxe + 1)} / 15`,
+      owned: false,
+      maxed: !canUpgradePickaxe,
+      affordable: canUpgradePickaxe && canAfford(run, pickaxeCost),
+    });
+  }
 
   // Patentes corporativas I a VI
   const currentPatent = run.loadout.patent ?? 0;
@@ -533,20 +551,23 @@ export function applyPurchaseToRun(run: RunSnapshot, itemId: string): PurchaseRe
     run.loadout.weapons[weapon] = true;
     if (weapon === 'pickaxe') {
       run.loadout.pickaxeTier = nextTier;
-    }    label = `${family.name} T${nextTier} · daño ${formatNumber(familyTierDamage(weapon, nextTier))}`;
+    }
+    label = `${family.name} T${nextTier} · daño ${formatNumber(familyTierDamage(weapon, nextTier))}`;
   } else if (kind === 'pickaxe') {
     const tier = parseInt(rawId, 10);
-    const current = run.loadout.pickaxeTier ?? 1;
-    if (tier !== current + 1 || tier > 15) {
+    const ownsPickaxe = Boolean(run.loadout.weapons.pickaxe);
+    const current = ownsPickaxe ? Math.max(1, run.loadout.pickaxeTier ?? 1) : 0;
+    if (tier > 15 || tier !== current + 1) {
       return null;
     }
     const next = pickaxeTierDefinition(tier);
-    const previous = pickaxeTierDefinition(current);
-    const tradeIn = current > 1 ? previous.sell : 0;
+    const previous = current > 0 ? pickaxeTierDefinition(current) : null;
+    const tradeIn = current > 1 && previous ? previous.sell : 0;
     cost = Math.max(0, next.buy - tradeIn);
     if (!canAfford(run, cost)) {
       return null;
     }
+    run.loadout.weapons.pickaxe = true;
     run.loadout.pickaxeTier = tier;
     if (!run.loadout.weaponTiers) {
       run.loadout.weaponTiers = {};
