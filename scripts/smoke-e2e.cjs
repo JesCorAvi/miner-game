@@ -56,6 +56,7 @@ async function runE2E() {
       if (postCarveSolids >= initialSolids) throw new Error('El carve de terreno no redujo los sólidos');
 
       // 3.5 Probar familias con comportamientos únicos
+      game.run.loadout.profession = 'generalist';
       game.run.loadout.weapons.tank = true;
       game.run.loadout.weaponTiers.tank = 1;
       game.syncEquipmentInventory();

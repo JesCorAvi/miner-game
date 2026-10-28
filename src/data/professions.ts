@@ -1,4 +1,5 @@
 import type { EmployeeKind, ProfessionId, WeaponStyle } from '../types';
+import { WEAPON_FAMILY_ORDER } from './weaponFamilies';
 
 /**
  * 13 profesiones del referente con efectos propios de Carbon Magnate.
@@ -21,14 +22,70 @@ export interface ProfessionDefinition {
   hireForbidden: readonly EmployeeKind[];
 }
 
-const PROFESSION_LIST: readonly ProfessionDefinition[] = [
-  {
+/**
+ * Acceso de cada profesión a las familias de armas. El pico es universal.
+ * Solitario, Mula y Generalista conservan todo el catálogo; su identidad está
+ * en las restricciones de plantilla y en sus bonus.
+ */
+export const PROFESSION_WEAPON_POOLS: Record<string, readonly string[]> = {
+  internship: [
+    'pickaxe',
+    'tesla',
+    'drill',
+    'shotgun',
+    'pistol',
+    'rifle',
+    'axe',
+    'magicStaff',
+    'flamethrower',
+    'waterGun',
+  ],
+  shaman: ['pickaxe', 'poisonGun', 'poisonStaff', 'flamethrower', 'magicStaff'],
+  gunslinger: ['pickaxe', 'pistol', 'rifle', 'minigun', 'shotgun', 'tank'],
+  wizard: ['pickaxe', 'magicStaff', 'poisonStaff', 'waterStaff', 'orb', 'tesla'],
+  barbarian: ['pickaxe', 'axe', 'battleaxe', 'boxingGlove', 'roundhouseKick'],
+  loneRanger: [...WEAPON_FAMILY_ORDER],
+  demolitionist: ['pickaxe', 'drill', 'shotgun', 'mortar', 'earthquake'],
+  waterbender: ['pickaxe', 'drill', 'waterGun', 'waterStaff'],
+  maverick: ['pickaxe', 'jet', 'tank', 'shotgun', 'rifle', 'pistol'],
+  lumberjack: ['pickaxe', 'axe', 'battleaxe', 'boxingGlove', 'roundhouseKick'],
+  destructor: [
+    'pickaxe',
+    'drill',
+    'tesla',
+    'shotgun',
+    'mortar',
+    'earthquake',
+    'axe',
+    'battleaxe',
+  ],
+  mule: [...WEAPON_FAMILY_ORDER],
+  generalist: [...WEAPON_FAMILY_ORDER],
+};
+
+export function professionWeaponPool(
+  id: string | null | undefined,
+): readonly string[] {
+  return PROFESSION_WEAPON_POOLS[id ?? 'internship'] ?? PROFESSION_WEAPON_POOLS.internship;
+}
+
+export function professionCanUseWeapon(
+  id: string | null | undefined,
+  weaponId: string,
+): boolean {
+  if (weaponId === 'pickaxe') {
+    return true;
+  }
+  return professionWeaponPool(id).includes(weaponId);
+}
+
+const PROFESSION_LIST: readonly ProfessionDefinition[] = [  {
     id: 'internship',
     name: 'Becario Corporativo',
     shortName: 'BECARIO',
     motto: 'Todo el organigrama, ningún privilegio.',
-    description: 'Clase base equilibrada. Acceso a todas las armas y a toda la plantilla.',
-    perks: ['Sin penalizaciones', 'Acceso completo a la tienda'],
+    description: 'Clase base equilibrada. Acceso a las ramas básicas de arma y a toda la plantilla.',
+    perks: ['Ramas básicas de arma', 'Sin bonus de especialista'],
     prohibitions: [],
     capacityMultiplier: 1,
     carveMultiplier: 1,
@@ -44,8 +101,8 @@ const PROFESSION_LIST: readonly ProfessionDefinition[] = [
     shortName: 'CHAMÁN',
     motto: 'La roca también respira veneno.',
     description: 'Especialista elemental. Sus armas de veneno y fuego corrompen la veta.',
-    perks: ['+25 % daño de veneno y fuego', '+15 % daño de estado'],
-    prohibitions: ['-10 % daño de pico'],
+    perks: ['+25 % daño de veneno y fuego', 'Bastón mágico y lanzallamas'],
+    prohibitions: ['-10 % daño de pico', 'Solo pico, veneno, fuego y bastón mágico'],
     capacityMultiplier: 1,
     carveMultiplier: 1,
     jetpackFuelMultiplier: 1,
@@ -60,8 +117,8 @@ const PROFESSION_LIST: readonly ProfessionDefinition[] = [
     shortName: 'PISTOLERO',
     motto: 'Un disparo, una veta.',
     description: 'Maestro de las armas de fuego y del impulso por retroceso.',
-    perks: ['+20 % daño de armas de fuego', '+15 % cadencia de pistolas'],
-    prohibitions: ['-10 % daño cuerpo a cuerpo'],
+    perks: ['+20 % daño de estilo de disparo', '+10 % extra con pistol, rifle, minigun y escopeta'],
+    prohibitions: ['-10 % daño melee', 'Solo pico, pistolas, rifles, miniguns, escopetas y tanques'],
     capacityMultiplier: 1,
     carveMultiplier: 1,
     jetpackFuelMultiplier: 1,
@@ -75,9 +132,9 @@ const PROFESSION_LIST: readonly ProfessionDefinition[] = [
     name: 'Ingeniero Arcano',
     shortName: 'ARCANO',
     motto: 'La física es una sugerencia.',
-    description: 'Bastones de misiles y regeneración mágica.',
-    perks: ['+25 % daño de bastones', '+40 % regeneración mágica'],
-    prohibitions: ['-10 % daño de explosivos'],
+    description: 'Bastones, orbes y arma eléctrica.',
+    perks: ['+25 % daño de bastón mágico', '+15 % con bastones de veneno y agua'],
+    prohibitions: ['Granadas 10 % más caras', 'Solo pico, bastones, orbe y arma eléctrica'],
     capacityMultiplier: 1,
     carveMultiplier: 1,
     jetpackFuelMultiplier: 1,
@@ -139,9 +196,9 @@ const PROFESSION_LIST: readonly ProfessionDefinition[] = [
     name: 'Hidrógrafo de Mina',
     shortName: 'HIDRÓGRAFO',
     motto: 'El agua encuentra la grieta.',
-    description: 'Armas de agua y el estado Mojado.',
-    perks: ['+50 % bonus de Mojado', '+20 % daño de armas de agua'],
-    prohibitions: ['-10 % daño de fuego'],
+    description: 'Armas de agua y perforación húmeda. El estado Mojado aún no está activo.',
+    perks: ['+20 % daño de armas de agua'],
+    prohibitions: ['-10 % daño de lanzallamas', 'Solo pico, taladro y armas de agua'],
     capacityMultiplier: 1,
     carveMultiplier: 1,
     jetpackFuelMultiplier: 1,
@@ -156,8 +213,8 @@ const PROFESSION_LIST: readonly ProfessionDefinition[] = [
     shortName: 'PILOTO',
     motto: 'El suelo es solo una sugerencia.',
     description: 'Movilidad aérea y ataques desde el aire.',
-    perks: ['+50 % combustible de jetpack', '+10 % daño aéreo'],
-    prohibitions: ['-10 % capacidad de mochila'],
+    perks: ['+50 % combustible de jetpack', '+20 % daño de jets'],
+    prohibitions: ['-10 % capacidad de mochila', 'Solo pico, jet, tanque y armas de disparo'],
     capacityMultiplier: 0.9,
     carveMultiplier: 1,
     jetpackFuelMultiplier: 1.5,
@@ -172,8 +229,8 @@ const PROFESSION_LIST: readonly ProfessionDefinition[] = [
     shortName: 'LEÑADOR',
     motto: 'Un golpe, un estrato.',
     description: 'Hachas pesadas y equipo dual.',
-    perks: ['+30 % daño de hachas', '+10 % capacidad de mochila'],
-    prohibitions: ['-10 % cadencia de armas de fuego'],
+    perks: ['+30 % daño de hachas', '+10 % capacidad de mochila', '+15 % excavación'],
+    prohibitions: ['-10 % daño con armas de disparo', 'Solo pico y armas melee'],
     capacityMultiplier: 1.1,
     carveMultiplier: 1.15,
     jetpackFuelMultiplier: 1,
@@ -187,9 +244,9 @@ const PROFESSION_LIST: readonly ProfessionDefinition[] = [
     name: 'Destructor de Frente',
     shortName: 'DESTRUCTOR',
     motto: 'No extrae: borra.',
-    description: 'Abre túneles a un ritmo brutal, pero el mineral cobrable lo saca la plantilla.',
-    perks: ['+60 % radio y potencia de excavación', '+20 % daño de pico'],
-    prohibitions: ['-20 % valor del mineral que recoge el operario'],
+    description: 'Abre túneles a un ritmo brutal con pico, taladro y explosivos.',
+    perks: ['+60 % radio y potencia de excavación', '+20 % daño melee'],
+    prohibitions: ['-10 % capacidad de mochila', 'Solo pico, taladro, eléctrico, escopeta, mortero, sísmico y hachas'],
     capacityMultiplier: 0.9,
     carveMultiplier: 1.6,
     jetpackFuelMultiplier: 1,
@@ -204,7 +261,7 @@ const PROFESSION_LIST: readonly ProfessionDefinition[] = [
     shortName: 'MULA',
     motto: 'Nada se queda abajo.',
     description: 'Sin recolectores. El operario o la cinta llevan todo a la tolva.',
-    perks: ['+50 % capacidad de mochila', '+10 % velocidad con carga'],
+    perks: ['+50 % capacidad de mochila'],
     prohibitions: ['No puede contratar recolectores'],
     capacityMultiplier: 1.5,
     carveMultiplier: 1,

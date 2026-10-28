@@ -13,6 +13,7 @@ import {
   weaponTier,
 } from '../src/config';
 import { applyPurchaseToRun, buildShopItems } from '../src/core/Shop';
+import { professionCanUseWeapon } from '../src/data/professions';
 import { defaultRun } from '../src/core/RunState';
 import {
   PROFESSION_ORDER,
@@ -55,6 +56,7 @@ describe('Familias de armas y profesiones', () => {
 
   it('la tienda vende tiers de las 22 familias', () => {
     const run = defaultRun();
+    run.loadout.profession = 'generalist';
     run.money = 1_000_000;
     const items = buildShopItems(run);
     const ids = items.map((item) => item.id);
@@ -66,6 +68,21 @@ describe('Familias de armas y profesiones', () => {
     expect(result).not.toBeNull();
     expect(run.loadout.weaponTiers?.pistol).toBe(1);
     expect(run.loadout.weapons.pistol).toBe(true);
+  });
+
+  it('cada profesión limita su catálogo de armas', () => {
+    expect(professionCanUseWeapon('shaman', 'poisonGun')).toBe(true);
+    expect(professionCanUseWeapon('shaman', 'pistol')).toBe(false);
+    expect(professionCanUseWeapon('gunslinger', 'rifle')).toBe(true);
+    expect(professionCanUseWeapon('gunslinger', 'magicStaff')).toBe(false);
+    expect(professionCanUseWeapon('generalist', 'earthquake')).toBe(true);
+    const run = defaultRun();
+    run.loadout.profession = 'shaman';
+    run.money = 1_000_000;
+    const pistol = buildShopItems(run).find((item) => item.id === 'weapon:pistol');
+    expect(pistol?.level).toContain('BLOQUEADA');
+    expect(applyPurchaseToRun(run, 'weapon:pistol')).toBeNull();
+    expect(applyPurchaseToRun(run, 'weapon:poisonGun')).not.toBeNull();
   });
 
   it('las 13 profesiones tienen efectos distintos y restricciones', () => {

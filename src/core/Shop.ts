@@ -23,6 +23,8 @@ import {
   familyTierSell,
   hireCost,
   pickaxeTierDefinition,
+  professionCanUseWeapon,
+  professionDefinition,
   professionGrenadeCostMultiplier,
   rankCost,
   upgradeCost,
@@ -102,6 +104,20 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
       continue;
     }
     const family = weaponFamily(weapon);
+    if (!professionCanUseWeapon(profession, weapon)) {
+      items.push({
+        id: `weapon:${weapon}`,
+        kind: 'weapon',
+        title: family.name,
+        description: `${family.description} [BLOQUEADA POR PROFESIÓN: ${professionDefinition(profession).shortName} no puede usar esta familia.]`,
+        cost: 0,
+        level: 'BLOQUEADA POR PROFESIÓN',
+        owned: false,
+        maxed: true,
+        affordable: false,
+      });
+      continue;
+    }
     const currentTier = Math.max(
       0,
       run.loadout.weaponTiers?.[weapon] ??
@@ -448,6 +464,9 @@ export function applyPurchaseToRun(run: RunSnapshot, itemId: string): PurchaseRe
   } else if (kind === 'weapon') {
     const weapon = rawId as WeaponId;
     if (!(WEAPON_ORDER as readonly string[]).includes(weapon)) {
+      return null;
+    }
+    if (!professionCanUseWeapon(run.loadout.profession, weapon)) {
       return null;
     }
     const family = weaponFamily(weapon);

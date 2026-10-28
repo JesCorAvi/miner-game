@@ -30,7 +30,9 @@ import {
 import {
   PROFESSIONS,
   PROFESSION_ORDER,
+  PROFESSION_WEAPON_POOLS,
   professionCanHire,
+  professionCanUseWeapon,
   professionCapacityMultiplier,
   professionCarveMultiplier,
   professionDamageMultiplier,
@@ -38,6 +40,7 @@ import {
   professionGrenadeCostMultiplier,
   professionGrenadeDamageMultiplier,
   professionJetpackFuelMultiplier,
+  professionWeaponPool,
 } from './data/professions';
 import {
   WEAPON_FAMILIES,
@@ -76,7 +79,9 @@ export {
   passiveOverflowPoints,
   PROFESSIONS,
   PROFESSION_ORDER,
+  PROFESSION_WEAPON_POOLS,
   professionCanHire,
+  professionCanUseWeapon,
   professionCapacityMultiplier,
   professionCarveMultiplier,
   professionDamageMultiplier,
@@ -84,6 +89,7 @@ export {
   professionGrenadeCostMultiplier,
   professionGrenadeDamageMultiplier,
   professionJetpackFuelMultiplier,
+  professionWeaponPool,
   WEAPON_FAMILIES,
   WEAPON_FAMILY_ORDER,
   familyTierBuy,

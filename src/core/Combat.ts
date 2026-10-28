@@ -10,6 +10,7 @@ import {
   weaponPassiveMultiplier,
   weaponProfessionMultiplier,
   professionCarveMultiplier,
+  professionCanUseWeapon,
 } from '../config';
 import {
   PATENTS,
@@ -354,6 +355,9 @@ export function tryUseWeapon(game: Game): void {
   const weaponId = game.activeWeapon;
   const weapon = WEAPONS[weaponId];
   if (!weapon || !game.run.loadout.weapons[weaponId]) {
+    return;
+  }
+  if (!professionCanUseWeapon(game.run.loadout.profession, weaponId)) {
     return;
   }
   const cooldown = weapon.cooldown * cooldownMultiplier(game.run.loadout);

@@ -4,6 +4,7 @@ import {
   HOTBAR_SLOTS,
   dayDuration,
   magnetRadius,
+  professionCanUseWeapon,
   WEAPON_ORDER,
 } from '../config';
 import { AudioEngine } from './Audio';
@@ -645,11 +646,15 @@ export class Game {
   private applyActiveHotbarItem(announce: boolean): void {
     const item = this.getActiveHotbarItem();
     this.ladderPlacementEnabled = item?.kind === 'ladder';
-    if (item?.kind === 'tool') {
+    if (
+      item?.kind === 'tool' &&
+      professionCanUseWeapon(this.run.loadout.profession, item.weapon)
+    ) {
       this.activeWeapon = item.weapon;
       this.tools.setActive(item.weapon, true);
       this.tools.setPatent(this.run.loadout.patent ?? 0);
     } else {
+      this.activeWeapon = 'pickaxe';
       this.tools.setActive('pickaxe', false);
       this.tools.setPatent(this.run.loadout.patent ?? 0);
     }

@@ -16,7 +16,7 @@ El **exterior** (superficie, oficina nocturna y presentación) usa una direcció
 - **Comportamientos por familia**: proyectiles con gravedad para tanques, morteros, jets y bastones; órbita de área para el hacha de batalla; onda sísmica de gran radio para el inductor; cadena, rayo continuo y golpe melee para el resto. El tanque y el mortero detonan al impactar; los bastones lanzan proyectiles rectos o con caída.
 - **Topologías de pozo**: Estándar, Embudo de Extracción, Embudo Estrecho, Mina Celeste (pozo abierto vertical), Estrato Superficial (120 m), Mina Dispersa y Cielo Disperso. Se eligen en el menú y cambian la densidad real del terreno y la distribución de recursos.
 - **Encargos de galería**: 3 módulos de servicio embebidos en la roca por día (sellado de fuga, rescate de sonda, testigo de sondeo y anclaje). Completa sus objetivos físicos para desbloquear las 4 certificaciones de campo; ya no se compran con capital ni se desbloquean por día.
-- **13 profesiones de expedición** (Becario, Chamán, Pistolero, Arcano, Bárbaro, Solitario, Demoledor, Hidrógrafo, Piloto, Leñador, Destructor, Mula y Generalista) con ventajas y prohibiciones que cambian la tienda, la capacidad, el jetpack y el daño. La profesión se elige en el menú y la fija el anfitrión en cooperativo.
+- **13 profesiones de expedición** (Becario, Chamán, Pistolero, Arcano, Bárbaro, Solitario, Demoledor, Hidrógrafo, Piloto, Leñador, Destructor, Mula y Generalista) con ventajas y prohibiciones que cambian la tienda, la capacidad, el jetpack y el daño. Cada profesión tiene su propio catálogo de familias de armas; las que no puede usar aparecen bloqueadas en la tienda. La profesión se elige en el menú y la fija el anfitrión en cooperativo.
 - **Game feel de minería:** pico low-poly con cabezal orientado en profundidad y pivote en la muñeca, animado por fases con anticipación, golpe y rebote; fragmentos físicos, chispas metálicas, luz de impacto breve, micro-shake de cámara y audio multicapa con pitch variable.
 - **Jetpack desbloqueable en fase avanzada**, con combustible y recarga en suelo. Al principio el jugador debe volver usando escaleras.
 - **Zona segura no minable** sobre la excavación: punto de aparición, spawn pad, oficina y tolva, rodeada de montañas y bosque natural en lugar de vallas o ciudad.
@@ -80,7 +80,7 @@ El ejecutable se genera en `release/CarbonMagnate-2.0.0-portable.exe`.
 ### Tests automatizados y E2E
 
 ```bash
-npm test                # 163 tests con Vitest (balance, determinismo, migración, física)
+npm test                # 164 tests con Vitest (balance, determinismo, migración, física)
 npm test -- <archivo>   # ejecutar suite específica
 npm run test:e2e        # prueba E2E headless en Electron y remojo de 10 días (detección de fugas)
 npm run typecheck       # validación de tipos estricta con TypeScript
