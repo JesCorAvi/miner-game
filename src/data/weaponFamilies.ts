@@ -2,7 +2,7 @@ import type { WeaponStyle } from '../types';
 import { PICKAXE_TIERS } from './weaponTiers';
 
 /**
- * 22 familias de armas de Coal LLC, agrupadas por comportamiento 3D.
+ * 22 familias de armas, agrupadas por comportamiento 3D.
  * Los precios y daños de las familias de 15 tiers siguen una escalera
  * geométrica coherente con la tabla verificada; el pico y el pico eléctrico
  * usan la tabla exacta de `weaponTiers.ts`.

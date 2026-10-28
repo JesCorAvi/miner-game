@@ -7,7 +7,7 @@ import {
   ORE_IDS_BY_BIOME,
 } from '../src/data/minerals';
 
-describe('Tabla de Minerales y Ley de Doble Divisa (Coal LLC, 12 biomas)', () => {
+describe('Tabla de Minerales y Ley de Doble Divisa (referencia, 12 biomas)', () => {
   it('hay 12 carbones, 24 minerales de capital y 36 minerales en total', () => {
     expect(COAL_IDS_BY_BIOME).toHaveLength(12);
     expect(MINERAL_IDS).toHaveLength(36);

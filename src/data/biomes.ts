@@ -4,7 +4,7 @@ import type { BiomeDefinition, LayerDefinition } from '../types';
  * Estructura vertical de Carbon Magnate.
  *
  * 12 biomas repartidos en 20 niveles de 12 m (240 m en total). Los cuatro
- * primeros biomas conservan la escala de HP de Coal LLC (×1, ×10, ×100,
+ * primeros biomas conservan la escala de HP de referencia (×1, ×10, ×100,
  * ×1.000); a partir de la roca negra la escala se dispara para que cada capa
  * sea un muro de equipo.
  */

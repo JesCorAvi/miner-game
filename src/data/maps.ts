@@ -1,7 +1,7 @@
 import type { MapId } from '../types';
 
 /**
- * Topologías de pozo de Coal LLC adaptadas al cubo 3D de 240 m.
+ * Topologías de pozo adaptadas al cubo 3D de 240 m.
  * No son “skins”: cambian la densidad base del terreno y la distribución
  * de recursos. La Mina Celeste se implementa como pozo abierto vertical
  * (gravedad normal) para no romper el controlador FPS.

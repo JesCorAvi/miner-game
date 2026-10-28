@@ -351,7 +351,7 @@ export const UPGRADES: Record<UpgradeId, UpgradeDefinition> = {
 };
 
 export const PASSIVE_LEGACY_NOTE =
-  'Las pasivas de cofre viven en src/data/passives.ts (31 pasivas de Coal LLC).';
+  'Las pasivas de cofre viven en src/data/passives.ts (31 pasivas de referencia).';
 
 export const EMPLOYEE_KINDS: readonly EmployeeKind[] = ['miner', 'collector'];
 

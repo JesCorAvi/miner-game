@@ -265,7 +265,7 @@ export interface Loadout {
   patent?: number;
   /** Tier 1–15 del pico principal. */
   pickaxeTier?: number;
-  /** Profesión de la expedición (13 arquetipos de Coal LLC). */
+  /** Profesión de la expedición (13 arquetipos de referencia). */
   profession?: ProfessionId;
   doctrine?: DoctrineId | null;
   clauses?: ClauseId[];

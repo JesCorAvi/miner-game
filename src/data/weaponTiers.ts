@@ -1,6 +1,6 @@
 /**
  * Escalera de picos de Carbon Magnate. Los 15 tiers y sus precios/fuerzas
- * siguen la tabla verificada de Coal LLC; los nombres son propios.
+ * siguen la tabla verificada de referencia; los nombres son propios.
  */
 export interface PickaxeTierDefinition {
   tier: number;

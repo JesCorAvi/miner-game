@@ -1,5 +1,5 @@
 /**
- * 31 pasivas de Coal LLC con nombres propios de Carbon Magnate.
+ * 31 pasivas de referencia con nombres propios de Carbon Magnate.
  *
  * `base` es la fracción que aporta cada punto de pasiva. Un cofre de nivel L
  * entrega `L` puntos en niveles 1–4 y `L²` en niveles 5–12. Los topes se

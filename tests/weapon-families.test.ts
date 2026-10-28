@@ -21,7 +21,7 @@ import {
   professionDefinition,
 } from '../src/data/professions';
 
-describe('Familias de armas y profesiones de Coal LLC', () => {
+describe('Familias de armas y profesiones', () => {
   it('define 22 familias con tiers y estilos válidos', () => {
     expect(WEAPON_ORDER).toHaveLength(22);
     expect(Object.keys(WEAPON_FAMILIES)).toHaveLength(22);

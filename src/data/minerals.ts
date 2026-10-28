@@ -4,7 +4,7 @@ import { BIOMES } from './biomes';
 /**
  * Catálogo de minerales de Carbon Magnate.
  *
- * La escala de HP y de rendimiento sigue la ley de merma de Coal LLC: el HP
+ * La escala de HP y de rendimiento sigue la ley de merma de referencia: el HP
  * se multiplica por 10 en los cuatro primeros biomas y el carbón solo por 5,
  * de modo que el carbón profundo rinde menos cuota por golpe. Los minerales
  * de capital se multiplican por la misma escala de bioma para que la

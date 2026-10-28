@@ -3,7 +3,7 @@ import { MAPS, MAP_ORDER, mapDefinition, mapMaxDepth } from '../src/data/maps';
 import { Terrain } from '../src/world/Terrain';
 import { Resources } from '../src/world/Resources';
 
-describe('Topologías de pozo de Coal LLC', () => {
+describe('Topologías de pozo', () => {
   beforeEach(() => {
     const mockCanvas = {
       width: 64,

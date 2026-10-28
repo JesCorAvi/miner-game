@@ -1,7 +1,7 @@
 import type { EmployeeKind, ProfessionId, WeaponStyle } from '../types';
 
 /**
- * 13 profesiones de Coal LLC con efectos propios de Carbon Magnate.
+ * 13 profesiones del referente con efectos propios de Carbon Magnate.
  * La profesión se elige al iniciar la expedición y se comparte con el equipo.
  */
 export interface ProfessionDefinition {

@@ -18,7 +18,7 @@ import {
 } from '../src/data/modes';
 import { makeDefaultLoadout, damageMultiplier, weaponDamageScale } from '../src/config';
 
-describe('Sistemas Coal LLC — pasivas, cofres, modos y modificadores', () => {
+describe('Sistemas de referencia — pasivas, cofres, modos y modificadores', () => {
   beforeEach(() => {
     const mockCanvas = {
       width: 64,

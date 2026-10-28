@@ -10,7 +10,7 @@ import { PICKAXE_TIERS } from '../src/data/weaponTiers';
 import { estimateReturnTime } from '../src/core/ReturnPlanner';
 import { BigValue } from '../src/core/BigValue';
 
-describe('Balance Coal LLC — 12 biomas, 20 niveles y 30 días', () => {
+describe('Balance de referencia — 12 biomas, 20 niveles y 30 días', () => {
   it('la escala vertical cubre 20 niveles de 12 m y 12 biomas', () => {
     expect(MINE_DEPTH).toBe(240);
     expect(LAYERS).toHaveLength(20);
