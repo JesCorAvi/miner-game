@@ -200,8 +200,8 @@ for (const tab of ['employees', 'equipment', 'bonuses', 'inventory']) {
 if (!shopView.includes('TAB_META')) {
   fail('shopView: faltan los títulos de pestaña');
 }
-if (!shopView.includes("item.kind === 'weapon' || item.kind === 'supply' || item.kind === 'grenade'")) {
-  fail('shopView: EQUIPO debe agrupar armas, suministros y granadas');
+if (!shopView.includes("item.kind === 'weapon' || item.kind === 'pickaxe' || item.kind === 'supply' || item.kind === 'grenade'")) {
+  fail('shopView: EQUIPO debe agrupar armas, picos, suministros y granadas');
 }
 if (!shopView.includes("item.kind.startsWith('employee')")) {
   fail('shopView: EMPLEADOS debe agrupar contratación, ascensos y reconversión');

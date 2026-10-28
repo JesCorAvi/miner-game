@@ -81,6 +81,7 @@ const config = read('src/config.ts');
 const rng = read('src/core/Rng.ts');
 const terrain = read('src/world/Terrain.ts');
 const resources = read('src/world/Resources.ts');
+const chestRewards = read('src/world/ChestRewards.ts');
 const game = read('src/core/Game.ts');
 const dayCycle = read('src/core/DayCycle.ts');
 const combat = read('src/core/Combat.ts');
@@ -124,16 +125,22 @@ for (const relative of [
 // ---------------------------------------------------------------------------
 for (const line of [
   'export const PIT_SIZE = 48;',
-  'export const MINE_DEPTH = 120;',
   'export const SAFE_ZONE_HALF = 30.5;',
   'export const SURFACE_SPAWN = { x: 0, z: 29 } as const;',
   'export const MAX_PELLETS = 6000;',
 ]) {
   if (!config.includes(line)) fail(`src/config.ts: falta «${line}»`);
 }
+const biomes = read('src/data/biomes.ts');
+if (!biomes.includes('export const MINE_DEPTH = 240;')) {
+  fail('src/data/biomes.ts: MINE_DEPTH debe ser 240');
+}
+if (!biomes.includes('export const LAYER_HEIGHT = 12;')) {
+  fail('src/data/biomes.ts: cada nivel debe medir 12 m');
+}
 for (const line of [
   'export const GRID_X = PIT_SIZE + 1;',
-  'export const GRID_Y = 129;',
+  'export const GRID_Y = MINE_DEPTH + 9;',
   'export const GRID_Z = PIT_SIZE + 1;',
   'export const GRID_ORIGIN_X = -PIT_HALF;',
   'export const GRID_ORIGIN_Y = -MINE_DEPTH;',
@@ -145,7 +152,7 @@ for (const line of [
 // ---------------------------------------------------------------------------
 // 4. El terreno base no excava cuevas ni geodas
 // ---------------------------------------------------------------------------
-const terrainGenerate = extractBlock(terrain, 'generate(seed: number): void');
+const terrainGenerate = extractBlock(terrain, 'generate(seed: number');
 if (!terrainGenerate) {
   fail('src/world/Terrain.ts: no se encuentra generate(seed)');
 } else {
@@ -160,10 +167,7 @@ if (!terrainGenerate) {
 // ---------------------------------------------------------------------------
 // 5. Recursos: PRNG ligado a semilla y día, nodos embebidos en roca
 // ---------------------------------------------------------------------------
-const resourcesGenerate = extractBlock(
-  resources,
-  'generate(seed: number, day: number, terrain: Terrain): void',
-);
+const resourcesGenerate = extractBlock(resources, 'generate(');
 if (!resourcesGenerate) {
   fail('src/world/Resources.ts: no se encuentra generate(seed, day, terrain)');
 } else {
@@ -209,8 +213,8 @@ if (!loadSnapshot) {
   fail('src/core/Game.ts: no se encuentra loadSnapshot()');
 } else {
   const sequence = [
-    'game.terrain.generate(game.seed)',
-    'game.resources.generate(game.seed, game.run.day, game.terrain)',
+    'game.terrain.generate(',
+    'game.resources.generate(',
     'game.terrain.applyCarveHistory(snapshot.carveHistory)',
     'game.resources.markBroken(nodeId)',
     'game.resources.setNodeHp(nodeId, hp)',
@@ -259,7 +263,7 @@ if (!applyLocalCarve.includes('game.isAuthority()')) {
 if (!combat.includes('hashString(`${game.seed}:${node.id}:drop`)')) {
   fail('getDropSeed(): debe derivarse de semilla + nodeId + “drop”');
 }
-if (!resources.includes('hashString(`${this.seed}:${node.id}:chest`)')) {
+if (!chestRewards.includes('hashString(`${seed}:${node.id}:chest`)')) {
   fail('getChestReward(): debe derivarse de semilla + nodeId + “chest”');
 }
 

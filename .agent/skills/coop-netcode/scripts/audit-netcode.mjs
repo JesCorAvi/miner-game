@@ -90,6 +90,7 @@ const shopView = read('src/core/ShopView.ts');
 const dayCycle = read('src/core/DayCycle.ts');
 const combat = read('src/core/Combat.ts');
 const interaction = read('src/core/Interaction.ts');
+const deposit = read('src/core/Deposit.ts');
 const networkMessages = read('src/core/NetworkMessages.ts');
 const networkBridge = read('src/core/NetworkBridge.ts');
 const constants = read('src/core/GameConstants.ts');
@@ -127,6 +128,10 @@ const CLIENT_TAGS = [
   'ladder_place',
   'fx',
   'purchase',
+  'winch_place',
+  'depot_place',
+  'depot_interact',
+  'beacon_place',
 ];
 const HOST_TAGS = [
   'welcome',
@@ -136,6 +141,9 @@ const HOST_TAGS = [
   'players',
   'staff',
   'ladder_placed',
+  'winch_placed',
+  'depot_sync',
+  'beacon_sync',
   'carve',
   'node_hit',
   'node_break',
@@ -221,7 +229,7 @@ if (
 if (!protocol.includes('bounded(parsed.dmg, 1, 500)')) {
   warn('parseClientMessage(node_hit): el daño del cliente debería acotarse');
 }
-if (!protocol.includes('bounded(parsed.coal, 0, 1000000)')) {
+if (!protocol.includes('bounded(parsed.coal, 0,')) {
   warn('parseClientMessage(deposit): el depósito del cliente debería acotarse');
 }
 
@@ -332,14 +340,14 @@ if (
 if (onLootCollected.includes('game.run.carbon +=') || onLootCollected.includes('game.run.money +=')) {
   fail('onLootCollected(): recoger no debe acreditar cuota ni dinero');
 }
-const depositCargo = extractBlock(interaction, 'export function depositCargo(');
+const depositCargo = extractBlock(deposit, 'export function depositCargo(');
 if (!depositCargo.includes('game.clearCargo()')) {
   fail('depositCargo(): debe vaciar inventario y mochila al depositar');
 }
 if (!depositCargo.includes("t: 'deposit'")) {
   fail('depositCargo(): el cliente debe enviar el mensaje deposit');
 }
-const applyTeamDeposit = extractBlock(interaction, 'export function applyTeamDeposit(');
+const applyTeamDeposit = extractBlock(deposit, 'export function applyTeamDeposit(');
 if (!applyTeamDeposit.includes('game.run.carbon += cleanCoal')) {
   fail('applyTeamDeposit(): el host debe acreditar el carbón');
 }

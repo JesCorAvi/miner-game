@@ -9,6 +9,8 @@ La guía completa de arquitectura está en `CLAUDE.md`; el diseño y el estado d
 npm install
 npm run dev              # Vite en http://127.0.0.1:5173
 npm run typecheck        # tsc --noEmit (strict, noUnusedLocals/Parameters)
+npm test                 # Vitest suite completo (17 archivos, 115 tests)
+npm run test:e2e         # Smoke E2E + harness de remojo/memoria en Electron
 npm run build:web        # typecheck + Vite build
 npm run electron:dev     # Vite 5173 + Electron
 npm run electron:preview # build web + Electron sobre dist/
@@ -18,7 +20,7 @@ node scripts/sync-agent-skills.mjs   # replica .claude/skills en .agent/skills
 # (base relativa ya configurada; ver README para habilitar Pages)
 ```
 
-No hay test runner ni linter. La validación mínima es `npm run typecheck` y `npm run build:web`; para UI o red hay que ejecutar el juego y probar el flujo real. No afirmes que existen tests automáticos.
+La suite de pruebas automatizadas se ejecuta con `npm test` y `npm run test:e2e`. Las validaciones de compilación son `npm run typecheck` y `npm run build:web`. Para red y multijugador hay que probar con dos ventanas.
 
 ## Invariantes del proyecto
 
@@ -28,12 +30,12 @@ No hay test runner ni linter. La validación mínima es `npm run typecheck` y `n
 4. **Orden de carga crítico:** `terrain.generate` → `resources.generate` → `applyCarveHistory` → `markBroken`/`setNodeHp`. Invertirlo desincroniza host y clientes.
 5. **Nunca se envían mallas** ni posiciones de fragmentos. Viajan carves, IDs, `dropSeed`, estados agregados, depósitos y compras.
 6. **Host autoritativo.** El host decide semilla, cuota, reloj, fin de día, plantilla, cofres y compras. Los clientes no llaman a `finishDay()`, no cierran el día y no escriben expediente.
-7. **Carga personal hasta la tolva.** Recoger no acredita cuota/dinero; depositar con `E` junto a la tolva sí. Al cerrar el día, la carga pendiente se pierde.
+7. **Carga personal hasta la tolva.** Recoger no acredita cuota/dinero; depositar con `E` junto a la tolva sí. Al cerrar el día, la carga pendiente se pierde. La tolva de campaña almacena con `E` y retira con `F` (o con `E` si la mochila no lleva mineral) sin acreditar cuota ni dinero.
 8. **Jetpack bloqueado a nivel 0.** `maxJetpackFuel()` devuelve 0 y `Player` exige `maxFuel > 0`. Las escaleras son el retorno temprano.
 9. **Empleados individuales.** Máximo 6; todo contrato nuevo es minero becario; ascenso y reconversión conservan el mismo `id`. El minero pica y se ajusta al suelo; el recolector no: vuela a por pepitas que quepan en su peso restante, carga hasta 20 kg, usa la boca del pozo para no cruzar la plataforma y deposita al volver a la tolva. Los avatares de plantilla se ocultan si el cuerpo entra en roca.
 10. **Contrato de UI por ID.** `UI.ts` y `Game.ts` exigen IDs de `index.html`. No renombres/elimines un ID sin actualizar el código.
-11. **Protocolo y generación.** Si cambia la forma de un mensaje o la generación determinista (incluido el recuento/colocación de vetas), sube `PROTOCOL_VERSION` y `PEER_ID_PREFIX` (`carbon-magnate-v11-`), actualiza ambos lados, snapshots y documentación.
-12. **Guardado versionado.** `carbon-magnate.save.v5`; lee v4/v3/v2 como migración; si cambia la estructura, crea una clave/migración nueva; no reinterpretes `v5`.
+11. **Protocolo y generación.** Si cambia la forma de un mensaje o la generación determinista (incluido el recuento/colocación de vetas), sube `PROTOCOL_VERSION` y `PEER_ID_PREFIX` (`carbon-magnate-v14-`), actualiza ambos lados, snapshots y documentación.
+12. **Guardado versionado.** `carbon-magnate.save.v8`; lee v7/v6/v5/v4/v3/v2 como migración; si cambia la estructura, crea una clave/migración nueva; no reinterpretes `v8`.
 13. **Peso e inventario.** La carga es local y vive en una hotbar de 9 + 27 slots de almacenamiento (`Inventory.ts`), con un límite de peso (`maxCarryWeight`) ampliable con `capacity`. Al llenarse el peso o los slots no se recogen más piezas; el depósito vacía solo los minerales y conserva herramientas, escaleras y granadas.
 14. **Granadas por tier.** No son un `WeaponId`. Son consumibles de `GRENADE_TIERS` con área común y distinto `carveStrength`/`maxLayer`; se compran, se mueven en el inventario y se lanzan desde la hotbar. El stock vive en `loadout.grenades` y se sincroniza con `grenade_use`/`economy`.
 15. **Liquidación de turno.** El host calcula el cierre con `DaySettlement.buildDayReport()`: desglose por mineral, `oreValue` y bonus por rendimiento (`dayBonusFor`). Los minerales se abonan al depositar; el bonus se acredita al cerrar y se envía en `day_result.report`. El cliente solo muestra la liquidación; no la recalcula ni la cobra.
@@ -48,13 +50,13 @@ Antes de tocar un dominio, lee el `SKILL.md` correspondiente y ejecuta su audito
 | Skill | Úsala para | Auditoría |
 |---|---|---|
 | `world-determinism` | Terreno, recursos, semillas, IDs, zona segura, carves, late-join | `node .claude/skills/world-determinism/scripts/audit-world.mjs` |
-| `coop-netcode` | Protocolo v11, snapshots, depósitos, escaleras, plantilla, compras | `node .claude/skills/coop-netcode/scripts/audit-netcode.mjs` |
+| `coop-netcode` | Protocolo v14, snapshots, depósitos, escaleras, cabrias, tolvas de campaña, plantilla, brigadas, cintas, compras | `node .claude/skills/coop-netcode/scripts/audit-netcode.mjs` |
 | `balance-and-loop` | Cuotas, armas, mejoras, jetpack, escaleras, empleados, bucle de tolva | `node .claude/skills/balance-and-loop/scripts/audit-balance.mjs` |
 | `hud-and-shop` | HUD, overlays, menús, tienda, pixel mode, IDs | `node .claude/skills/hud-and-shop/scripts/audit-ui.mjs` |
 | `procedural-content` | Geometría, texturas canvas, materiales, instancing, dispose | `node .claude/skills/procedural-content/scripts/audit-assets.mjs` |
 | `procedural-audio` | WebAudio, mute, panner, loops, inicialización por gesto | `node .claude/skills/procedural-audio/scripts/audit-audio.mjs` |
 | `desktop-packaging` | Electron `carbon://`, seguridad, Vite, portable | `node .claude/skills/desktop-packaging/scripts/audit-electron.mjs` |
-| `save-and-roster` | localStorage v5, migración v4/v3/v2, loadout, roster | `node .claude/skills/save-and-roster/scripts/audit-save.mjs` |
+| `save-and-roster` | localStorage v8, migración v7/v6/v5/v4/v3/v2, loadout, roster, brigadas, cintas | `node .claude/skills/save-and-roster/scripts/audit-save.mjs` |
 | `token-economy` | Presupuestos de contexto, duplicación documental, modularización segura | `node .claude/skills/token-economy/scripts/audit-context.mjs` |
 
 ## Flujo de trabajo

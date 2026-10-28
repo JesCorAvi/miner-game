@@ -99,39 +99,47 @@ const ui = read('src/ui/UI.ts');
 // ---------------------------------------------------------------------------
 // 1. Claves y versión
 // ---------------------------------------------------------------------------
-if (!config.includes("export const SAVE_KEY = 'carbon-magnate.save.v5';")) {
-  fail('src/config.ts: SAVE_KEY debe ser carbon-magnate.save.v5');
+if (!config.includes("export const SAVE_KEY = 'carbon-magnate.save.v9';")) {
+  fail('src/config.ts: SAVE_KEY debe ser carbon-magnate.save.v9');
 }
 if (!config.includes("export const NAME_KEY = 'carbon-magnate.name';")) {
   fail('src/config.ts: NAME_KEY debe ser carbon-magnate.name');
 }
 if (
+  !save.includes("'carbon-magnate.save.v8'") ||
+  !save.includes("'carbon-magnate.save.v7'") ||
+  !save.includes("'carbon-magnate.save.v6'") ||
+  !save.includes("'carbon-magnate.save.v5'") ||
   !save.includes("'carbon-magnate.save.v4'") ||
   !save.includes("'carbon-magnate.save.v3'") ||
   !save.includes("'carbon-magnate.save.v2'")
 ) {
-  fail('SaveManager.ts: faltan las claves heredadas v4, v3 y v2');
+  fail('SaveManager.ts: faltan las claves heredadas v8, v7, v6, v5, v4, v3 y v2');
 }
-if (!save.includes('const SAVE_VERSION = 5;')) {
-  fail('SaveManager.ts: SAVE_VERSION debe ser 5');
+if (!save.includes('const SAVE_VERSION = 9;')) {
+  fail('SaveManager.ts: SAVE_VERSION debe ser 9');
 }
 if (
   !save.includes('record.version !== 2') ||
   !save.includes('record.version !== 3') ||
   !save.includes('record.version !== 4') ||
+  !save.includes('record.version !== 5') ||
+  !save.includes('record.version !== 6') ||
+  !save.includes('record.version !== 7') ||
+  !save.includes('record.version !== 8') ||
   !save.includes('record.version !== SAVE_VERSION')
 ) {
-  fail('SaveManager.load(): debe aceptar v2, v3, v4 y v5, y rechazar el resto');
+  fail('SaveManager.load(): debe aceptar v2–v9 y rechazar el resto');
 }
-if (!save.includes('version: 5,')) {
-  fail('SaveManager.save(): debe escribir version 5');
+if (!save.includes('version: 9,')) {
+  fail('SaveManager.save(): debe escribir version 9');
 }
 if (!save.includes('for (const key of LEGACY_SAVE_KEYS)') ||
     !save.includes('window.localStorage.removeItem(key)')) {
   fail('SaveManager.save(): debe limpiar las claves heredadas tras migrar');
 }
-if (!types.includes('version: 5;')) {
-  fail('src/types.ts: SaveData.version debe ser el literal 5');
+if (!types.includes('version: 9;')) {
+  fail('src/types.ts: SaveData.version debe ser el literal 9');
 }
 
 // ---------------------------------------------------------------------------
@@ -143,7 +151,7 @@ if (!save.includes('function normalizeLoadout(value: unknown): Loadout')) {
   for (const token of [
     'const fallback = makeDefaultLoadout();',
     'for (const id of WEAPON_ORDER)',
-    "weapons[id] = id === 'pickaxe' ? true : Boolean(weaponsRecord[id]);",
+    "weapons[id] = id === 'pickaxe' ? true : weaponTiers[id] > 0;",
     'UPGRADES[key].max',
     'for (const key of PASSIVE_ORDER)',
     'normalizeEmployees(employeesRecord)',
@@ -153,7 +161,7 @@ if (!save.includes('function normalizeLoadout(value: unknown): Loadout')) {
     if (!save.includes(token)) fail(`normalizeLoadout(): falta «${token}»`);
   }
 }
-if (!save.includes("const PASSIVE_ORDER") && !config.includes('export const PASSIVE_ORDER')) {
+if (!save.includes("const PASSIVE_ORDER") && !config.includes('PASSIVE_ORDER')) {
   fail('Falta PASSIVE_ORDER; el guardado no puede normalizar pasivas');
 }
 

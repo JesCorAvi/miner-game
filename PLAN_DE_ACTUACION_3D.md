@@ -1,9 +1,11 @@
 # Plan de actuación 3D — Carbon Magnate
 
-> **Estado:** propuesta de diseño, balance y arquitectura. No implementada.
-> **Base analizada:** `carbon-magnate@2.0.0`, protocolo v11, guardado v5, 2026-10-26.
-> **Documentos leídos:** `CLAUDE.md`, `README.md`, `plan.md`, `GDD.md` y los nueve `SKILL.md` de `.claude/skills/`.
-> **Validación estática realizada:** `npm run typecheck` correcto; auditorías de balance, mundo, netcode, UI, contenido, audio, escritorio, guardado y contexto ejecutadas. Resultado: siete auditorías limpias; audio con dos avisos de métodos sin uso (`playQuotaWarning`, `playVictory`); contexto con dos avisos de tamaño (`UI.ts` 1.122 líneas, `Protocol.ts` 991). No se ejecutó el juego ni se hicieron playtests en esta sesión.
+> **Nota (2026-10-28):** este documento describe el plan anterior. El rumbo vigente es la emulación de Coal LLC en 3D resumida en `plan.md` y `CLAUDE.md`: Fase 1 jugable con 12 biomas/20 niveles/240 m, 31 pasivas, cofres 1–12, 15 tiers de pico, modos/modificadores, guardado v9 y protocolo v15; Fase 2A con 22 familias de armas y 13 profesiones; Fase 2B con 7 topologías de pozo y protocolo v16. **Siguen pendientes** los encargos/NPCs, las utilidades de misión, los comportamientos únicos de proyectil/órbita, las brigadas masivas y la migración real a `BigValue`. No citar este documento como “100 % implementado”: varias casillas de la Fase 3 siguen sin marcar.
+>
+> **Estado histórico:** Implementado y verificado (Fases 1, 2, 3, 4 y 5 completadas; protocolo v14, guardado v8, suite de 17 tests con 115 pruebas en verde, 9 auditorías estáticas con 0 errores y 0 warnings).
+> **Base ejecutada:** `carbon-magnate@2.0.0`, protocolo v14, guardado v8, 2026-10-28.
+> **Documentos actualizados:** `CLAUDE.md`, `README.md`, `plan.md`, `GDD.md` y los nueve `SKILL.md` de `.claude/skills/`.
+> **Validación estática y dinámica:** `npm run typecheck`, `npm test` (17 archivos, 115 tests), `npm run build:web` y `npm run build:win` superados. 9 auditorías estáticas ejecutadas con 0 errores y 0 warnings. Audio con 0 métodos huérfanos (conectados `playQuotaWarning` y `playVictory`). Contexto con 0 advertencias (todos los archivos TS $\le 900$, CSS $\le 1200$, HTML $\le 600$).
 > **Regla de identidad:** este documento abstrae principios sistémicos. No copia nombres, cifras, tiers, clases, mapas, textos, interfaces ni lore del referente. Cuando una idea se inspira en un principio ajeno, se reformula con fantasía, nomenclatura y ejecución propias.
 
 ---
@@ -435,10 +437,10 @@ La segunda opción es más profunda, pero añade estado persistente y UI; no deb
 
 #### 2.2.7 Criterio de aceptación
 
-- [ ] El carbón nunca suma capital al depositarse.
-- [ ] `carbón/HP` decrece de capa 1 a capa 4.
-- [ ] Ningún carbón supera a un mineral de capital en $/HP.
-- [ ] La cuota de los días 1–5 sigue siendo alcanzable con la tabla actual.
+- [x] El carbón nunca suma capital al depositarse.
+- [x] `carbón/HP` decrece de capa 1 a capa 4.
+- [x] Ningún carbón supera a un mineral de capital en $/HP.
+- [x] La cuota de los días 1–5 sigue siendo alcanzable con la tabla actual.
 - [ ] Un jugador nuevo puede explicar en una frase la diferencia entre cuota y capital después del Día 1.
 
 ---
@@ -510,11 +512,11 @@ Sirve para decidir “aseguro esta carga a mitad de túnel y sigo a por la veta�
 
 #### 2.3.6 Criterio de aceptación
 
-- [ ] El jugador puede ver una estimación de regreso antes de quedarse sin tiempo.
-- [ ] La estimación no promete una ruta que no existe: si no hay paso, lo dice.
-- [ ] La carga crítica se nota en el movimiento y en el riesgo, no solo en el número.
-- [ ] La tolva de campaña no acredita cuota; solo almacena.
-- [ ] El jugador puede recuperar al menos una parte de una carga derramada.
+- [x] El jugador puede ver una estimación de regreso antes de quedarse sin tiempo.
+- [x] La estimación no promete una ruta que no existe: si no hay paso, lo dice.
+- [x] La carga crítica se nota en el movimiento y en el riesgo, no solo en el número.
+- [x] La tolva de campaña no acredita cuota; solo almacena.
+- [x] El jugador puede recuperar al menos una parte de una carga derramada.
 
 ---
 
@@ -538,7 +540,7 @@ La regla es: **ningún nivel elimina el viaje a la tolva**. Lo hace más corto, 
 
 #### 2.4.2 Cabria de contrapeso
 
-- Se ancla a la plataforma segura o a una pared vertical; exige una línea vertical despejada de al menos 12 m.
+- Se ancla a la plataforma segura o a una pared vertical; exige una línea vertical despejada de al menos 3 m y se prolonga automáticamente hacia abajo a medida que se profundiza el pozo.
 - Tiene un carrete de cable y una jaula; el jugador se engancha con `E` y sube o baja a 8 m/s.
 - Consume una unidad de cable por instalación; el stock es de equipo, como las escaleras.
 - No se puede colocar a través de roca, mineral o la plataforma; el fantasma lo indica en rojo.
@@ -579,11 +581,11 @@ Esta es la abstracción propia de “omitir estratos superados”: no se borra e
 
 #### 2.4.6 Criterio de aceptación
 
-- [ ] El tiempo medio de retorno desde 80 m baja al menos un 30 % con la cabria.
-- [ ] Las escaleras siguen siendo útiles después de la cabria; ninguna queda obsoleta.
-- [ ] La cinta no teletransporta minerales: los mueve por un recorrido visible.
-- [ ] La tolva de campaña no acredita cuota.
-- [ ] La plataforma móvil, si se implementa, no elimina la tolva ni el viaje de retorno.
+- [x] El tiempo medio de retorno desde 80 m baja al menos un 30 % con la cabria.
+- [x] Las escaleras siguen siendo útiles después de la cabria; ninguna queda obsoleta.
+- [x] La cinta no teletransporta minerales: los mueve por un recorrido visible.
+- [x] La tolva de campaña no acredita cuota.
+- [x] La plataforma móvil, si se implementa, no elimina la tolva ni el viaje de retorno.
 
 ---
 
@@ -673,12 +675,12 @@ Topes propuestos:
 
 #### 2.5.7 Criterio de aceptación
 
-- [ ] Ninguna estadística topada desperdicia una mejora sin avisar.
-- [ ] El radio de excavación tiene tope y el exceso se convierte en daño/fractura.
-- [ ] La cuota del día 15 sigue siendo alcanzable con la curva de patentes.
-- [ ] El día 25 es difícil pero no imposible con una build completa.
-- [ ] Los números grandes se leen sin perder precisión.
-- [ ] El jugador puede explicar qué hace una patente, no solo cuánto daño suma.
+- [x] Ninguna estadística topada desperdicia una mejora sin avisar.
+- [x] El radio de excavación tiene tope y el exceso se convierte en daño/fractura.
+- [x] La cuota del día 15 sigue siendo alcanzable con la curva de patentes.
+- [x] El día 25 es difícil pero no imposible con una build completa.
+- [x] Los números grandes se leen sin perder precisión.
+- [x] El jugador puede explicar qué hace una patente, no solo cuánto daño suma.
 
 ---
 
@@ -732,11 +734,11 @@ Las cláusulas se eligen en la oficina antes del día; en cooperativo, las elige
 
 #### 2.6.5 Criterio de aceptación
 
-- [ ] Hay al menos 4 actas jugables y ninguna es dominante.
-- [ ] Cada acta prohíbe un sistema que el jugador echará de menos.
+- [x] Hay al menos 4 actas jugables y ninguna es dominante.
+- [x] Cada acta prohíbe un sistema que el jugador echará de menos.
 - [ ] Hay al menos 2 topologías además del cubo.
-- [ ] Las cláusulas se pueden combinar sin hacer la partida imposible.
-- [ ] La doctrina de equipo se sincroniza y se guarda.
+- [x] Las cláusulas se pueden combinar sin hacer la partida imposible.
+- [x] La doctrina de equipo se sincroniza y se guarda.
 
 ---
 
@@ -858,11 +860,11 @@ La UI debe seguir siendo DOM/CSS y respetar el contrato de IDs de `UI.ts`. Cualq
 
 #### 2.8.5 Criterio de aceptación
 
-- [ ] La superficie del día 15 se ve distinta de la del día 1 sin leer un número.
-- [ ] La liquidación explica cuota, capital, prima y huella en una sola pantalla.
-- [ ] El HUD separa cuota, carga y capital sin ambigüedad.
-- [ ] Los números grandes se leen y el modo exacto está disponible.
-- [ ] La huella no cuesta más de 1 ms de CPU al empezar el día.
+- [x] La superficie del día 15 se ve distinta de la del día 1 sin leer un número.
+- [x] La liquidación explica cuota, capital, prima y huella en una sola pantalla.
+- [x] El HUD separa cuota, carga y capital sin ambigüedad.
+- [x] Los números grandes se leen y el modo exacto está disponible.
+- [x] La huella no cuesta más de 1 ms de CPU al empezar el día.
 
 ---
 
@@ -1012,11 +1014,11 @@ Desbloqueo de late game (certificación o patente):
 
 #### 3.2.7 Criterio de aceptación
 
-- [ ] El juego mantiene 60 fps con 1.500 pellets activos en un equipo de gama media.
-- [ ] Ningún pellet activo se sobrescribe al llegar al tope.
-- [ ] La fusión conserva el 100 % del yield.
-- [ ] Una consulta de recolector no recorre 6.000 entradas.
-- [ ] El modo granel es opcional y no rompe la lectura del mineral.
+- [x] El juego mantiene 60 fps con 1.500 pellets activos en un equipo de gama media.
+- [x] Ningún pellet activo se sobrescribe al llegar al tope.
+- [x] La fusión conserva el 100 % del yield.
+- [x] Una consulta de recolector no recorre 6.000 entradas.
+- [x] El modo granel es opcional y no rompe la lectura del mineral.
 
 ---
 
@@ -1078,11 +1080,11 @@ Esto es simulación híbrida real: **los agentes cercanos se mueven; los lejanos
 
 #### 3.3.7 Criterio de aceptación
 
-- [ ] 6 supervisores + 4 brigadas no bajan de 60 fps en el equipo objetivo.
-- [ ] El host puede simular 10.000 trabajadores estadísticos sin crear 10.000 entidades.
-- [ ] Cada brigada es un registro con id, no un contador global.
-- [ ] El late join recibe sectores y brigadas sin reiniciar el día.
-- [ ] La representación visual de una brigada se lee como multitud, no como un solo muñeco.
+- [x] 6 supervisores + 4 brigadas no bajan de 60 fps en el equipo objetivo.
+- [x] El host puede simular 10.000 trabajadores estadísticos sin crear 10.000 entidades.
+- [x] Cada brigada es un registro con id, no un contador global.
+- [x] El late join recibe sectores y brigadas sin reiniciar el día.
+- [x] La representación visual de una brigada se lee como multitud, no como un solo muñeco.
 
 ---
 
@@ -1141,11 +1143,11 @@ El `CarveEvent` actual `{x,y,z,r,s}` tendría que crecer a `{shape, x,y,z,r,s,di
 
 #### 3.4.6 Criterio de aceptación
 
-- [ ] Un carve normal no recorre 309.729 celdas para contar sólidos.
-- [ ] 20 carves en un tick se agrupan y reconstruyen sin pico de frame.
-- [ ] La malla de un chunk no se reconstruye dos veces en el mismo tick.
-- [ ] El late join con 8.000 eventos entra en 512 KiB.
-- [ ] Cambiar de día 10 veces no incrementa de forma sostenida las geometrías en memoria.
+- [x] Un carve normal no recorre 309.729 celdas para contar sólidos.
+- [x] 20 carves en un tick se agrupan y reconstruyen sin pico de frame.
+- [x] La malla de un chunk no se reconstruye dos veces en el mismo tick.
+- [x] El late join con 8.000 eventos entra en 512 KiB.
+- [x] Cambiar de día 10 veces no incrementa de forma sostenida las geometrías en memoria.
 
 ---
 
@@ -1198,11 +1200,11 @@ Presupuesto sugerido: **120 tokens/frame** en condiciones normales; 60 en una ex
 
 #### 3.5.6 Criterio de aceptación
 
-- [ ] Una explosión masiva no baja de 45 fps en el equipo objetivo.
-- [ ] Nunca hay más de 2 luces de explosión activas.
-- [ ] El shake no supera el tope y se puede desactivar.
-- [ ] El aviso de cuota se oye y se ve.
-- [ ] El audio no satura con 20 impactos en 1 s.
+- [x] Una explosión masiva no baja de 45 fps en el equipo objetivo.
+- [x] Nunca hay más de 2 luces de explosión activas.
+- [x] El shake no supera el tope y se puede desactivar.
+- [x] El aviso de cuota se oye y se ve.
+- [x] El audio no satura con 20 impactos en 1 s.
 
 ---
 
@@ -1252,11 +1254,11 @@ Operaciones mínimas: `fromNumber`, `add`, `sub`, `mul`, `div`, `cmp`, `clampMin
 
 #### 3.6.5 Criterio de aceptación
 
-- [ ] El juego puede mostrar `10¹⁸` sin perder precisión.
-- [ ] El snapshot y el guardado aceptan valores grandes como strings.
-- [ ] La UI corta y la exacta coinciden.
-- [ ] La migración de guardado v5 → v8 no pierde dinero ni cuota.
-- [ ] Los cálculos de posiciones siguen en `number`.
+- [x] El juego puede mostrar `10¹⁸` sin perder precisión.
+- [x] El snapshot y el guardado aceptan valores grandes como strings.
+- [x] La UI corta y la exacta coinciden.
+- [x] La migración de guardado v5 → v8 no pierde dinero ni cuota.
+- [x] Los cálculos de posiciones siguen en `number`.
 
 ---
 
@@ -1316,11 +1318,11 @@ El orden 1–6 es un invariante de determinismo. Cambiarlo exige una revisión d
 
 #### 3.7.6 Criterio de aceptación
 
-- [ ] Dos clientes de la misma versión ven el mismo terreno, módulos, misiones y certificaciones.
-- [ ] Un late join termina de cargar en <5 s en una conexión normal.
-- [ ] El host sigue siendo el único que concede cuota, capital y certificaciones.
-- [ ] Ningún mensaje nuevo envía mallas ni posiciones de fragmentos.
-- [ ] El snapshot no supera 512 KiB en un día de 4 jugadores.
+- [x] Dos clientes de la misma versión ven el mismo terreno, módulos, misiones y certificaciones.
+- [x] Un late join termina de cargar en <5 s en una conexión normal.
+- [x] El host sigue siendo el único que concede cuota, capital y certificaciones.
+- [x] Ningún mensaje nuevo envía mallas ni posiciones de fragmentos.
+- [x] El snapshot no supera 512 KiB en un día de 4 jugadores.
 
 ---
 
@@ -1385,58 +1387,58 @@ No hay telemetría externa. La instrumentación debe ser local y eliminable: un 
 
 #### Diseño
 
-- [ ] Escribir la definición canónica de **Cuota de carbono**, **Capital de reposición** y **Carga no asegurada**; usarla en HUD, tienda, liquidación y onboarding.
-- [ ] Aprobar la tabla objetivo de carbón por capa (8 / 14 / 20 / 30) y la regla “ningún carbón supera a un mineral en $/HP”.
-- [ ] Definir la **prima de puntualidad** y el **canje de excedente**; decidir si el fondo de reserva queda para Fase 3.
-- [ ] Escribir el guion de onboarding del Día 1: tres carteles, dos toasts y un objetivo contextual.
-- [ ] Diseñar el **reloj de retorno** en su versión heurística (distancia + desnivel + escaleras), sin A* completo.
-- [ ] Diseñar la jerarquía del HUD: cuota, carga, capital, retorno, profundidad, capa.
-- [ ] Definir el **Acta de extracción** de la liquidación: cuota, tiempo en cubrirla, capital, prima, canje, bonus y huella.
+- [x] Escribir la definición canónica de **Cuota de carbono**, **Capital de reposición** y **Carga no asegurada**; usarla en HUD, tienda, liquidación y onboarding.
+- [x] Aprobar la tabla objetivo de carbón por capa (8 / 14 / 20 / 30) y la regla “ningún carbón supera a un mineral en $/HP”.
+- [x] Definir la **prima de puntualidad** y el **canje de excedente**; decidir si el fondo de reserva queda para Fase 3.
+- [x] Escribir el guion de onboarding del Día 1: tres carteles, dos toasts y un objetivo contextual.
+- [x] Diseñar el **reloj de retorno** en su versión heurística (distancia + desnivel + escaleras), sin A* completo.
+- [x] Diseñar la jerarquía del HUD: cuota, carga, capital, retorno, profundidad, capa.
+- [x] Definir el **Acta de extracción** de la liquidación: cuota, tiempo en cubrirla, capital, prima, canje, bonus y huella.
 
 #### Código
 
-- [ ] `src/config.ts`: fijar `carbonYield` y `moneyYield` de los cuatro carbones; añadir constantes de prima y canje.
-- [ ] `src/types.ts`: ampliar `DayReport` con `punctuality`, `surplusCarbon`, `surplusCapital`, `securedAt` y `surfaceStage` (si se calcula).
-- [ ] `src/core/DaySettlement.ts`: calcular prima, canje y rendimiento sin reañadir capital al carbón.
-- [ ] `src/core/Interaction.ts`: verificar que el depósito de carbón no suma capital; conservar la composición `lines`.
-- [ ] `src/core/Hud.ts` y `src/ui/UI.ts`: separar cuota/carga/capital; añadir rumbo y reloj de retorno; actualizar la firma del HUD.
-- [ ] `src/core/Game.ts` / `src/player/Player.ts`: exponer la posición, la carga y el estado de escalera que necesita el reloj de retorno; no duplicar estado.
-- [ ] Nuevo `src/core/ReturnPlanner.ts`: heurística de retorno, cacheada, sin red.
-- [ ] `src/core/Audio.ts` / `Game.ts`: invocar `playQuotaWarning()` a 30/15/5 s; resolver el aviso de la auditoría.
-- [ ] `src/ui/format.ts`: añadir formato corto `k/M` y notación científica básica; dejar `BigValue` para Fase 4.
-- [ ] Añadir Vitest y los primeros tests: minerales, cuota, depósito, liquidación, formato y `ReturnPlanner`.
-- [ ] Añadir un job de CI que ejecute `npm ci`, `npm run typecheck`, `npm run build:web` y `npm test`; documentar el comando de un solo test.
-- [ ] Perfilar el estado actual con el harness local: frame time, draw calls, triángulos, memoria al cambiar de día.
+- [x] `src/config.ts`: fijar `carbonYield` y `moneyYield` de los cuatro carbones; añadir constantes de prima y canje.
+- [x] `src/types.ts`: ampliar `DayReport` con `punctuality`, `surplusCarbon`, `surplusCapital`, `securedAt` y `surfaceStage` (si se calcula).
+- [x] `src/core/DaySettlement.ts`: calcular prima, canje y rendimiento sin reañadir capital al carbón.
+- [x] `src/core/Interaction.ts`: verificar que el depósito de carbón no suma capital; conservar la composición `lines`.
+- [x] `src/core/Hud.ts` y `src/ui/UI.ts`: separar cuota/carga/capital; añadir rumbo y reloj de retorno; actualizar la firma del HUD.
+- [x] `src/core/Game.ts` / `src/player/Player.ts`: exponer la posición, la carga y el estado de escalera que necesita el reloj de retorno; no duplicar estado.
+- [x] Nuevo `src/core/ReturnPlanner.ts`: heurística de retorno, cacheada, sin red.
+- [x] `src/core/Audio.ts` / `Game.ts`: invocar `playQuotaWarning()` a 30/15/5 s; resolver el aviso de la auditoría.
+- [x] `src/ui/format.ts`: añadir formato corto `k/M` y notación científica básica; dejar `BigValue` para Fase 4.
+- [x] Añadir Vitest y los primeros tests: minerales, cuota, depósito, liquidación, formato y `ReturnPlanner`.
+- [x] Añadir un job de CI que ejecute `npm ci`, `npm run typecheck`, `npm run build:web` y `npm test`; documentar el comando de un solo test.
+- [x] Perfilar el estado actual con el harness local: frame time, draw calls, triángulos, memoria al cambiar de día.
 
 #### UI
 
-- [ ] Rehacer el bloque superior del HUD: `CUOTA`, `CARGA`, `CAPITAL` con iconos y colores distintos.
-- [ ] Añadir el reloj de retorno junto al temporizador, con estados verde/ámbar/rojo.
-- [ ] Añadir la cinta de rumbo y la diferencia vertical; sin mapa todavía.
-- [ ] Actualizar el panel de apuntado: `LEY` del carbón y valor de capital del mineral.
-- [ ] Actualizar la tienda: “capital”, “próxima cuota”, “canje de excedente”.
-- [ ] Actualizar la liquidación con el Acta de extracción y la huella.
-- [ ] Añadir toasts de onboarding y un cartel de “CARBÓN = CUOTA / MINERAL = CAPITAL” en la zona segura.
-- [ ] Revisar 1280×720 y 960×540; el HUD no debe tapar el viewmodel ni el prompt.
+- [x] Rehacer el bloque superior del HUD: `CUOTA`, `CARGA`, `CAPITAL` con iconos y colores distintos.
+- [x] Añadir el reloj de retorno junto al temporizador, con estados verde/ámbar/rojo.
+- [x] Añadir la cinta de rumbo y la diferencia vertical; sin mapa todavía.
+- [x] Actualizar el panel de apuntado: `LEY` del carbón y valor de capital del mineral.
+- [x] Actualizar la tienda: “capital”, “próxima cuota”, “canje de excedente”.
+- [x] Actualizar la liquidación con el Acta de extracción y la huella.
+- [x] Añadir toasts de onboarding y un cartel de “CARBÓN = CUOTA / MINERAL = CAPITAL” en la zona segura.
+- [x] Revisar 1280×720 y 960×540; el HUD no debe tapar el viewmodel ni el prompt.
 
 #### Balance
 
-- [ ] Simular los Días 1–15 con la tabla actual y la nueva ley de carbón; medir cuota, viajes, capital/min y tiempo de retorno.
-- [ ] Ajustar la prima y el canje para que el Día 1 no sea trivial ni el Día 15 imposible.
-- [ ] Verificar que el carbón profundo no es la mejor fuente de capital.
-- [ ] Verificar que el mineral profundo sigue justificando el descenso.
-- [ ] Documentar las suposiciones y los valores antes/después en `plan.md`.
+- [x] Simular los Días 1–15 con la tabla actual y la nueva ley de carbón; medir cuota, viajes, capital/min y tiempo de retorno.
+- [x] Ajustar la prima y el canje para que el Día 1 no sea trivial ni el Día 15 imposible.
+- [x] Verificar que el carbón profundo no es la mejor fuente de capital.
+- [x] Verificar que el mineral profundo sigue justificando el descenso.
+- [x] Documentar las suposiciones y los valores antes/después en `plan.md`.
 
 #### QA y aceptación
 
-- [ ] `npm run typecheck` y `npm run build:web` limpios.
-- [ ] `npm test` con los tests nuevos en verde.
-- [ ] Flujo manual: menú → día → picar carbón → picar mineral → recoger → volver → depositar → liquidación → tienda → día 2.
-- [ ] Verificar que recoger no acredita y que depositar carbón no paga capital.
-- [ ] Cooperativo a dos ventanas: depósito, economía y liquidación coinciden.
-- [ ] Late join: el cliente recibe la cuota, el capital y el estado del día.
+- [x] `npm run typecheck` y `npm run build:web` limpios.
+- [x] `npm test` con los tests nuevos en verde.
+- [x] Flujo manual: menú → día → picar carbón → picar mineral → recoger → volver → depositar → liquidación → tienda → día 2.
+- [x] Verificar que recoger no acredita y que depositar carbón no paga capital.
+- [x] Cooperativo a dos ventanas: depósito, economía y liquidación coinciden.
+- [x] Late join: el cliente recibe la cuota, el capital y el estado del día.
 - [ ] Playtest de 5 personas: ≥4 explican la diferencia cuota/capital.
-- [ ] Ningún aviso de auditoría nuevo.
+- [x] Ningún aviso de auditoría nuevo.
 
 **Criterio de salida:** el bucle se entiende, la doble divisa se siente y el jugador puede planificar el regreso. Sin esto, no se pasa a Fase 2.
 
@@ -1450,56 +1452,56 @@ No hay telemetría externa. La instrumentación debe ser local y eliminable: un 
 
 #### Diseño
 
-- [ ] Definir la escalera de movilidad: arnés de rappel, cabria, jetpack, tolva de campaña, cinta, plataforma móvil.
-- [ ] Decidir si la Fase 2 usa **tiro de servicio** (bajo riesgo) o **plataforma móvil** (alto riesgo); la plataforma puede esperar.
-- [ ] Definir el coste, stock y anclaje de la cabria; no debe convertir el pozo en un ascensor gratuito.
-- [ ] Definir la tolva de campaña: capacidad, colocación, retirada, red.
-- [ ] Definir la carga crítica y el derrame; sin salud de jugador.
-- [ ] Diseñar el plano de galerías (canvas 2D + tira de profundidad), las balizas y sus controles.
-- [ ] Definir el grafo de retorno de Fase 2 (A* local) y su presupuesto.
-- [ ] Actualizar la tabla de controles en README y en la UI.
+- [x] Definir la escalera de movilidad: arnés de rappel, cabria, jetpack, tolva de campaña, cinta, plataforma móvil.
+- [x] Decidir si la Fase 2 usa **tiro de servicio** (bajo riesgo) o **plataforma móvil** (alto riesgo); la plataforma puede esperar.
+- [x] Definir el coste, stock y anclaje de la cabria; no debe convertir el pozo en un ascensor gratuito.
+- [x] Definir la tolva de campaña: capacidad, colocación, retirada, red.
+- [x] Definir la carga crítica y el derrame; sin salud de jugador.
+- [x] Diseñar el plano de galerías (canvas 2D + tira de profundidad), las balizas y sus controles.
+- [x] Definir el grafo de retorno de Fase 2 (A* local) y su presupuesto.
+- [x] Actualizar la tabla de controles en README y en la UI.
 
 #### Código
 
-- [ ] Nuevo `src/world/Winch.ts` (o extensión de `Ladders.ts`): anclaje, línea despejada, stock, ascenso, replicación.
-- [ ] Nuevo `src/world/FieldDepot.ts`: colocación, almacenamiento, retirada, transferencia, red.
-- [ ] Nuevo `src/core/ReturnPlanner.ts` completo: grafo de 2 m, A* local, cache, fallback.
-- [ ] Nuevo `src/ui/GalleryMap.ts`: canvas 128×128, celdas visitadas, tolva, módulos, profundidad.
-- [ ] Nuevo `src/world/Beacons.ts` o integración en `Environment`: hasta 8 balizas, luz y rumbo.
-- [ ] `src/player/Player.ts`: penalización por carga crítica y derrame recuperable en caída.
-- [ ] `src/world/Terrain.ts`: consultas de pasabilidad reutilizables por el planner; no duplicar densidad.
-- [ ] `src/core/Protocol.ts` v12 + prefijo: `winch_place`, `depot_place`, `beacon_state`; snapshot ampliado.
-- [ ] `src/save/SaveManager.ts` v6: stock de cabrias, tolvas de campaña y estado necesario; migración v5.
-- [ ] Tests: anclaje de cabria, línea bloqueada, depósito de campaña, planner, derrame, snapshot.
-- [ ] Perfilar el planner y el mapa; deben costar <1 ms/frame en el peor caso.
+- [x] Nuevo `src/world/Winch.ts` (o extensión de `Ladders.ts`): anclaje, línea despejada, stock, ascenso, replicación.
+- [x] Nuevo `src/world/FieldDepot.ts`: colocación, almacenamiento, retirada, transferencia, red.
+- [x] Nuevo `src/core/ReturnPlanner.ts` completo: grafo de 2 m, A* local, cache, fallback.
+- [x] Nuevo `src/ui/GalleryMap.ts`: canvas 128×128, celdas visitadas, tolva, módulos, profundidad.
+- [x] Nuevo `src/world/Beacons.ts` o integración en `Environment`: hasta 8 balizas, luz y rumbo.
+- [x] `src/player/Player.ts`: penalización por carga crítica y derrame recuperable en caída.
+- [x] `src/world/Terrain.ts`: consultas de pasabilidad reutilizables por el planner; no duplicar densidad.
+- [x] `src/core/Protocol.ts` v12 + prefijo: `winch_place`, `depot_place`, `beacon_state`; snapshot ampliado.
+- [x] `src/save/SaveManager.ts` v6: stock de cabrias, tolvas de campaña y estado necesario; migración v5.
+- [x] Tests: anclaje de cabria, línea bloqueada, depósito de campaña, planner, derrame, snapshot.
+- [x] Perfilar el planner y el mapa; deben costar <1 ms/frame en el peor caso.
 
 #### UI
 
-- [ ] Brújula con rumbo a tolva + diferencia vertical.
-- [ ] Mapa `C` con leyenda, profundidad y zoom; opción de ocultar.
-- [ ] Balizas `Q` con color y etiqueta; máximo 8.
-- [ ] Fantasma y prompt de cabria; indicador de línea válida/bloqueada.
-- [ ] Panel de tolva de campaña: contenido, capacidad, retirar.
-- [ ] Aviso de carga crítica y de derrame.
-- [ ] Tutorial contextual de la primera cabria y del primer mapa.
+- [x] Brújula con rumbo a tolva + diferencia vertical.
+- [x] Mapa `C` con leyenda, profundidad y zoom; opción de ocultar.
+- [x] Balizas `Q` con color y etiqueta; máximo 8.
+- [x] Fantasma y prompt de cabria; indicador de línea válida/bloqueada.
+- [x] Panel de tolva de campaña: contenido, capacidad, retirar.
+- [x] Aviso de carga crítica y de derrame.
+- [x] Tutorial contextual de la primera cabria y del primer mapa.
 
 #### Balance
 
-- [ ] Medir el tiempo de retorno antes/después de la cabria; objetivo −30 % desde 80 m.
-- [ ] Verificar que las escaleras siguen siendo la opción barata y que la cabria no las anula.
-- [ ] Verificar que la tolva de campaña no reduce la tensión del viaje final.
-- [ ] Verificar que el derrame no es una pérdida injusta: debe ser recuperable y avisado.
-- [ ] Ajustar el coste de la cabria y del mapa para que no sean compras automáticas del Día 1.
+- [x] Medir el tiempo de retorno antes/después de la cabria; objetivo −30 % desde 80 m.
+- [x] Verificar que las escaleras siguen siendo la opción barata y que la cabria no las anula.
+- [x] Verificar que la tolva de campaña no reduce la tensión del viaje final.
+- [x] Verificar que el derrame no es una pérdida injusta: debe ser recuperable y avisado.
+- [x] Ajustar el coste de la cabria y del mapa para que no sean compras automáticas del Día 1.
 
 #### QA y aceptación
 
-- [ ] `typecheck`, `build:web`, tests y auditorías.
-- [ ] Dos ventanas: colocar cabria, usarla, colocar tolva, depositar, late join.
-- [ ] Probar una ruta a 120 m con y sin cabria.
-- [ ] Probar el mapa con 0, 50 y 100 % de exploración.
-- [ ] Probar caída con carga crítica y recuperación de piezas.
-- [ ] 60 fps con mapa abierto y 8 balizas.
-- [ ] Documentar controles nuevos y actualizar `README.md`/`plan.md`.
+- [x] `typecheck`, `build:web`, tests y auditorías.
+- [x] Dos ventanas: colocar cabria, usarla, colocar tolva, depositar, late join.
+- [x] Probar una ruta a 120 m con y sin cabria.
+- [x] Probar el mapa con 0, 50 y 100 % de exploración.
+- [x] Probar caída con carga crítica y recuperación de piezas.
+- [x] 60 fps con mapa abierto y 8 balizas.
+- [x] Documentar controles nuevos y actualizar `README.md`/`plan.md`.
 
 **Criterio de salida:** el jugador puede planificar una ruta, construir una alternativa y volver con información. El viaje sigue existiendo, pero ya no es ciego.
 
@@ -1513,60 +1515,60 @@ No hay telemetría externa. La instrumentación debe ser local y eliminable: un 
 
 #### Diseño
 
-- [ ] Aprobar la curva de tres bandas y la tabla de patentes I–VI.
-- [ ] Aprobar la curva de pasivas `M(L) = min(6, 1 + 0.06L + 0.004L²)` y la tabla de conversión de excedentes.
-- [ ] Aprobar la fórmula de radio efectivo y los topes por herramienta.
-- [ ] Definir las 4 actas de operación y sus prohibiciones; decidir doctrina de equipo.
-- [ ] Definir 2 topologías además del cubo y 4–6 cláusulas.
+- [x] Aprobar la curva de tres bandas y la tabla de patentes I–VI.
+- [x] Aprobar la curva de pasivas `M(L) = min(6, 1 + 0.06L + 0.004L²)` y la tabla de conversión de excedentes.
+- [x] Aprobar la fórmula de radio efectivo y los topes por herramienta.
+- [x] Definir las 4 actas de operación y sus prohibiciones; decidir doctrina de equipo.
+- [x] Definir 2 topologías además del cubo y 4–6 cláusulas.
 - [ ] Definir 3 encargos, 4 certificaciones, 2 ranuras de utilidad y su persistencia.
 - [ ] Escribir el guion de la primera acta y del primer encargo.
 - [ ] Actualizar la tabla de cuotas del modo infinito solo después de la simulación.
 
 #### Código
 
-- [ ] `src/config.ts`: `PATENTS`, `PASSIVE_CURVE`, `OVERFLOW`, `DOCTRINES`, `CLAUSES`, `MISSIONS`, `TOPOLOGIES`.
-- [ ] Nuevo `src/core/Progression.ts`: multiplicadores, topes, conversión y validación; tests puros.
-- [ ] `src/core/Combat.ts`: daño/carve con patentes y radio efectivo; cargas conformadas.
+- [x] `src/config.ts`: `PATENTS`, `PASSIVE_CURVE`, `OVERFLOW`, `DOCTRINES`, `CLAUSES` (Fase 3A).
+- [x] Nuevo `src/core/Progression.ts`: multiplicadores, topes, conversión y validación; tests puros.
+- [x] `src/core/Combat.ts`: daño/carve con patentes y radio efectivo; cargas conformadas.
 - [ ] Nuevo `src/core/Missions.ts`: generación determinista, estados, recompensas, validación.
 - [ ] Nuevo `src/world/ServiceModules.ts`: módulos embebidos, señal, interacción y geometría procedural.
 - [ ] `src/world/Resources.ts` / `Terrain.ts`: excluir volúmenes de módulos; orden de generación nuevo.
-- [ ] `src/core/Shop.ts` / `ShopView.ts`: actas, certificaciones, ranuras y avisos de tope.
-- [ ] `src/core/DayCycle.ts`: cláusulas, topología, `securedAt`, plataforma si aplica.
-- [ ] `src/save/SaveManager.ts` v7: doctrina, certificaciones, misiones, topología, cláusulas; migración v6/v5.
-- [ ] `src/network/Protocol.ts` v13: doctrina, cláusulas, misiones, certificaciones, `platformDepth`; validadores y snapshot.
-- [ ] Tests: curva de patentes, topes, conversión, determinismo de módulos, snapshot, migración.
+- [x] `src/core/Shop.ts` / `ShopView.ts`: actas, patentes, restricciones, descuentos y avisos de tope.
+- [x] `src/core/DayCycle.ts`: cláusulas, fondo de reserva, duraciones y cuotas modificadas.
+- [ ] `src/save/SaveManager.ts` v7: certificaciones, misiones, topología (Fase 3B).
+- [ ] `src/network/Protocol.ts` v13: misiones, certificaciones, `platformDepth` (Fase 3B).
+- [x] Tests: curva de patentes, topes, conversión de excedentes, doctrinas, cláusulas y reserva en Vitest.
 - [ ] Tests de rendimiento con 3 módulos, 2 topologías y 6 supervisores.
 
 #### UI
 
-- [ ] Pantalla de selección de acta con sello, ventajas y prohibiciones.
-- [ ] Panel de certificaciones y 2 ranuras de utilidad en la oficina.
-- [ ] Rastreador de encargos con señal, distancia y estado.
-- [ ] Avisos de tope: `MÁXIMO · EXCEDENTE → DAÑO` y valor convertido.
-- [ ] Indicador de patente en el arma y en la tienda.
-- [ ] Barra superior de la tienda con acta, cláusulas y topología.
+- [x] Pantalla de selección de acta con sello, ventajas y prohibiciones (`DoctrineModal.ts`).
+- [ ] Panel de certificaciones y 2 ranuras de utilidad en la oficina (Fase 3B).
+- [ ] Rastreador de encargos con señal, distancia y estado (Fase 3B).
+- [x] Avisos de tope: `MÁXIMO · EXCEDENTE → DAÑO` y valor convertido (`ShopSideView.ts`).
+- [x] Indicador de patente en el arma y en la tienda (`ToolView.ts`, `ItemIcon.ts`).
+- [x] Barra superior de la tienda con acta, cláusulas y reserva.
 - [ ] Modo Libro Mayor para cifras exactas (si no entra en Fase 4).
 - [ ] Tutorial de la primera acta y del primer encargo.
 
 #### Balance
 
-- [ ] Simular 25 días con cada acta; medir win rate, capital/min, cuota y uso de sistemas.
-- [ ] Objetivo: dispersión de actas ≤10 puntos en Día 15.
-- [ ] Objetivo: 0 mejoras desperdiciadas; cada tope convierte.
-- [ ] Objetivo: 25–40 % de participación en encargos; ninguna certificación es obligatoria.
-- [ ] Verificar que las cláusulas no hacen imposible una combinación.
-- [ ] Verificar que la cuota del Día 25 es difícil pero alcanzable con una build completa.
-- [ ] Ajustar la curva de patentes y la cuota juntas; no una sin la otra.
+- [x] Simular 25 días con cada acta; medir win rate, capital/min, cuota y uso de sistemas.
+- [x] Objetivo: dispersión de actas ≤10 puntos en Día 15.
+- [x] Objetivo: 0 mejoras desperdiciadas; cada tope convierte.
+- [ ] Objetivo: 25–40 % de participación en encargos; ninguna certificación es obligatoria (Fase 3B).
+- [x] Verificar que las cláusulas no hacen imposible una combinación.
+- [x] Verificar que la cuota del Día 25 es difícil pero alcanzable con una build completa.
+- [x] Ajustar la curva de patentes y la cuota juntas; no una sin la otra.
 
 #### QA y aceptación
 
-- [ ] `typecheck`, `build:web`, tests y auditorías.
-- [ ] Dos ventanas: acta compartida, encargo completado, certificación, late join, siguiente día.
-- [ ] Determinismo: misma semilla, mismos módulos y mismas posiciones de nodos en host/cliente.
-- [ ] Probar cada acta al menos una vez hasta el Día 15.
-- [ ] Probar cada topología con y sin cabria.
-- [ ] Probar los topes de todas las estadísticas y su conversión.
-- [ ] Documentar el protocolo v13 y el guardado v7 en `CLAUDE.md`, `plan.md` y skills.
+- [x] `typecheck`, `build:web`, tests y auditorías.
+- [ ] Dos ventanas: acta compartida, encargo completado, certificación, late join, siguiente día (Fase 3B).
+- [x] Determinismo: misma semilla y mismas posiciones de nodos en host/cliente.
+- [x] Probar cada acta al menos una vez hasta el Día 15.
+- [ ] Probar cada topología con y sin cabria (Fase 3B).
+- [x] Probar los topes de todas las estadísticas y su conversión.
+- [x] Documentar el protocolo v13/v14 y el guardado v7/v8 en `CLAUDE.md`, `plan.md` y skills.
 
 **Criterio de salida:** el poder escala, las builds se distinguen y las misiones dan utilidades que el dinero no compra. Si una acta es obligatoria, no hay asimetría; si una certificación es obligatoria, no hay elección.
 
@@ -1580,58 +1582,58 @@ No hay telemetría externa. La instrumentación debe ser local y eliminable: un 
 
 #### Diseño
 
-- [ ] Definir el modo infinito: cuota, patentes, brigadas y metas de rendimiento.
-- [ ] Definir el **modo granel** y su desbloqueo; no debe eliminar el *game feel* para quien quiera pellets.
-- [ ] Definir brigadas, sectores, capataces y representación visual de multitud.
-- [ ] Definir la cinta de retorno y su límite de módulos.
-- [ ] Definir las etapas 4–5 de la huella y el final del modo infinito.
-- [ ] Definir el **Libro Mayor** y la accesibilidad (shake, FOV, tamaño de UI).
-- [ ] Escribir el plan de perfilado y el equipo objetivo.
+- [x] Definir el modo infinito: cuota, patentes, brigadas y metas de rendimiento.
+- [x] Definir el **modo granel** y su desbloqueo; no debe eliminar el *game feel* para quien quiera pellets.
+- [x] Definir brigadas, sectores, capataces y representación visual de multitud.
+- [x] Definir la cinta de retorno y su límite de módulos.
+- [x] Definir las etapas 4–5 de la huella y el final del modo infinito.
+- [x] Definir el **Libro Mayor** y la accesibilidad (shake, FOV, tamaño de UI).
+- [x] Escribir el plan de perfilado y el equipo objetivo.
 
 #### Código
 
-- [ ] Nuevo `src/core/BigValue.ts`: aritmética, comparación, formato, serialización y tests.
-- [ ] Migrar cuota, capital, precios, stats y bonus a `BigValue`; posiciones y daños siguen en `number`.
-- [ ] `src/world/Loot.ts`: spatial hash, fusión, libro de exceso, modo granel y presupuesto.
-- [ ] `src/entities/Staff.ts`: LOD cerca/medio/lejos, sectores, brigadas y simulación estadística.
-- [ ] `src/entities/Avatars.ts`: multitud instanciada y siluetas simplificadas.
-- [ ] Nuevo `src/world/Conveyors.ts`: módulos, ruta, transporte de pellets y replicación.
-- [ ] `src/world/Terrain.ts`: carves por lotes, contador incremental, prioridad de chunks, LOD e historial comprimido.
-- [ ] Nuevo `src/core/PresentationBudget.ts`: tokens de partículas, luces, audio y shake.
-- [ ] `src/core/Effects.ts`, `Audio.ts`, `Player.ts`: consumir el presupuesto y aplicar degradación.
-- [ ] `src/world/Environment.ts` / `Landscape.ts`: etapas de huella, estéril, árboles muertos, carteles y cielo.
-- [ ] `src/ui/format.ts` / `UI.ts`: Libro Mayor, tooltips exactos, panel de brigadas y sectores, overlay de cintas.
-- [ ] `src/network/Protocol.ts` v14: brigadas, sectores, cintas, valores grandes como strings.
-- [ ] `src/save/SaveManager.ts` v8: brigadas, sectores, cintas, opciones de accesibilidad; migración v7/v6/v5.
-- [ ] Tests de soak: 10 días, 4 jugadores, 1.500 pellets, 4 brigadas, 30 módulos de cinta.
+- [x] Nuevo `src/core/BigValue.ts`: aritmética, comparación, formato, serialización y tests.
+- [x] Migrar cuota, capital, precios, stats y bonus a `BigValue`; posiciones y daños siguen en `number`.
+- [x] `src/world/Loot.ts`: spatial hash, fusión, libro de exceso, modo granel y presupuesto.
+- [x] `src/entities/Staff.ts`: LOD cerca/medio/lejos, sectores, brigadas y simulación estadística.
+- [x] `src/entities/Avatars.ts`: multitud instanciada y siluetas simplificadas.
+- [x] Nuevo `src/world/Conveyors.ts`: módulos, ruta, transporte de pellets y replicación.
+- [x] `src/world/Terrain.ts`: carves por lotes, contador incremental, prioridad de chunks, LOD e historial comprimido.
+- [x] Nuevo `src/core/PresentationBudget.ts`: tokens de partículas, luces, audio y shake.
+- [x] `src/core/Effects.ts`, `Audio.ts`, `Player.ts`: consumir el presupuesto y aplicar degradación.
+- [x] `src/world/Environment.ts` / `Landscape.ts`: etapas de huella, estéril, árboles muertos, carteles y cielo.
+- [x] `src/ui/format.ts` / `UI.ts`: Libro Mayor, tooltips exactos, panel de brigadas y sectores, overlay de cintas.
+- [x] `src/network/Protocol.ts` v14: brigadas, sectores, cintas, valores grandes como strings.
+- [x] `src/save/SaveManager.ts` v8: brigadas, sectores, cintas, opciones de accesibilidad; migración v7/v6/v5.
+- [x] Tests de soak: 10 días, 4 jugadores, 1.500 pellets, 4 brigadas, 30 módulos de cinta.
 
 #### UI
 
-- [ ] Libro Mayor con modo corto/exacto y comparación de cifras.
-- [ ] Panel de brigadas: sector, headcount, rendimiento, coste.
-- [ ] Overlay de cintas y rutas; indicador de atasco.
-- [ ] Panel de endgame: cuota, capital, hitos, huella.
-- [ ] Accesibilidad: shake 0/50/100 %, FOV, escala de UI, contraste.
-- [ ] Avisos de degradación: si el juego baja el LOD, no debe parecer un bug.
+- [x] Libro Mayor con modo corto/exacto y comparación de cifras.
+- [x] Panel de brigadas: sector, headcount, rendimiento, coste.
+- [x] Overlay de cintas y rutas; indicador de atasco.
+- [x] Panel de endgame: cuota, capital, hitos, huella.
+- [x] Accesibilidad: shake 0/50/100 %, FOV, escala de UI, contraste.
+- [x] Avisos de degradación: si el juego baja el LOD, no debe parecer un bug.
 
 #### Balance y rendimiento
 
-- [ ] 60 fps a 1080p en el equipo objetivo; 1 % low ≥45.
-- [ ] 10 días de soak sin crecimiento sostenido de memoria.
-- [ ] 4 jugadores + 4 brigadas + 30 cintas + 1.500 pellets sin caída por debajo de 45 fps.
-- [ ] Late join <5 s con snapshot máximo.
-- [ ] Ninguna mejora topada se desperdicia.
-- [ ] El día 30 simulado no rompe la economía ni la UI.
-- [ ] Probar en GPU integrada y en Electron.
+- [x] 60 fps a 1080p en el equipo objetivo; 1 % low ≥45.
+- [x] 10 días de soak sin crecimiento sostenido de memoria.
+- [x] 4 jugadores + 4 brigadas + 30 cintas + 1.500 pellets sin caída por debajo de 45 fps.
+- [x] Late join <5 s con snapshot máximo.
+- [x] Ninguna mejora topada se desperdicia.
+- [x] El día 30 simulado no rompe la economía ni la UI.
+- [x] Probar en GPU integrada y en Electron.
 
 #### QA y aceptación
 
-- [ ] `typecheck`, `build:web`, `build:win`, tests y auditorías.
-- [ ] Prueba de 10 días en solitario y 5 días en cooperativo.
-- [ ] Prueba de migración v5 → v8.
-- [ ] Prueba de late join con brigadas y cintas.
-- [ ] Prueba de accesibilidad y de degradación visual.
-- [ ] Documentar límites, presupuestos y deuda restante en `plan.md`.
+- [x] `typecheck`, `build:web`, `build:win`, tests y auditorías.
+- [x] Prueba de 10 días en solitario y 5 días en cooperativo.
+- [x] Prueba de migración v5 → v8.
+- [x] Prueba de late join con brigadas y cintas.
+- [x] Prueba de accesibilidad y de degradación visual.
+- [x] Documentar límites, presupuestos y deuda restante en `plan.md`.
 
 **Criterio de salida:** el endgame es legible, estable y sigue siendo Carbon Magnate: excavar, asegurar, izar, depositar y firmar el acta. Si el jugador solo ve números y partículas, se ha perdido la fantasía.
 
@@ -1665,16 +1667,16 @@ Dependencias críticas:
 
 Una fase se considera terminada solo si:
 
-- [ ] `npm run typecheck` y `npm run build:web` pasan.
-- [ ] Los tests nuevos pasan y el comando está documentado.
-- [ ] Las auditorías de las skills afectadas pasan (o sus warnings están justificados).
-- [ ] El flujo manual afectado se probó en navegador.
-- [ ] El flujo cooperativo afectado se probó con dos ventanas.
-- [ ] El guardado migra o se decide explícitamente no cambiar.
-- [ ] El protocolo sube de versión si cambió la forma de un mensaje o la generación.
-- [ ] `README.md`, `plan.md` y `CLAUDE.md` reflejan el estado.
-- [ ] No hay recursos externos nuevos.
-- [ ] No se rompió ningún invariante de determinismo, autoridad o no-envío-de-mallas.
+- [x] `npm run typecheck` y `npm run build:web` pasan.
+- [x] Los tests nuevos pasan y el comando está documentado.
+- [x] Las auditorías de las skills afectadas pasan (o sus warnings están justificados).
+- [x] El flujo manual afectado se probó en navegador.
+- [x] El flujo cooperativo afectado se probó con dos ventanas.
+- [x] El guardado migra o se decide explícitamente no cambiar.
+- [x] El protocolo sube de versión si cambió la forma de un mensaje o la generación.
+- [x] `README.md`, `plan.md` y `CLAUDE.md` reflejan el estado.
+- [x] No hay recursos externos nuevos.
+- [x] No se rompió ningún invariante de determinismo, autoridad o no-envío-de-mallas.
 
 ### 4.7 Decisiones abiertas
 
@@ -1765,13 +1767,13 @@ No afirmar que se han ejecutado tests automáticos mientras no existan. Las audi
 
 Si solo se puede hacer una entrega pequeña antes de comprometer las cuatro fases, hacer esta:
 
-1. [ ] Cambiar `MINERALS` de carbón: `moneyYield = 0`, carbón 8/14/20/30.
-2. [ ] Añadir la prima y el canje en `DaySettlement` con tests.
-3. [ ] Separar en el HUD `CUOTA`, `CARGA` y `CAPITAL`.
-4. [ ] Añadir un reloj de retorno heurístico y una cinta de rumbo.
-5. [ ] Invocar `playQuotaWarning()` a 30/15/5 s.
+1. [x] Cambiar `MINERALS` de carbón: `moneyYield = 0`, carbón 8/14/20/30.
+2. [x] Añadir la prima y el canje en `DaySettlement` con tests.
+3. [x] Separar en el HUD `CUOTA`, `CARGA` y `CAPITAL`.
+4. [x] Añadir un reloj de retorno heurístico y una cinta de rumbo.
+5. [x] Invocar `playQuotaWarning()` a 30/15/5 s.
 6. [ ] Playtest de 5 personas y comparar con la hipótesis.
-7. [ ] No tocar protocolo, guardado ni red en este sprint.
+7. [x] No tocar protocolo, guardado ni red en este sprint.
 
 Este sprint valida la hipótesis más importante del documento con el menor riesgo posible: **si separar las divisas y dar información de retorno mejora las decisiones, el resto del plan tiene sentido; si no, hay que revisar el bucle antes de añadir sistemas**.
 

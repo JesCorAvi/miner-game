@@ -96,6 +96,7 @@ const game = read('src/core/Game.ts');
 const shop = read('src/core/Shop.ts');
 const shopView = read('src/core/ShopView.ts');
 const interaction = read('src/core/Interaction.ts');
+const deposit = read('src/core/Deposit.ts');
 const dayCycle = read('src/core/DayCycle.ts');
 const shopUi = read('src/ui/shopView.ts');
 const player = read('src/player/Player.ts');
@@ -105,8 +106,9 @@ const save = read('src/save/SaveManager.ts');
 // ---------------------------------------------------------------------------
 // 1. Constantes de bucle
 // ---------------------------------------------------------------------------
+const modes = read('src/data/modes.ts');
+const passives = read('src/data/passives.ts');
 for (const line of [
-  'export const MAX_PLAYERS = 4;',
   'export const MAX_EMPLOYEES = 6;',
   'export const MAX_EMPLOYEE_RANK = 3;',
   'export const BASE_DAY_TIME = 90;',
@@ -119,22 +121,25 @@ for (const line of [
 ]) {
   if (!config.includes(line)) fail(`src/config.ts: falta «${line}»`);
 }
+if (!modes.includes('export const MAX_PLAYERS = 4;')) {
+  fail('src/data/modes.ts: falta MAX_PLAYERS = 4');
+}
 
 // ---------------------------------------------------------------------------
 // 2. Curva de cuotas
 // ---------------------------------------------------------------------------
-const quotaArray = /const QUOTAS:\s*readonly number\[\]\s*=\s*\[([\s\S]*?)\];/.exec(config);
+const quotaArray = /const QUOTAS:\s*readonly number\[\]\s*=\s*\[([\s\S]*?)\];/.exec(modes);
 if (!quotaArray) {
-  fail('src/config.ts: no se encuentra el array QUOTAS');
+  fail('src/data/modes.ts: no se encuentra el array QUOTAS');
 } else {
   const values = quotaArray[1]
     .split(',')
     .map((value) => value.trim())
     .filter(Boolean)
-    .map(Number);
-  const expected = [40, 90, 170, 320, 580, 950, 1600, 2600, 3900, 5000, 7200, 10600, 16500, 25800, 40000];
-  if (values.length !== expected.length) {
-    fail(`QUOTAS: se esperaban ${expected.length} días y hay ${values.length}`);
+    .map((value) => Number(value.replace(/_/g, '')));
+  const expected = [40, 80, 160, 320, 580, 900, 1500, 2200, 3000, 5000];
+  if (values.length !== 30) {
+    fail(`QUOTAS: se esperaban 30 días y hay ${values.length}`);
   }
   expected.forEach((value, index) => {
     if (values[index] !== value) {
@@ -143,16 +148,19 @@ if (!quotaArray) {
   });
   for (let index = 1; index < values.length; index += 1) {
     if (!(values[index] > values[index - 1])) {
-      warn(`QUOTAS: la cuota del día ${index + 1} no crece respecto al día ${index}`);
+      fail(`QUOTAS: la cuota del día ${index + 1} no crece respecto al día ${index}`);
     }
   }
 }
-const quotaForDay = extractBlock(config, 'export function quotaForDay(');
+const quotaForDay = extractBlock(modes, 'export function quotaForDay(');
 if (!quotaForDay.includes('extraPlayers * 0.6')) {
   fail('quotaForDay(): el multiplicador cooperativo debe ser 1 + 0,6 × (jugadores - 1)');
 }
-if (!config.includes('if (day <= QUOTAS.length)')) {
-  warn('baseQuotaForDay(): revisa el escalado exponencial después del día 15');
+if (!modes.includes('if (day <= QUOTAS.length)')) {
+  fail('baseQuotaForDay(): falta la tabla fija hasta el día 30');
+}
+if (!modes.includes('Math.pow(4, day - QUOTAS.length)')) {
+  fail('baseQuotaForDay(): desde el día 31 la cuota debe multiplicarse por 4');
 }
 
 // ---------------------------------------------------------------------------
@@ -198,99 +206,70 @@ const playerLoadout = extractBlock(player, 'setLoadout(loadout: Loadout): void')
 if (!playerLoadout.includes('this.maxFuel <= 0') || !playerLoadout.includes('this.fuel = 0')) {
   fail('Player.setLoadout(): al bloquear el jetpack el combustible debe quedar a 0');
 }
-const passivesBlock = extractBlock(config, 'export const PASSIVE_ORDER');
+const passivesBlock = extractBlock(passives, 'export const PASSIVES');
 if (!passivesBlock) {
-  warn('src/config.ts: no se encuentra PASSIVE_ORDER');
+  fail('src/data/passives.ts: no se encuentra PASSIVES');
+} else {
+  const passiveCount = (passivesBlock.match(/\n  \w+: \{/g) ?? []).length;
+  if (passiveCount !== 31) {
+    fail(`PASSIVES: se esperaban 31 pasivas y hay ${passiveCount}`);
+  }
 }
-for (const passive of ['digRadius', 'nodeDamage', 'magnet', 'employeeSpeed', 'jetpackFuel']) {
-  if (!config.includes(`${passive}:`)) fail(`PASSIVES: falta «${passive}»`);
+if (!passives.includes('export const PASSIVE_ORDER')) {
+  fail('src/data/passives.ts: falta PASSIVE_ORDER');
+}
+for (const passive of ['pickaxeSpeed', 'pickaxeDamage', 'minerSpeed', 'collectorSpeed', 'orbRadius']) {
+  if (!passives.includes(`${passive}:`)) fail(`PASSIVES: falta «${passive}»`);
 }
 
 // ---------------------------------------------------------------------------
 // 4. Arsenal
 // ---------------------------------------------------------------------------
-const weaponOrderMatch = /export const WEAPON_ORDER[^=]*=\s*\[([\s\S]*?)\];/.exec(config);
-const expectedWeapons = ['pickaxe', 'tesla', 'drill', 'shotgun'];
-if (!weaponOrderMatch) {
-  fail('src/config.ts: no se encuentra WEAPON_ORDER');
-} else {
-  const weapons = [...weaponOrderMatch[1].matchAll(/'([a-z]+)'/g)].map((match) => match[1]);
-  if (weapons.join(',') !== expectedWeapons.join(',')) {
-    fail(`WEAPON_ORDER: se esperaba ${expectedWeapons.join(', ')} y hay ${weapons.join(', ')}`);
-  }
+const weaponFamilies = read('src/data/weaponFamilies.ts');
+if (!config.includes('export const WEAPON_ORDER: readonly WeaponId[] = WEAPON_FAMILY_ORDER;')) {
+  fail('src/config.ts: WEAPON_ORDER debe derivarse de WEAPON_FAMILY_ORDER');
 }
-const weaponsBlock = extractBlock(config, 'export const WEAPONS');
-if (!weaponsBlock) {
-  fail('src/config.ts: no se encuentra WEAPONS');
-} else {
-  const entries = objectEntries(weaponsBlock);
-  for (const id of expectedWeapons) {
-    const entry = entries.get(id);
-    if (!entry) {
-      fail(`WEAPONS: falta «${id}»`);
-      continue;
-    }
-    for (const key of ['damage', 'cooldown', 'range', 'carveRadius', 'carveStrength', 'unlockCost']) {
-      if (field(entry, key) === null) fail(`WEAPONS.${id}: falta ${key}`);
-    }
-  }
-  const pickaxe = entries.get('pickaxe');
-  if (pickaxe && field(pickaxe, 'unlockCost') !== '0') {
-    fail('WEAPONS.pickaxe: debe estar desbloqueado de inicio (unlockCost 0)');
-  }
+if (!config.includes('export const WEAPONS: Record<WeaponId, WeaponDefinition> = Object.fromEntries(')) {
+  fail('src/config.ts: WEAPONS debe generarse desde las familias');
+}
+const familyIds = [...weaponFamilies.matchAll(/\n    id: '([a-zA-Z]+)'/g)].map(
+  (match) => match[1],
+);
+if (familyIds.length !== 22) {
+  fail(`WEAPON_FAMILIES: se esperaban 22 familias y hay ${familyIds.length}`);
+}
+for (const required of ['pickaxe', 'tesla', 'drill', 'shotgun', 'pistol', 'mortar', 'earthquake']) {
+  if (!familyIds.includes(required)) fail(`WEAPON_FAMILIES: falta «${required}»`);
 }
 
 // ---------------------------------------------------------------------------
 // 5. Minerales: carbón vs. mineral y capas
 // ---------------------------------------------------------------------------
-const mineralsBlock = extractBlock(config, 'export const MINERALS');
-if (!mineralsBlock) {
-  fail('src/config.ts: no se encuentra MINERALS');
+const mineralsSource = read('src/data/minerals.ts');
+if (!mineralsSource) {
+  fail('src/data/minerals.ts: no se encuentra el catálogo de minerales');
 } else {
-  const entries = objectEntries(mineralsBlock);
-  if (entries.size !== 11) {
-    warn(`MINERALS: se esperaban 11 minerales y hay ${entries.size}`);
+  const coalBlock = mineralsSource.slice(
+    mineralsSource.indexOf('const COAL_TEMPLATES'),
+    mineralsSource.indexOf('const ORE_TEMPLATES'),
+  );
+  const oreBlock = mineralsSource.slice(
+    mineralsSource.indexOf('const ORE_TEMPLATES'),
+    mineralsSource.indexOf('const mineralList'),
+  );
+  const coalCount = (coalBlock.match(/\{ id:/g) ?? []).length;
+  const oreCount = (oreBlock.match(/\{ id:/g) ?? []).length;
+  if (coalCount !== 12) fail(`MINERALS: se esperaban 12 carbones y hay ${coalCount}`);
+  if (oreCount !== 24) fail(`MINERALS: se esperaban 24 minerales y hay ${oreCount}`);
+  if (!mineralsSource.includes('moneyYield: carbonYield')) {
+    fail('MINERALS: el carbón debe vender 1 g por unidad (moneyYield = carbonYield)');
   }
-  let coalCount = 0;
-  let oreCount = 0;
-  for (const [id, entry] of entries) {
-    const family = field(entry, 'family');
-    const carbonYield = field(entry, 'carbonYield');
-    const moneyYield = field(entry, 'moneyYield');
-    const pelletCount = Number(field(entry, 'pelletCount'));
-    const hp = Number(field(entry, 'hp'));
-    const layer = Number(field(entry, 'layer'));
-    if (family === 'coal') {
-      coalCount += 1;
-      if (carbonYield === '0' || Number(carbonYield) <= 0) {
-        fail(`MINERALS.${id}: el carbón debe aportar carbonYield > 0`);
-      }
-      if (moneyYield === '0' || Number(moneyYield) <= 0) {
-        fail(`MINERALS.${id}: el carbón debe aportar moneyYield > 0 además de cuota`);
-      }
-    } else if (family === 'ore') {
-      oreCount += 1;
-      if (moneyYield === '0' || Number(moneyYield) <= 0) {
-        fail(`MINERALS.${id}: el mineral debe aportar moneyYield > 0`);
-      }
-      if (carbonYield !== '0') {
-        fail(`MINERALS.${id}: el mineral no debe aportar carbón`);
-      }
-    } else {
-      fail(`MINERALS.${id}: family debe ser 'coal' u 'ore'`);
-    }
-    if (!Number.isFinite(pelletCount) || pelletCount <= 0) {
-      fail(`MINERALS.${id}: pelletCount debe ser > 0`);
-    }
-    if (!Number.isFinite(hp) || hp <= 0) {
-      fail(`MINERALS.${id}: hp debe ser > 0`);
-    }
-    if (![1, 2, 3, 4].includes(layer)) {
-      fail(`MINERALS.${id}: layer debe estar entre 1 y 4`);
-    }
+  if (!mineralsSource.includes('moneyYield: Math.round(template.baseMoney * biome.hpScale)')) {
+    fail('MINERALS: los minerales de capital deben escalar su ley con el bioma');
   }
-  if (coalCount !== 4) fail(`MINERALS: se esperaban 4 carbones y hay ${coalCount}`);
-  if (oreCount !== 7) fail(`MINERALS: se esperaban 7 minerales y hay ${oreCount}`);
+  if (!mineralsSource.includes('layer: biomeIndex')) {
+    fail('MINERALS: el mineral debe declarar su bioma (1–12)');
+  }
 }
 
 if (!config.includes('export const COLLECTOR_CARRY_WEIGHT = BASE_CARRY_WEIGHT / 2;')) {
@@ -331,8 +310,8 @@ if (!config.includes('export const HIRE_GROWTH = 1.52;')) {
   warn('src/config.ts: HIRE_GROWTH no es 1.52');
 }
 const rankMultiplier = extractBlock(config, 'export function employeeRankMultiplier(');
-if (!rankMultiplier.includes('employeeSpeedPassive * 0.12')) {
-  fail('employeeRankMultiplier(): la pasiva employeeSpeed debe aplicar +12%');
+if (!rankMultiplier.includes('entry.multiplier * speedMultiplier')) {
+  fail('employeeRankMultiplier(): debe aplicar el multiplicador de velocidad de la pasiva');
 }
 
 // ---------------------------------------------------------------------------
@@ -342,11 +321,14 @@ const defaultLoadout = extractBlock(config, 'export function makeDefaultLoadout(
 if (!defaultLoadout) {
   fail('src/config.ts: no se encuentra makeDefaultLoadout()');
 } else {
-  if (!/pickaxe:\s*true/.test(defaultLoadout)) fail('makeDefaultLoadout(): el pico debe estar desbloqueado');
-  for (const weapon of ['tesla', 'drill', 'shotgun']) {
-    if (!new RegExp(`${weapon}:\\s*false`).test(defaultLoadout)) {
-      fail(`makeDefaultLoadout(): ${weapon} debe empezar bloqueado`);
-    }
+  if (!defaultLoadout.includes("id === 'pickaxe'")) {
+    fail('makeDefaultLoadout(): el pico debe estar desbloqueado');
+  }
+  if (!defaultLoadout.includes('weaponTiers')) {
+    fail('makeDefaultLoadout(): debe inicializar weaponTiers');
+  }
+  if (!defaultLoadout.includes("id === 'pickaxe' ? 1 : 0")) {
+    fail('makeDefaultLoadout(): solo el pico debe empezar con tier 1');
   }
   for (const tier of ['frag', 'charge', 'breach', 'seismic']) {
     if (!new RegExp(`${tier}:\\s*0`).test(defaultLoadout)) {
@@ -373,18 +355,18 @@ if (
 if (onLootCollected.includes('game.run.carbon +=') || onLootCollected.includes('game.run.money +=')) {
   fail('onLootCollected(): recoger no debe acreditar cuota ni dinero');
 }
-const applyTeamDeposit = extractBlock(interaction, 'export function applyTeamDeposit(');
+const applyTeamDeposit = extractBlock(deposit, 'export function applyTeamDeposit(');
 if (!applyTeamDeposit.includes('game.run.carbon += cleanCoal')) {
   fail('applyTeamDeposit(): debe acreditar el carbón depositado');
 }
 if (!applyTeamDeposit.includes('game.run.money += cleanMoney')) {
   fail('applyTeamDeposit(): debe acreditar el dinero depositado');
 }
-const depositCargo = extractBlock(interaction, 'export function depositCargo(');
+const depositCargo = extractBlock(deposit, 'export function depositCargo(');
 if (!depositCargo.includes('isNearHopper(game)')) {
   fail('depositCargo(): debe exigir proximidad a la tolva');
 }
-const isNearHopper = extractBlock(interaction, 'export function isNearHopper(');
+const isNearHopper = extractBlock(deposit, 'export function isNearHopper(');
 if (!isNearHopper.includes('HOPPER_INTERACT_RADIUS')) {
   fail('isNearHopper(): debe usar HOPPER_INTERACT_RADIUS');
 }
@@ -461,7 +443,7 @@ const startNextDay = extractBlock(dayCycle, 'export function startNextDay(');
 if (!startNextDay.includes('game.run.day += 1')) {
   fail('startNextDay(): debe avanzar el día');
 }
-if (!startNextDay.includes('quotaForDay(game.run.day, playerCount)')) {
+if (!startNextDay.includes('quotaForDay(') || !startNextDay.includes('playerCount')) {
   fail('startNextDay(): debe recalcular la cuota según jugadores');
 }
 if (!startNextDay.includes('dayDuration(game.run.loadout)')) {
@@ -482,8 +464,8 @@ const saveRun = extractBlock(dayCycle, 'export function saveRun(');
 if (!saveRun.includes('saveInShop ? game.run.day + 1 : game.run.day')) {
   fail('saveRun(): al terminar el día con éxito debe guardar el día siguiente');
 }
-if (!saveRun.includes('infinite: game.run.infinite || (saveInShop && game.shopVictory)')) {
-  warn('saveRun(): revisa la persistencia de la victoria/infinito');
+if (!saveRun.includes('game.run.infinite ||')) {
+  fail('saveRun(): debe conservar el modo infinito');
 }
 if (!save.includes('ladders: Math.floor(num(record.ladders, STARTING_LADDERS, 0, 999))')) {
   fail('SaveManager: el stock de escaleras debe tener default y cotas');
@@ -510,8 +492,8 @@ for (const tab of ["'employees'", "'equipment'", "'bonuses'", "'inventory'"]) {
     fail(`shopView: falta la pestaña ${tab}`);
   }
 }
-if (!shopUi.includes("item.kind === 'weapon' || item.kind === 'supply' || item.kind === 'grenade'")) {
-  fail('shopView: EQUIPO debe agrupar armas, suministros y granadas');
+if (!shopUi.includes("item.kind === 'weapon' || item.kind === 'pickaxe' || item.kind === 'supply' || item.kind === 'grenade'")) {
+  fail('shopView: EQUIPO debe agrupar armas, picos, suministros y granadas');
 }
 if (!shopUi.includes("item.kind.startsWith('employee')")) {
   fail('shopView: EMPLEADOS debe agrupar contratación, ascensos y reconversión');
