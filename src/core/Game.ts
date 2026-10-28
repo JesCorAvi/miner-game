@@ -494,16 +494,40 @@ export class Game {
     this.terrain.update(this.camera.position, dt > 0.033 || this.perf.isDegraded());
     this.perf.end('terrain');
     this.resources.update(dt);
-    this.conveyors.update(dt, this.loot, this.terrain);
+    let beltCarbon = 0;
+    let beltMoney = 0;
+    const beltLines: DaySaleLine[] = [];
+    this.conveyors.update(
+      dt,
+      this.loot,
+      this.terrain,
+      this.hopper.getPosition(),
+      (pelletIndex) => {
+        const collected = this.loot.takeAt(pelletIndex);
+        if (collected && this.isAuthority()) {
+          beltCarbon += collected.carbon;
+          beltMoney += collected.money;
+          beltLines.push(...collected.lines);
+        }
+      },
+    );
+    if (beltCarbon > 0 || beltMoney > 0) {
+      Interaction.applyTeamDeposit(this, beltCarbon, beltMoney, true, beltLines, true);
+    }
     this.conveyorOverlay.update();
 
     this.perf.begin('staff');
     if (this.isAuthority()) {
       const bYield = this.brigades.update(dt, true, this.seed);
       if (bYield.carbon > 0 || bYield.money > 0) {
-        this.run.carbon += bYield.carbon;
-        this.run.money += bYield.money;
-        this.broadcastEconomy();
+        Interaction.applyTeamDeposit(
+          this,
+          bYield.carbon,
+          bYield.money,
+          true,
+          [],
+          true,
+        );
       }
       this.staffManager.update(dt);
       this.staffVisualAccumulator += dt;

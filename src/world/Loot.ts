@@ -777,6 +777,31 @@ export class LootField {
     }
   }
 
+  takeAt(index: number): CollectedLoot | null {
+    const pellet = this.pellets[index];
+    if (!pellet?.active) {
+      return null;
+    }
+    const collected: CollectedLoot = {
+      carbon: pellet.carbon,
+      money: pellet.money,
+      weight: pellet.weight,
+      mineral: pellet.mineral,
+      lines: [
+        {
+          mineral: pellet.mineral,
+          count: pellet.count || 1,
+          carbon: pellet.carbon,
+          money: pellet.money,
+        },
+      ],
+      position: new THREE.Vector3(pellet.x, pellet.y, pellet.z),
+    };
+    this.totalCollected += pellet.count || 1;
+    this.deactivate(index);
+    return collected;
+  }
+
   collectNearestWithin(
     position: THREE.Vector3,
     radius: number,

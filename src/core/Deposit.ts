@@ -53,6 +53,7 @@ export function applyTeamDeposit(
   money: number,
   fromStaff = false,
   lines: readonly DaySaleLine[] = [],
+  silent = false,
 ): void {
   const policy = applyCoalValuePolicy(lines, money, game.run.modifiers);
   const cleanCoal = Math.max(0, Math.floor(coal));
@@ -69,8 +70,10 @@ export function applyTeamDeposit(
     game.securedAt = Math.max(0, duration - game.run.timeLeft);
   }
   game.recordDayDeposit(policy.lines, cleanMoney);
-  game.hopper.triggerPulse();
-  game.audio.playDeposit(game.hopper.getPosition(), fromStaff);
+  if (!silent) {
+    game.hopper.triggerPulse();
+    game.audio.playDeposit(game.hopper.getPosition(), fromStaff);
+  }
   game.lastHudSignature = '';
   if (game.online && game.role === 'host' && game.network) {
     game.broadcastEconomy();
