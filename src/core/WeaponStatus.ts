@@ -69,11 +69,11 @@ export function applyPoisonArea(
   game.effects.spawnHit(position, 0x8aff6a, 1.15);
 }
 
-/** Tick autoritativo del veneno; los clientes reciben los node_hit del host. */
+/**
+ * Tick del veneno en cada extremo. El host lo difunde; un cliente envía sus
+ * ticks como `node_hit` y el host los valida y retransmite al resto.
+ */
 export function updatePoisonStatuses(game: Game, _dt: number): void {
-  if (!game.isAuthority()) {
-    return;
-  }
   const now = performance.now();
   for (const [id, node] of game.poisonedNodes) {
     if (node.broken || node.poisonUntil <= now || node.poisonDps <= 0) {
