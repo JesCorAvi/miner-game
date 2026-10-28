@@ -360,8 +360,7 @@ export class Game {
           ? 1
           : 0.15;
     this.environment.update(dt, THREE.MathUtils.clamp(dayProgress, 0, 1));
-    this.resources.group.visible =
-      this.phase === 'playing' && this.camera.position.y < 1;
+    this.resources.group.visible = this.phase === 'playing';
     const dailyMoney = Math.max(0, moneyOf(this.run).sub(this.dayMoneyBaseBig).toNumber());
     this.hopper.update(dt, this.run.carbon + dailyMoney * 0.025, this.run.quota);
     this.updatePixelMode();
