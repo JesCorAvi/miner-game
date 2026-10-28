@@ -1,15 +1,8 @@
-export type MineralId =
-  | 'coal'
-  | 'coalDense'
-  | 'coalPressure'
-  | 'coalPure'
-  | 'copper'
-  | 'iron'
-  | 'amethyst'
-  | 'gold'
-  | 'ruby'
-  | 'emerald'
-  | 'diamond';
+/**
+ * Los minerales se definen por bioma en `src/data/minerals.ts`. Mantener el
+ * tipo como string permite añadir biomas sin tocar cada unión del proyecto.
+ */
+export type MineralId = string;
 
 export type MineralFamily = 'coal' | 'ore';
 
@@ -18,7 +11,8 @@ export interface MineralDefinition {
   name: string;
   shortName: string;
   family: MineralFamily;
-  layer: 1 | 2 | 3 | 4;
+  /** Bioma (1–12) al que pertenece el mineral. */
+  layer: number;
   color: number;
   emissive: number;
   roughness: number;
@@ -32,7 +26,34 @@ export interface MineralDefinition {
   glow: number;
 }
 
-export type WeaponId = 'pickaxe' | 'tesla' | 'drill' | 'shotgun';
+export type GameMode = 'normal' | 'tough' | 'peaceful';
+
+export type MapId = string;
+
+export type ProfessionId = string;
+
+export type DifficultyModifier =
+  | 'no_chests'
+  | 'only_coal'
+  | 'coal_worthless'
+  | 'no_bonus_cash'
+  | 'no_time_upgrades'
+  | 'only_clay';
+
+export interface BiomeDefinition {
+  index: number;
+  name: string;
+  subtitle: string;
+  from: number;
+  to: number;
+  hpScale: number;
+  hardness: number;
+  rock: number;
+  highlight: number;
+  accent: string;
+}
+
+export type WeaponId = string;
 
 export type WeaponStyle = 'melee' | 'chain' | 'continuous' | 'shotgun';
 
@@ -45,11 +66,69 @@ export interface GrenadeDefinition {
   description: string;
   cost: number;
   packSize: number;
-  maxLayer: 1 | 2 | 3 | 4;
+  /** Bioma máximo 1–12 que la carga puede fracturar. */
+  maxLayer: number;
   carveStrength: number;
   damage: number;
   color: number;
   glow: number;
+  shape?: 'sphere' | 'capsule' | 'cone';
+  length?: number;
+}
+
+export type DoctrineId = 'blasting' | 'crew' | 'precision' | 'freight';
+export type ClauseId =
+  | 'surprise_audit'
+  | 'supply_cut'
+  | 'sealed_stratum'
+  | 'suspended_dust'
+  | 'short_shift'
+  | 'mirror_mine';
+
+export interface PatentDefinition {
+  tier: number;
+  name: string;
+  shortName: string;
+  description: string;
+  cost: number;
+  /** Bioma mínimo 1–12 que debe haberse picado para desbloquear la patente. */
+  requiredLayer: number;
+  damageMultiplier: number;
+  carveMultiplier: number;
+  emissive: number;
+  particleColor: number;
+  soundPitch: number;
+}
+
+export interface DoctrineDefinition {
+  id: DoctrineId;
+  name: string;
+  motto: string;
+  description: string;
+  perks: string[];
+  prohibitions: string[];
+}
+
+export interface ClauseDefinition {
+  id: ClauseId;
+  name: string;
+  shortName: string;
+  description: string;
+}
+
+export type CertificationId =
+  | 'dust_filter'
+  | 'gallery_map'
+  | 'vein_probe'
+  | 'rappel_harness';
+
+export interface CertificationDefinition {
+  id: CertificationId;
+  name: string;
+  shortName: string;
+  description: string;
+  perk: string;
+  requiredDays: number;
 }
 
 export interface WeaponDefinition {
@@ -80,12 +159,7 @@ export type UpgradeId =
   | 'dayTime'
   | 'capacity';
 
-export type PassiveId =
-  | 'digRadius'
-  | 'nodeDamage'
-  | 'magnet'
-  | 'employeeSpeed'
-  | 'jetpackFuel';
+export type PassiveId = string;
 
 export type EmployeeKind = 'miner' | 'collector';
 
@@ -99,12 +173,46 @@ export interface UpgradeLevels {
 }
 
 export type WeaponUnlocks = Record<WeaponId, boolean>;
+export type WeaponTierMap = Record<WeaponId, number>;
 export type PassiveLevels = Record<PassiveId, number>;
 
 export interface EmployeeRecord {
   id: string;
   kind: EmployeeKind;
   rank: number;
+}
+
+export interface BrigadeRecord {
+  id: string;
+  name: string;
+  sectorId: string;
+  headcount: number;
+  kind: 'miners' | 'gatherers';
+  rank: number;
+  seed: number;
+}
+
+export interface SectorBeacon {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  z: number;
+  radius: number;
+  /** Bioma 1–12 al que pertenece el sector. */
+  layer: number;
+  density: number;
+}
+
+export interface ConveyorModule {
+  id: string;
+  x: number;
+  y: number;
+  z: number;
+  dirX: number;
+  dirZ: number;
+  speed: number;
+  isJammed: boolean;
 }
 
 export interface EmployeeState {
@@ -114,11 +222,27 @@ export interface EmployeeState {
 
 export interface Loadout {
   weapons: WeaponUnlocks;
+  weaponTiers?: WeaponTierMap;
   upgrades: UpgradeLevels;
   passives: PassiveLevels;
   employees: EmployeeState;
   ladders: number;
   grenades: Record<GrenadeTierId, number>;
+  winches: number;
+  fieldDepots: number;
+  beacons: number;
+  patent?: number;
+  /** Tier 1–15 del pico principal. */
+  pickaxeTier?: number;
+  /** Profesión de la expedición (13 arquetipos de Coal LLC). */
+  profession?: ProfessionId;
+  doctrine?: DoctrineId | null;
+  clauses?: ClauseId[];
+  reserveCarbon?: number;
+  maxLayerReached?: number;
+  conveyors?: number;
+  certifications?: CertificationId[];
+  utilitySlots?: [CertificationId | null, CertificationId | null];
 }
 
 export interface RunStats {
@@ -140,14 +264,24 @@ export interface DaySaleLine {
 export interface DayReport {
   day: number;
   carbon: number;
+  carbonWire?: string;
   quota: number;
+  quotaWire?: string;
   performance: number;
   lines: DaySaleLine[];
   oreValue: number;
   otherValue: number;
   bonus: number;
+  punctuality: number;
+  surplusCarbon: number;
+  surplusCapital: number;
+  securedAt: number | null;
   total: number;
   money: number;
+  moneyWire?: string;
+  reserveDeposited?: number;
+  reserveCovered?: number;
+  footprintStage?: number;
 }
 
 export type GamePhase = 'menu' | 'lobby' | 'playing' | 'shop' | 'gameover' | 'victory';
@@ -155,23 +289,50 @@ export type GamePhase = 'menu' | 'lobby' | 'playing' | 'shop' | 'gameover' | 'vi
 export interface RunSnapshot {
   day: number;
   money: number;
+  moneyWire?: string;
   carbon: number;
+  carbonWire?: string;
   quota: number;
+  quotaWire?: string;
   timeLeft: number;
   infinite: boolean;
+  mode?: GameMode;
+  modifiers?: DifficultyModifier[];
+  map?: MapId;
   loadout: Loadout;
   stats: RunStats;
+  brigades?: BrigadeRecord[];
+  sectors?: SectorBeacon[];
+  platformDepth?: number;
 }
 
 export interface SaveData {
-  version: 5;
+  version: 9;
   savedAt: number;
   day: number;
   money: number;
+  moneyWire?: string;
   infinite: boolean;
+  mode?: GameMode;
+  modifiers?: DifficultyModifier[];
+  map?: MapId;
   loadout: Loadout;
   stats: RunStats;
   playerName: string;
+  brigades?: BrigadeRecord[];
+  sectors?: SectorBeacon[];
+  nextBrigadeId?: number;
+  conveyors?: {
+    stock: number;
+    placed: ConveyorModule[];
+  };
+  accessibility?: {
+    shake: number;
+    fov: number;
+    bulkLoot: boolean;
+    ledgerMode: boolean;
+  };
+  platformDepth?: number;
 }
 
 export interface SaveSummary {
@@ -187,6 +348,11 @@ export interface CarveEvent {
   z: number;
   r: number;
   s: number;
+  shape?: 'sphere' | 'capsule' | 'cone';
+  dirX?: number;
+  dirY?: number;
+  dirZ?: number;
+  length?: number;
 }
 
 export interface RosterEntry {
@@ -248,7 +414,10 @@ export interface ShopItemView {
     | 'grenade'
     | 'employee_hire'
     | 'employee_rank'
-    | 'employee_convert';
+    | 'employee_convert'
+    | 'patent'
+    | 'pickaxe'
+    | 'certification';
   title: string;
   description: string;
   cost: number;
@@ -259,7 +428,11 @@ export interface ShopItemView {
 }
 
 export interface LayerDefinition {
-  index: 1 | 2 | 3 | 4;
+  /** Nivel de profundidad 1–20. */
+  index: number;
+  /** Bioma 1–12 al que pertenece este nivel. */
+  biomeIndex: number;
+  biomeName: string;
   name: string;
   subtitle: string;
   from: number;
@@ -271,9 +444,53 @@ export interface LayerDefinition {
 }
 
 export interface ChestReward {
-  passive: PassiveId;
+  kind: 'passive' | 'gem' | 'scroll';
+  level: number;
+  passive?: PassiveId;
+  points?: number;
+  mineral?: MineralId;
+  money?: number;
   title: string;
   description: string;
 }
 
 export type PhaseNoticeTone = 'info' | 'positive' | 'danger';
+
+export interface NetworkWinchState {
+  id: string;
+  x: number;
+  topY: number;
+  bottomY: number;
+  z: number;
+  ownerId?: string;
+}
+
+export interface FieldDepotStoredItem {
+  mineral: MineralId;
+  count: number;
+  carbon: number;
+  money: number;
+  weight: number;
+}
+
+export interface NetworkFieldDepotState {
+  id: string;
+  x: number;
+  y: number;
+  z: number;
+  stored: FieldDepotStoredItem[];
+  totalWeight: number;
+  maxCapacity: number;
+  ownerId?: string;
+}
+
+export interface NetworkBeaconState {
+  id: string;
+  x: number;
+  y: number;
+  z: number;
+  color: number;
+  label?: string;
+  ownerId?: string;
+}
+

@@ -306,6 +306,10 @@ export class Hopper {
     this.pulse = 1;
   }
 
+  setPlatformDepth(depth: number): void {
+    this.group.position.set(HOPPER_POSITION.x, SURFACE_DECK_Y - Math.max(0, depth), HOPPER_POSITION.z);
+  }
+
   getPosition(): THREE.Vector3 {
     return this.group.position;
   }

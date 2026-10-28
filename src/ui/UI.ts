@@ -1,29 +1,28 @@
 import * as THREE from 'three';
-import {
-  EMPLOYEE_RANKS,
-  MINERALS,
-  PASSIVES,
-  PASSIVE_ORDER,
-  magnetRadius,
-  maxCarryWeight,
-  maxJetpackFuel,
-} from '../config';
+import { EMPLOYEE_RANKS } from '../config';
 import type { InventoryItem } from '../core/Inventory';
 import type {
   DayReport,
+  DifficultyModifier,
+  GameMode,
   LadderOrientation,
-  RosterEntry,
+  ProfessionId,
   RunStats,
   SaveSummary,
 } from '../types';
-import { formatDepth, formatMoney, formatNumber, formatPercent, formatTime } from './format';
-import { itemIconUrl } from './ItemIcon';
+import { formatDepth, formatMoney, formatNumber, formatTime } from './format';
 import { InventoryView } from './InventoryView';
+import { DaySummaryView } from './DaySummaryView';
 import { renderPixelLogo } from './PixelLogo';
 import { renderShopItems } from './shopView';
 import type { ShopTab, ShopViewData } from './shopView';
+import { renderShopLoadoutSummary, renderShopPassives } from './ShopSideView';
+import type { ReturnRouteStatus } from '../core/ReturnPlanner';
+import { FloatingNoticeView, type ToastTone } from './FloatingNoticeView';
+import { LobbyView, type LobbyViewData } from './LobbyView';
 
 export type { ShopViewData } from './shopView';
+export type { ToastTone } from './FloatingNoticeView';
 
 const LADDER_DIAL_CORES: Record<LadderOrientation, string> = {
   vertical: 'V',
@@ -48,6 +47,7 @@ export interface UIActions {
   returnToMenu: () => void;
   moveInventoryItem: (from: number, to: number) => void;
   selectHotbarSlot: (index: number) => void;
+  openDoctrineModal?: () => void;
 }
 
 export interface HudViewData {
@@ -76,6 +76,10 @@ export interface HudViewData {
   ladders: number;
   ladderPlacementEnabled: boolean;
   jetpackUnlocked: boolean;
+  returnStatus: ReturnRouteStatus;
+  returnText: string;
+  hopperBearingText: string;
+  hopperVerticalText: string;
   prompt: HudPrompt | null;
 }
 
@@ -94,14 +98,7 @@ export interface AimViewData {
   ratio: number;
 }
 
-export interface LobbyViewData {
-  code: string;
-  role: 'host' | 'client';
-  roster: RosterEntry[];
-  status: string;
-  error: string;
-  canStart: boolean;
-}
+export type { LobbyViewData } from './LobbyView';
 
 export interface GameOverViewData {
   victory: boolean;
@@ -109,14 +106,6 @@ export interface GameOverViewData {
   stats: RunStats;
   title?: string;
 }
-
-interface FloatingText {
-  element: HTMLDivElement;
-  position: THREE.Vector3;
-  expiresAt: number;
-}
-
-type ToastTone = 'info' | 'positive' | 'danger';
 
 function required<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -134,9 +123,7 @@ function setText(element: HTMLElement, value: string): void {
 
 export class UI {
   private readonly actions: UIActions;
-  private readonly camera: THREE.PerspectiveCamera;
   private readonly menuOverlay = required<HTMLElement>('menu-overlay');
-  private readonly lobbyOverlay = required<HTMLElement>('lobby-overlay');
   private readonly shopOverlay = required<HTMLElement>('shop-overlay');
   private readonly daySummaryOverlay = required<HTMLElement>('day-summary-overlay');
   private readonly pauseOverlay = required<HTMLElement>('pause-overlay');
@@ -148,21 +135,14 @@ export class UI {
   private readonly startContinue = required<HTMLButtonElement>('start-continue');
   private readonly saveSummary = required<HTMLElement>('save-summary');
   private readonly playerNameInput = required<HTMLInputElement>('player-name');
+  private readonly menuMode = required<HTMLSelectElement>('menu-mode');
+  private readonly menuMap = required<HTMLSelectElement>('menu-map');
+  private readonly menuProfession = required<HTMLSelectElement>('menu-profession');
+  private readonly menuModifiers = required<HTMLElement>('menu-modifiers');
   private readonly createRoomButton = required<HTMLButtonElement>('create-room');
   private readonly joinRoomButton = required<HTMLButtonElement>('join-room');
   private readonly joinCodeInput = required<HTMLInputElement>('join-code');
   private readonly menuError = required<HTMLElement>('menu-error');
-  private readonly lobbyCode = required<HTMLElement>('lobby-code');
-  private readonly lobbyRole = required<HTMLElement>('lobby-role');
-  private readonly lobbyStatus = required<HTMLElement>('lobby-status');
-  private readonly lobbyCount = required<HTMLElement>('lobby-count');
-  private readonly lobbyRoster = required<HTMLElement>('lobby-roster');
-  private readonly lobbyError = required<HTMLElement>('lobby-error');
-  private readonly lobbyStart = required<HTMLButtonElement>('lobby-start');
-  private readonly lobbyLeave = required<HTMLButtonElement>('lobby-leave');
-  private readonly lobbyWaiting = required<HTMLElement>('lobby-waiting');
-  private readonly copyCodeButton = required<HTMLButtonElement>('copy-code');
-  private readonly copyLinkButton = required<HTMLButtonElement>('copy-link');
   private readonly shopTitle = required<HTMLElement>('shop-title');
   private readonly shopSubtitle = required<HTMLElement>('shop-subtitle');
   private readonly shopMoney = required<HTMLElement>('shop-money');
@@ -182,14 +162,7 @@ export class UI {
   private readonly shopNext = required<HTMLButtonElement>('shop-next');
   private readonly shopWaitHost = required<HTMLElement>('shop-wait-host');
   private readonly shopMenu = required<HTMLButtonElement>('shop-menu');
-  private readonly daySummaryTitle = required<HTMLElement>('day-summary-title');
-  private readonly daySummarySubtitle = required<HTMLElement>('day-summary-subtitle');
-  private readonly daySummaryLines = required<HTMLElement>('day-summary-lines');
-  private readonly daySummaryCarbon = required<HTMLElement>('day-summary-carbon');
-  private readonly daySummaryPerformance = required<HTMLElement>('day-summary-performance');
-  private readonly daySummaryBonus = required<HTMLElement>('day-summary-bonus');
-  private readonly daySummaryTotal = required<HTMLElement>('day-summary-total');
-  private readonly daySummaryMoney = required<HTMLElement>('day-summary-money');
+  private readonly daySummaryView: DaySummaryView;
   private readonly daySummaryContinue = required<HTMLButtonElement>('day-summary-continue');
   private readonly shopTabs: HTMLButtonElement[] = [];
   private readonly shopTabCounts = new Map<string, HTMLElement>();
@@ -205,6 +178,10 @@ export class UI {
   private readonly loadingText = required<HTMLElement>('loading-text');
   private readonly hudDay = required<HTMLElement>('hud-day');
   private readonly hudTime = required<HTMLElement>('hud-time');
+  private readonly hudReturnBadge = required<HTMLElement>('hud-return');
+  private readonly hudReturnTime = required<HTMLElement>('hud-return-time');
+  private readonly hudHopperBearing = required<HTMLElement>('hud-hopper-bearing');
+  private readonly hudHopperVertical = required<HTMLElement>('hud-hopper-vertical');
   private readonly hudCarbon = required<HTMLElement>('hud-carbon');
   private readonly hudMoney = required<HTMLElement>('hud-money');
   private readonly hudQuotaFill = required<HTMLElement>('hud-quota-fill');
@@ -237,28 +214,29 @@ export class UI {
   private readonly cargoCard = required<HTMLElement>('cargo-card');
   private readonly cargoWeight = required<HTMLElement>('hud-cargo-weight');
   private readonly cargoWeightFill = required<HTMLElement>('hud-cargo-weight-fill');
+  private readonly cargoUnbanked = required<HTMLElement>('hud-cargo-unbanked');
   private readonly cargoHopper = required<HTMLElement>('hud-hopper');
   private readonly jetCard = required<HTMLElement>('jet-card');
   private readonly jetHint = required<HTMLElement>('hud-jet-hint');
   private readonly inventoryView: InventoryView;
-  private readonly toastStack = required<HTMLElement>('toast-stack');
-  private readonly floatLayer = required<HTMLElement>('float-layer');
-  private readonly banner = required<HTMLElement>('hud-banner');
-  private readonly bannerKicker = required<HTMLElement>('hud-banner-kicker');
-  private readonly bannerText = required<HTMLElement>('hud-banner-text');
+  private readonly notices: FloatingNoticeView;
+  private readonly lobbyView: LobbyView;
   private readonly menuClock = required<HTMLElement>('menu-clock');
-  private readonly floats: FloatingText[] = [];
-  private bannerTimeout = 0;
-  private toastCount = 0;
   private savedTime = -1;
   private purchasedIds = new Set<string>();
-  private currentLobby: LobbyViewData | null = null;
   private currentShop: ShopViewData | null = null;
   private readonly clockTimer: number;
 
   constructor(camera: THREE.PerspectiveCamera, actions: UIActions) {
-    this.camera = camera;
     this.actions = actions;
+    this.notices = new FloatingNoticeView(camera, {
+      toastStack: required<HTMLElement>('toast-stack'),
+      floatLayer: required<HTMLElement>('float-layer'),
+      banner: required<HTMLElement>('hud-banner'),
+      bannerKicker: required<HTMLElement>('hud-banner-kicker'),
+      bannerText: required<HTMLElement>('hud-banner-text'),
+    });
+    this.lobbyView = new LobbyView();
     this.inventoryView = new InventoryView(
       required<HTMLElement>('inventory-hotbar'),
       required<HTMLElement>('inventory-panel'),
@@ -270,6 +248,19 @@ export class UI {
         selectHotbar: (index) => this.actions.selectHotbarSlot(index),
       },
     );
+    this.daySummaryView = new DaySummaryView({
+      overlay: this.daySummaryOverlay,
+      title: required<HTMLElement>('day-summary-title'),
+      subtitle: required<HTMLElement>('day-summary-subtitle'),
+      lines: required<HTMLElement>('day-summary-lines'),
+      carbon: required<HTMLElement>('day-summary-carbon'),
+      performance: required<HTMLElement>('day-summary-performance'),
+      bonus: required<HTMLElement>('day-summary-bonus'),
+      punctuality: required<HTMLElement>('day-summary-punctuality'),
+      surplus: required<HTMLElement>('day-summary-surplus'),
+      total: required<HTMLElement>('day-summary-total'),
+      money: required<HTMLElement>('day-summary-money'),
+    });
     for (const button of document.querySelectorAll<HTMLButtonElement>('[data-shop-tab]')) {
       this.shopTabs.push(button);
     }
@@ -308,21 +299,15 @@ export class UI {
         this.actions.joinRoom(this.getPlayerName(), this.joinCodeInput.value);
       }
     });
-    this.lobbyStart.addEventListener('click', () => this.actions.startOnline());
-    this.lobbyLeave.addEventListener('click', () => this.actions.leaveLobby());
-    this.copyCodeButton.addEventListener('click', () => {
-      void this.copyText(this.lobbyCode.textContent ?? '', this.copyCodeButton);
-    });
-    this.copyLinkButton.addEventListener('click', () => {
-      const code = this.lobbyCode.textContent ?? '';
-      const url = new URL(window.location.href);
-      url.searchParams.set('room', code);
-      void this.copyText(url.toString(), this.copyLinkButton);
+    this.lobbyView.bind({
+      start: () => this.actions.startOnline(),
+      leave: () => this.actions.leaveLobby(),
     });
     required<HTMLButtonElement>('pause-resume').addEventListener('click', () => this.actions.resumeGame());
     this.pauseLeave.addEventListener('click', () => this.actions.leaveGame());
     this.shopNext.addEventListener('click', () => this.actions.nextDay());
     this.shopMenu.addEventListener('click', () => this.actions.leaveGame());
+    document.getElementById('shop-doctrine-btn')?.addEventListener('click', () => this.actions.openDoctrineModal?.());
     this.daySummaryContinue.addEventListener('click', () => this.actions.continueFromSummary());
     for (const button of this.shopTabs) {
       button.addEventListener('click', () => {
@@ -350,8 +335,6 @@ export class UI {
     this.playerNameInput.addEventListener('change', () => {
       this.playerNameInput.value = this.playerNameInput.value.trim().slice(0, 16) || 'Operario';
     });
-    const protocol = window.location.protocol;
-    this.copyLinkButton.hidden = protocol !== 'http:' && protocol !== 'https:';
   }
 
   private updateClock(): void {
@@ -362,19 +345,6 @@ export class UI {
     );
   }
 
-  private async copyText(text: string, button: HTMLButtonElement): Promise<void> {
-    const oldLabel = button.textContent ?? '';
-    try {
-      await navigator.clipboard.writeText(text);
-      button.textContent = 'COPIADO';
-    } catch {
-      button.textContent = text;
-    }
-    window.setTimeout(() => {
-      button.textContent = oldLabel;
-    }, 1400);
-  }
-
   getPlayerName(): string {
     const name = this.playerNameInput.value.trim().replace(/\s+/g, ' ').slice(0, 16);
     return name || 'Operario';
@@ -382,6 +352,32 @@ export class UI {
 
   setPlayerName(name: string): void {
     this.playerNameInput.value = name;
+  }
+
+  getRunConfig(): {
+    mode: GameMode;
+    modifiers: DifficultyModifier[];
+    profession: ProfessionId;
+    map: string;
+  } {
+    const rawMode = this.menuMode.value;
+    const mode: GameMode =
+      rawMode === 'tough' || rawMode === 'peaceful' ? rawMode : 'normal';
+    const modifiers: DifficultyModifier[] = [];
+    const inputs = this.menuModifiers.querySelectorAll<HTMLInputElement>(
+      'input[type="checkbox"]',
+    );
+    inputs.forEach((input) => {
+      if (input.checked) {
+        modifiers.push(input.value as DifficultyModifier);
+      }
+    });
+    return {
+      mode,
+      modifiers,
+      profession: this.menuProfession.value || 'internship',
+      map: this.menuMap.value || 'standard',
+    };
   }
 
   setJoinCode(code: string): void {
@@ -447,62 +443,19 @@ export class UI {
     this.hideMenu();
     this.hideHud();
     this.setMenuBusy(false);
-    this.lobbyOverlay.hidden = false;
-    this.currentLobby = data;
-    this.renderLobby(data);
+    this.lobbyView.show(data);
   }
 
   updateLobby(data: LobbyViewData): void {
-    this.currentLobby = data;
-    this.lobbyOverlay.hidden = false;
-    this.renderLobby(data);
-  }
-
-  private renderLobby(data: LobbyViewData): void {
-    setText(this.lobbyCode, data.code || '------');
-    setText(this.lobbyRole, data.role === 'host' ? 'ANFITRIÓN' : 'CLIENTE');
-    setText(this.lobbyStatus, data.status);
-    this.lobbyStatus.classList.toggle('is-error', Boolean(data.error));
-    setText(this.lobbyError, data.error);
-    setText(this.lobbyCount, `${data.roster.length}/4`);
-    this.lobbyRoster.replaceChildren();
-    for (const entry of data.roster) {
-      const row = document.createElement('div');
-      row.className = 'roster-entry';
-      const swatch = document.createElement('span');
-      swatch.className = 'roster-swatch';
-      swatch.style.setProperty('--slot-color', this.rosterColor(entry.color));
-      const name = document.createElement('span');
-      name.className = 'roster-name';
-      name.textContent = entry.name;
-      const tag = document.createElement('span');
-      tag.className = 'roster-tag';
-      tag.textContent = entry.isHost ? 'HOST' : 'OPERARIO';
-      row.append(swatch, name, tag);
-      this.lobbyRoster.appendChild(row);
-    }
-    const host = data.role === 'host';
-    this.lobbyStart.hidden = !host;
-    this.lobbyWaiting.hidden = host;
-    this.lobbyStart.disabled = !data.canStart;
-    this.lobbyStart.textContent = data.canStart ? 'INICIAR TURNO' : 'SIN CONEXIONES';
-  }
-
-  private rosterColor(index: number): string {
-    return ['#e6a449', '#6fdcd2', '#c8a8ff', '#ff8065'][index % 4];
+    this.lobbyView.show(data);
   }
 
   hideLobby(): void {
-    this.lobbyOverlay.hidden = true;
-    this.currentLobby = null;
+    this.lobbyView.hide();
   }
 
   setLobbyStatus(status: string, error = ''): void {
-    if (!this.currentLobby) {
-      return;
-    }
-    this.currentLobby = { ...this.currentLobby, status, error };
-    this.renderLobby(this.currentLobby);
+    this.lobbyView.setStatus(status, error);
   }
 
   showHud(): void {
@@ -517,6 +470,10 @@ export class UI {
   updateHud(data: HudViewData): void {
     setText(this.hudDay, `DÍA ${String(data.day).padStart(2, '0')}`);
     setText(this.hudTime, formatTime(data.timeLeft));
+    setText(this.hudReturnTime, data.returnText);
+    this.hudReturnBadge.className = `return-chip status-${data.returnStatus}`;
+    setText(this.hudHopperBearing, data.hopperBearingText);
+    setText(this.hudHopperVertical, data.hopperVerticalText);
     setText(this.hudCarbon, `${formatNumber(data.carbon)} / ${formatNumber(data.quota)} t`);
     setText(this.hudMoney, formatMoney(data.money));
     setText(this.hudIncome, `${data.employees} empleado${data.employees === 1 ? '' : 's'} activo${data.employees === 1 ? '' : 's'}`);
@@ -556,18 +513,22 @@ export class UI {
     );
     this.hudOnline.hidden = !data.onlineActive;
     this.hudMute.textContent = data.muted ? 'SONIDO: OFF' : 'SONIDO: ON';
-    setText(
-      this.cargoWeight,
-      `PESO: ${data.cargoWeight.toFixed(1)} / ${formatNumber(data.maxCargoWeight)} kg`,
-    );
-    this.cargoCard.classList.toggle(
-      'is-overloaded',
-      data.cargoWeight >= data.maxCargoWeight,
-    );
+    const loadRatio = data.maxCargoWeight > 0 ? data.cargoWeight / data.maxCargoWeight : 0;
+    const isCritical = loadRatio > 0.8;
+    const isOverloaded = data.cargoWeight >= data.maxCargoWeight;
+    const weightLabel = isCritical
+      ? `CARGA CRÍTICA · ${Math.round(loadRatio * 100)}% (${data.cargoWeight.toFixed(1)}/${formatNumber(data.maxCargoWeight)} kg)`
+      : `PESO: ${data.cargoWeight.toFixed(1)} / ${formatNumber(data.maxCargoWeight)} kg`;
+    setText(this.cargoWeight, weightLabel);
+    this.cargoCard.classList.toggle('is-overloaded', isOverloaded || isCritical);
     this.cargoWeightFill.style.width = `${Math.min(
       100,
       (data.cargoWeight / Math.max(1, data.maxCargoWeight)) * 100,
     )}%`;
+    setText(
+      this.cargoUnbanked,
+      `MOCHILA: ${formatNumber(data.cargoCoal)} t · ${formatMoney(data.cargoMoney)}`,
+    );
     setText(
       this.cargoHopper,
       `TOLVA: ${formatNumber(data.carbon)} / ${formatNumber(data.quota)} t`,
@@ -664,75 +625,19 @@ export class UI {
   }
 
   notify(message: string, tone: ToastTone = 'info'): void {
-    const toast = document.createElement('div');
-    toast.className = `toast${tone === 'positive' ? ' is-positive' : tone === 'danger' ? ' is-danger' : ''}`;
-    toast.textContent = message;
-    this.toastStack.appendChild(toast);
-    this.toastCount += 1;
-    while (this.toastStack.children.length > 4) {
-      this.toastStack.firstElementChild?.remove();
-    }
-    window.setTimeout(() => {
-      toast.classList.add('is-leaving');
-      window.setTimeout(() => {
-        toast.remove();
-        this.toastCount = Math.max(0, this.toastCount - 1);
-      }, 220);
-    }, 3400);
+    this.notices.notify(message, tone);
   }
 
   showBanner(kicker: string, text: string, duration = 2200): void {
-    setText(this.bannerKicker, kicker);
-    setText(this.bannerText, text);
-    this.banner.hidden = false;
-    this.banner.style.animation = 'none';
-    void this.banner.offsetHeight;
-    this.banner.style.animation = '';
-    window.clearTimeout(this.bannerTimeout);
-    this.bannerTimeout = window.setTimeout(() => {
-      this.banner.hidden = true;
-    }, duration);
+    this.notices.showBanner(kicker, text, duration);
   }
 
   spawnFloat(position: THREE.Vector3, text: string, tone: 'amber' | 'positive' | 'cyan' = 'amber'): void {
-    if (this.floats.length >= 14) {
-      const oldest = this.floats.shift();
-      oldest?.element.remove();
-    }
-    const element = document.createElement('div');
-    element.className = `float-text${tone === 'positive' ? ' is-positive' : tone === 'cyan' ? ' is-cyan' : ''}`;
-    element.textContent = text;
-    this.floatLayer.appendChild(element);
-    this.floats.push({
-      element,
-      position: position.clone(),
-      expiresAt: performance.now() + 1500,
-    });
+    this.notices.spawnFloat(position, text, tone);
   }
 
   updateFloats(): void {
-    const now = performance.now();
-    for (let index = this.floats.length - 1; index >= 0; index -= 1) {
-      const item = this.floats[index];
-      if (now > item.expiresAt) {
-        item.element.remove();
-        this.floats.splice(index, 1);
-        continue;
-      }
-      const projected = item.position.clone().project(this.camera);
-      const visible =
-        projected.z > -1 &&
-        projected.z < 1 &&
-        Math.abs(projected.x) < 1.2 &&
-        Math.abs(projected.y) < 1.2;
-      if (!visible) {
-        item.element.style.display = 'none';
-        continue;
-      }
-      item.element.style.display = '';
-      item.element.style.left = `${(projected.x * 0.5 + 0.5) * window.innerWidth}px`;
-      item.element.style.top = `${(-projected.y * 0.5 + 0.5) * window.innerHeight}px`;
-    }
+    this.notices.updateFloats();
   }
 
   showShop(data: ShopViewData): void {
@@ -783,111 +688,12 @@ export class UI {
 
   hideDaySummary(): void {
     this.daySummaryOverlay.hidden = true;
+    this.daySummaryView.hide();
   }
 
   private renderDaySummary(report: DayReport): void {
-    setText(
-      this.daySummaryTitle,
-      `DÍA ${String(report.day).padStart(2, '0')} COMPLETADO`,
-    );
-    const success = report.carbon >= report.quota;
-    setText(
-      this.daySummarySubtitle,
-      success
-        ? report.carbon > report.quota
-          ? `Cuota superada por ${formatNumber(report.carbon - report.quota)} t. La junta mejora el bonus por rendimiento.`
-          : 'Cuota cubierta al cierre del turno. La oficina nocturna ya está abierta.'
-        : 'La cuota no se ha cubierto. El expediente queda pendiente de revisión.',
-    );
-    this.daySummaryLines.replaceChildren();
-
-    const coalLines = report.lines.filter((line) => line.carbon > 0);
-    const coalTotal = coalLines.reduce((total, line) => total + line.carbon, 0);
-    if (coalTotal > 0) {
-      const row = document.createElement('div');
-      row.className = 'summary-line is-quota';
-      const icon = document.createElement('span');
-      icon.className = 'summary-line-icon';
-      icon.style.backgroundImage = `url("${itemIconUrl({ kind: 'mineral', mineral: 'coal' })}")`;
-      const label = document.createElement('span');
-      label.className = 'summary-line-label';
-      label.textContent = 'CARBÓN ENTREGADO A CUOTA';
-      const amount = document.createElement('strong');
-      amount.className = 'summary-line-amount';
-      amount.textContent = `${formatNumber(coalTotal)} t`;
-      row.append(icon, label, amount);
-      this.daySummaryLines.appendChild(row);
-    }
-
-    for (const line of report.lines) {
-      if (line.money <= 0) {
-        continue;
-      }
-      const row = document.createElement('div');
-      row.className = 'summary-line';
-      const icon = document.createElement('span');
-      icon.className = 'summary-line-icon';
-      icon.style.backgroundImage = `url("${itemIconUrl({ kind: 'mineral', mineral: line.mineral })}")`;
-      const label = document.createElement('span');
-      label.className = 'summary-line-label';
-      label.textContent = `${MINERALS[line.mineral].name.toUpperCase()} ×${formatNumber(line.count)}`;
-      const amount = document.createElement('strong');
-      amount.className = 'summary-line-amount';
-      amount.textContent = formatMoney(line.money);
-      row.append(icon, label, amount);
-      this.daySummaryLines.appendChild(row);
-    }
-
-    if (report.otherValue > 0) {
-      const row = document.createElement('div');
-      row.className = 'summary-line is-text-only';
-      const label = document.createElement('span');
-      label.className = 'summary-line-label';
-      label.textContent = 'MINERALES VARIOS';
-      const amount = document.createElement('strong');
-      amount.className = 'summary-line-amount';
-      amount.textContent = formatMoney(report.otherValue);
-      row.append(label, amount);
-      this.daySummaryLines.appendChild(row);
-    }
-
-    if (report.oreValue <= 0 && report.otherValue <= 0) {
-      const empty = document.createElement('p');
-      empty.className = 'summary-empty';
-      empty.textContent = 'No se vendieron minerales este turno. El carbón ha ido íntegro a la cuota.';
-      this.daySummaryLines.appendChild(empty);
-    }
-
-    const bonusRow = document.createElement('div');
-    bonusRow.className = 'summary-line is-bonus is-text-only';
-    const bonusLabel = document.createElement('span');
-    bonusLabel.className = 'summary-line-label';
-    bonusLabel.textContent = `BONUS DE RENDIMIENTO · ${formatPercent(report.performance)}`;
-    const bonusAmount = document.createElement('strong');
-    bonusAmount.className = 'summary-line-amount';
-    bonusAmount.textContent = `+${formatMoney(report.bonus)}`;
-    bonusRow.append(bonusLabel, bonusAmount);
-    this.daySummaryLines.appendChild(bonusRow);
-
-    const totalRow = document.createElement('div');
-    totalRow.className = 'summary-line is-total is-text-only';
-    const totalLabel = document.createElement('span');
-    totalLabel.className = 'summary-line-label';
-    totalLabel.textContent = 'TOTAL DEL TURNO';
-    const totalAmount = document.createElement('strong');
-    totalAmount.className = 'summary-line-amount';
-    totalAmount.textContent = formatMoney(report.total);
-    totalRow.append(totalLabel, totalAmount);
-    this.daySummaryLines.appendChild(totalRow);
-
-    setText(
-      this.daySummaryCarbon,
-      `${formatNumber(report.carbon)} / ${formatNumber(report.quota)} t`,
-    );
-    setText(this.daySummaryPerformance, formatPercent(report.performance));
-    setText(this.daySummaryBonus, formatMoney(report.bonus));
-    setText(this.daySummaryTotal, formatMoney(report.total));
-    setText(this.daySummaryMoney, formatMoney(report.money));
+    // BONUS DE RENDIMIENTO // ACTA DE EXTRACCIÓN
+    this.daySummaryView.render(report);
   }
 
   private selectShopTab(tab: ShopTab): void {
@@ -974,37 +780,8 @@ export class UI {
       data.online ? (data.isHost ? 'ANFITRIÓN · SINCRO' : 'CLIENTE · COMPRA VALIDADA') : 'LOCAL',
     );
 
-    this.shopPassives.replaceChildren();
-    for (const passive of PASSIVE_ORDER) {
-      const level = data.loadout.passives[passive];
-      const row = document.createElement('div');
-      row.className = 'passive-entry';
-      row.style.setProperty('--passive-color', PASSIVES[passive].color);
-      const name = document.createElement('strong');
-      name.textContent = PASSIVES[passive].name;
-      const value = document.createElement('span');
-      value.textContent = level > 0 ? `NV ${level}` : '—';
-      row.append(name, value);
-      this.shopPassives.appendChild(row);
-    }
-
-    const loadout = data.loadout;
-    const summaryLines = [
-      `DAÑO VETAS: +${Math.round(loadout.upgrades.damage * 12)}%`,
-      `CADENCIA: +${Math.round(loadout.upgrades.speed * 6)}%`,
-      `IMÁN: ${magnetRadius(loadout).toFixed(1)} m`,
-      `JETPACK: ${loadout.upgrades.jetpack > 0 ? `${Math.round(maxJetpackFuel(loadout))} u.` : 'BLOQUEADO'}`,
-      `CAPACIDAD: ${maxCarryWeight(loadout)} kg`,
-      `ESCALERAS: ${loadout.ladders}`,
-      `TURNO BASE: ${90 + loadout.upgrades.dayTime * 15} s`,
-      `EMPLEADOS: ${loadout.employees.roster.length} en plantilla`,
-    ];
-    this.shopLoadoutSummary.replaceChildren();
-    for (const line of summaryLines) {
-      const span = document.createElement('span');
-      span.textContent = line;
-      this.shopLoadoutSummary.appendChild(span);
-    }
+    renderShopPassives(this.shopPassives, data.loadout);
+    renderShopLoadoutSummary(this.shopLoadoutSummary, data.loadout);
 
     renderShopItems(this.shopContent, data, this.activeShopTab);
     this.updateShopTabState(data);
@@ -1085,7 +862,7 @@ export class UI {
   }
 
   getCurrentLobby(): LobbyViewData | null {
-    return this.currentLobby;
+    return this.lobbyView.getCurrentLobby();
   }
 
   markPurchased(itemId: string): void {
@@ -1110,12 +887,8 @@ export class UI {
 
   dispose(): void {
     window.clearInterval(this.clockTimer);
-    window.clearTimeout(this.bannerTimeout);
     document.body.classList.remove('is-ladder-dial');
     this.inventoryView.dispose();
-    for (const item of this.floats) {
-      item.element.remove();
-    }
-    this.floats.length = 0;
+    this.notices.clearFloats();
   }
 }

@@ -1,6 +1,6 @@
 import {
   GRENADE_ORDER,
-  MINERALS,
+  MINE_DEPTH,
   PIT_HALF,
   ROOM_ALPHABET,
   ROOM_CODE_LENGTH,
@@ -8,23 +8,46 @@ import {
   WEAPON_ORDER,
 } from '../config';
 import type {
+  BrigadeRecord,
   CarveEvent,
+  ConveyorModule,
   DayReport,
   DaySaleLine,
+  DifficultyModifier,
+  GameMode,
   GrenadeTierId,
   Loadout,
-  MineralId,
+  MapId,
+  NetworkBeaconState,
+  NetworkFieldDepotState,
   NetworkLadderState,
   NetworkPlayerState,
   NetworkStaffState,
+  NetworkWinchState,
   PassiveId,
   RosterEntry,
   RunStats,
+  SectorBeacon,
   WeaponId,
 } from '../types';
+import {
+  bounded,
+  finite,
+  isRecord,
+  parseBeacon,
+  parseDayReport,
+  parseFieldDepot,
+  parseFxWire,
+  parseGrenadeCounts,
+  parsePlayerWire as parsePlayerWireValidator,
+  parseSaleLines,
+  parseWinch,
+} from './ProtocolValidators';
 
-export const PROTOCOL_VERSION = 11;
+export const PROTOCOL_VERSION = 16;
 export const MAX_MESSAGE_LENGTH = 512 * 1024;
+/** Tope de validación para magnitudes económicas; no es un límite de diseño. */
+export const MAX_ECONOMY_VALUE = 1e100;
 const WORLD_BOUND = SAFE_ZONE_HALF + 1;
 const FX_BOUND = SAFE_ZONE_HALF + 2;
 
@@ -39,10 +62,12 @@ export interface PlayerWireState {
   mining: boolean;
 }
 
+export type WeaponSound = 'pickaxe' | 'tesla' | 'drill' | 'shotgun';
+
 export type FxWire =
   | {
       kind: 'shot';
-      weapon: WeaponId;
+      weapon: WeaponSound;
       x: number;
       y: number;
       z: number;
@@ -63,6 +88,12 @@ export type ClientMessage =
   | { t: 'deposit'; v: number; coal: number; money: number; lines: DaySaleLine[] }
   | { t: 'grenade_use'; v: number; tier: GrenadeTierId }
   | { t: 'ladder_place'; v: number; ladder: NetworkLadderState }
+  | { t: 'winch_place'; v: number; winch: NetworkWinchState }
+  | { t: 'depot_place'; v: number; depot: NetworkFieldDepotState }
+  | { t: 'depot_interact'; v: number; depotId: string; action: 'deposit' | 'withdraw'; depot?: NetworkFieldDepotState }
+  | { t: 'beacon_place'; v: number; beacon: NetworkBeaconState }
+  | { t: 'sector_place'; v: number; beacon: SectorBeacon }
+  | { t: 'belt_place'; v: number; module: ConveyorModule }
   | { t: 'fx'; v: number; fx: FxWire }
   | { t: 'purchase'; v: number; itemId: string };
 
@@ -77,6 +108,9 @@ export interface DaySnapshot {
   dayMoneyBase: number;
   dayReport: DayReport | null;
   infinite: boolean;
+  mode?: GameMode;
+  modifiers?: DifficultyModifier[];
+  map?: MapId;
   loadout: Loadout;
   stats: RunStats;
   carveHistory: CarveEvent[];
@@ -85,6 +119,16 @@ export interface DaySnapshot {
   players: NetworkPlayerState[];
   staff: NetworkStaffState[];
   ladders: NetworkLadderState[];
+  winches: NetworkWinchState[];
+  depots: NetworkFieldDepotState[];
+  beacons: NetworkBeaconState[];
+  brigades?: BrigadeRecord[];
+  sectors?: SectorBeacon[];
+  conveyors?: ConveyorModule[];
+  moneyWire?: string;
+  carbonWire?: string;
+  quotaWire?: string;
+  platformDepth?: number;
 }
 
 export type HostMessage =
@@ -100,7 +144,12 @@ export type HostMessage =
   | { t: 'sync'; v: number; snapshot: DaySnapshot }
   | { t: 'players'; v: number; states: NetworkPlayerState[] }
   | { t: 'staff'; v: number; states: NetworkStaffState[] }
+  | { t: 'brigade_state'; v: number; brigades: BrigadeRecord[]; sectors: SectorBeacon[] }
+  | { t: 'belt_state'; v: number; modules: ConveyorModule[]; isJammed: boolean }
   | { t: 'ladder_placed'; v: number; ladder: NetworkLadderState }
+  | { t: 'winch_placed'; v: number; winch: NetworkWinchState }
+  | { t: 'depot_sync'; v: number; depots: NetworkFieldDepotState[] }
+  | { t: 'beacon_sync'; v: number; beacons: NetworkBeaconState[] }
   | { t: 'carve'; v: number; e: CarveEvent; by: string }
   | { t: 'node_hit'; v: number; id: string; dmg: number; by: string }
   | { t: 'node_break'; v: number; id: string; dropSeed: number; by: string }
@@ -166,6 +215,11 @@ export type GameHostMessage = Extract<
       | 'node_break'
       | 'economy'
       | 'ladder_placed'
+      | 'winch_placed'
+      | 'depot_sync'
+      | 'beacon_sync'
+      | 'brigade_state'
+      | 'belt_state'
       | 'fx'
       | 'day_result'
       | 'shop_state'
@@ -210,109 +264,6 @@ export function isWeaponId(value: unknown): value is WeaponId {
   return typeof value === 'string' && (WEAPON_ORDER as readonly string[]).includes(value);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function finite(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-function bounded(value: unknown, min: number, max: number): number | null {
-  const number = finite(value);
-  return number === null ? null : Math.max(min, Math.min(max, number));
-}
-
-function parseGrenadeCounts(value: unknown): Record<GrenadeTierId, number> | null {
-  if (!isRecord(value)) {
-    return null;
-  }
-  const result: Record<GrenadeTierId, number> = {
-    frag: 0,
-    charge: 0,
-    breach: 0,
-    seismic: 0,
-  };
-  for (const tier of GRENADE_ORDER) {
-    const count = bounded(value[tier] ?? 0, 0, 999);
-    if (count === null) {
-      return null;
-    }
-    result[tier] = Math.floor(count);
-  }
-  return result;
-}
-
-function parseSaleLines(value: unknown): DaySaleLine[] | null {
-  if (!Array.isArray(value) || value.length > 32) {
-    return null;
-  }
-  const lines: DaySaleLine[] = [];
-  for (const raw of value) {
-    if (!isRecord(raw) || typeof raw.mineral !== 'string') {
-      return null;
-    }
-    if (!Object.prototype.hasOwnProperty.call(MINERALS, raw.mineral)) {
-      return null;
-    }
-    const count = bounded(raw.count, 0, 1000000);
-    const carbon = bounded(raw.carbon, 0, 1e9);
-    const money = bounded(raw.money, 0, 1e9);
-    if (count === null || carbon === null || money === null) {
-      return null;
-    }
-    lines.push({
-      mineral: raw.mineral as MineralId,
-      count: Math.floor(count),
-      carbon: Math.floor(carbon),
-      money: Math.floor(money),
-    });
-  }
-  return lines;
-}
-
-function parseDayReport(value: unknown): DayReport | null {
-  if (!isRecord(value)) {
-    return null;
-  }
-  const day = bounded(value.day, 1, 9999);
-  const carbon = bounded(value.carbon, 0, 1e9);
-  const quota = bounded(value.quota, 0, 1e9);
-  const performance = bounded(value.performance, 0, 100);
-  const oreValue = bounded(value.oreValue, 0, 1e9);
-  const otherValue = bounded(value.otherValue, 0, 1e9);
-  const bonus = bounded(value.bonus, 0, 1e9);
-  const total = bounded(value.total, 0, 1e9);
-  const money = bounded(value.money, 0, 1e9);
-  const lines = parseSaleLines(value.lines);
-  if (
-    day === null ||
-    carbon === null ||
-    quota === null ||
-    performance === null ||
-    oreValue === null ||
-    otherValue === null ||
-    bonus === null ||
-    total === null ||
-    money === null ||
-    lines === null
-  ) {
-    return null;
-  }
-  return {
-    day,
-    carbon: Math.floor(carbon),
-    quota: Math.floor(quota),
-    performance,
-    lines,
-    oreValue: Math.floor(oreValue),
-    otherValue: Math.floor(otherValue),
-    bonus: Math.floor(bonus),
-    total: Math.floor(total),
-    money: Math.floor(money),
-  };
-}
-
 function parseCarveEvent(value: unknown): CarveEvent | null {
   if (!isRecord(value)) {
     return null;
@@ -339,7 +290,7 @@ function parseLadder(value: unknown): NetworkLadderState | null {
     return null;
   }
   const x = bounded(value.x, -(PIT_HALF - 0.3), PIT_HALF - 0.3);
-  const y = bounded(value.y, -119, 7);
+  const y = bounded(value.y, -MINE_DEPTH + 1, 7);
   const z = bounded(value.z, -(PIT_HALF - 0.3), PIT_HALF - 0.3);
   const nx = bounded(value.nx, -1, 1);
   const nz = bounded(value.nz, -1, 1);
@@ -382,92 +333,11 @@ function parseLadder(value: unknown): NetworkLadderState | null {
 }
 
 function parseFx(value: unknown): FxWire | null {
-  if (!isRecord(value) || typeof value.kind !== 'string') {
-    return null;
-  }
-  if (value.kind === 'shot') {
-    const x = bounded(value.x, -FX_BOUND, FX_BOUND);
-    const y = bounded(value.y, -125, 10);
-    const z = bounded(value.z, -FX_BOUND, FX_BOUND);
-    const dx = bounded(value.dx, -1, 1);
-    const dy = bounded(value.dy, -1, 1);
-    const dz = bounded(value.dz, -1, 1);
-    if (x === null || y === null || z === null || dx === null || dy === null || dz === null) {
-      return null;
-    }
-    if (!(WEAPON_ORDER as readonly string[]).includes(String(value.weapon))) {
-      return null;
-    }
-    return {
-      kind: 'shot',
-      weapon: value.weapon as WeaponId,
-      x,
-      y,
-      z,
-      dx,
-      dy,
-      dz,
-    };
-  }
-  if (value.kind === 'explosion') {
-    const x = bounded(value.x, -FX_BOUND, FX_BOUND);
-    const y = bounded(value.y, -125, 10);
-    const z = bounded(value.z, -FX_BOUND, FX_BOUND);
-    const radius = bounded(value.radius, 0.2, 7);
-    if (x === null || y === null || z === null || radius === null) {
-      return null;
-    }
-    return { kind: 'explosion', x, y, z, radius };
-  }
-  if (value.kind === 'lightning') {
-    if (!Array.isArray(value.points) || value.points.length < 6 || value.points.length > 48) {
-      return null;
-    }
-    const points: number[] = [];
-    for (const point of value.points) {
-      const coordinate = bounded(point, -FX_BOUND, FX_BOUND);
-      if (coordinate === null) {
-        return null;
-      }
-      points.push(coordinate);
-    }
-    return { kind: 'lightning', points };
-  }
-  if (value.kind === 'hit') {
-    const x = bounded(value.x, -FX_BOUND, FX_BOUND);
-    const y = bounded(value.y, -125, 10);
-    const z = bounded(value.z, -FX_BOUND, FX_BOUND);
-    const color = bounded(value.color, 0, 0xffffff);
-    if (x === null || y === null || z === null || color === null) {
-      return null;
-    }
-    return { kind: 'hit', x, y, z, color: Math.floor(color), strong: Boolean(value.strong) };
-  }
-  return null;
+  return parseFxWire(value, FX_BOUND);
 }
 
 function parsePlayerWire(value: unknown): PlayerWireState | null {
-  if (!isRecord(value)) {
-    return null;
-  }
-  const x = bounded(value.x, -WORLD_BOUND, WORLD_BOUND);
-  const y = bounded(value.y, -125, 10);
-  const z = bounded(value.z, -WORLD_BOUND, WORLD_BOUND);
-  const yaw = finite(value.yaw);
-  const pitch = bounded(value.pitch, -1.6, 1.6);
-  if (!isWeaponId(value.weapon) || x === null || y === null || z === null || yaw === null || pitch === null) {
-    return null;
-  }
-  return {
-    x: Number(x.toFixed(3)),
-    y: Number(y.toFixed(3)),
-    z: Number(z.toFixed(3)),
-    yaw,
-    pitch,
-    weapon: value.weapon,
-    jetpack: Boolean(value.jetpack),
-    mining: Boolean(value.mining),
-  };
+  return parsePlayerWireValidator(value, WORLD_BOUND, isWeaponId);
 }
 
 export function parseClientMessage(raw: string): ClientMessage | null {
@@ -510,8 +380,8 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return { t: 'node_break', v, id: parsed.id.slice(0, 96), dropSeed: seed >>> 0 };
     }
     case 'deposit': {
-      const coal = bounded(parsed.coal, 0, 1000000);
-      const money = bounded(parsed.money, 0, 1000000);
+      const coal = bounded(parsed.coal, 0, MAX_ECONOMY_VALUE);
+      const money = bounded(parsed.money, 0, MAX_ECONOMY_VALUE);
       const lines = parseSaleLines(parsed.lines);
       if (coal === null || money === null || lines === null) {
         return null;
@@ -535,6 +405,42 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       const ladder = parseLadder(parsed.ladder);
       return ladder ? { t: 'ladder_place', v, ladder } : null;
     }
+    case 'winch_place': {
+      const winch = parseWinch(parsed.winch);
+      return winch ? { t: 'winch_place', v, winch } : null;
+    }
+    case 'depot_place': {
+      const depot = parseFieldDepot(parsed.depot);
+      return depot ? { t: 'depot_place', v, depot } : null;
+    }
+    case 'depot_interact': {
+      if (
+        typeof parsed.depotId !== 'string' ||
+        (parsed.action !== 'deposit' && parsed.action !== 'withdraw')
+      ) {
+        return null;
+      }
+      const depot = parsed.depot ? parseFieldDepot(parsed.depot) ?? undefined : undefined;
+      return {
+        t: 'depot_interact',
+        v,
+        depotId: parsed.depotId.slice(0, 64),
+        action: parsed.action,
+        depot,
+      };
+    }
+    case 'beacon_place': {
+      const beacon = parseBeacon(parsed.beacon);
+      return beacon ? { t: 'beacon_place', v, beacon } : null;
+    }
+    case 'sector_place': {
+      if (!isRecord(parsed.beacon)) return null;
+      return { t: 'sector_place', v, beacon: parsed.beacon as any };
+    }
+    case 'belt_place': {
+      if (!isRecord(parsed.module)) return null;
+      return { t: 'belt_place', v, module: parsed.module as any };
+    }
     case 'fx': {
       const fx = parseFx(parsed.fx);
       return fx ? { t: 'fx', v, fx } : null;
@@ -550,19 +456,208 @@ export function parseClientMessage(raw: string): ClientMessage | null {
   }
 }
 
-export function parseHostMessage(raw: string): HostMessage | null {
-  if (raw.length > MAX_MESSAGE_LENGTH) {
+function parseLadderState(value: unknown): NetworkLadderState | null {
+  if (!isRecord(value)) return null;
+  const x = bounded(value.x, -(PIT_HALF - 0.3), PIT_HALF - 0.3);
+  const y = bounded(value.y, -MINE_DEPTH + 1, 7);
+  const z = bounded(value.z, -(PIT_HALF - 0.3), PIT_HALF - 0.3);
+  const nx = bounded(value.nx, -1, 1);
+  const nz = bounded(value.nz, -1, 1);
+  const height = bounded(value.height, 1, 8);
+  const id = typeof value.id === 'string' ? value.id.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) : '';
+  const orientation =
+    value.orientation === 'horizontal' ||
+    value.orientation === 'vertical' ||
+    value.orientation === 'diagonal-up' ||
+    value.orientation === 'diagonal-down'
+      ? value.orientation
+      : null;
+  const anchorId =
+    typeof value.anchorId === 'string'
+      ? value.anchorId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64)
+      : undefined;
+  if (!id || x === null || y === null || z === null || nx === null || nz === null || height === null || orientation === null) {
     return null;
   }
+  return {
+    id,
+    x: Number(x.toFixed(3)),
+    y: Number(y.toFixed(3)),
+    z: Number(z.toFixed(3)),
+    nx: Number(nx.toFixed(3)),
+    nz: Number(nz.toFixed(3)),
+    height: Number(height.toFixed(2)),
+    orientation,
+    anchorId,
+  };
+}
+
+function parseHostPlayerState(value: Record<string, unknown>): NetworkPlayerState | null {
+  const id = typeof value.id === 'string' ? value.id.slice(0, 96) : null;
+  const name = typeof value.name === 'string' ? value.name.slice(0, 16) : null;
+  const x = bounded(value.x, -WORLD_BOUND, WORLD_BOUND);
+  const y = bounded(value.y, -125, 10);
+  const z = bounded(value.z, -WORLD_BOUND, WORLD_BOUND);
+  const yaw = finite(value.yaw);
+  const pitch = bounded(value.pitch, -1.6, 1.6);
+  const weapon = isWeaponId(value.weapon) ? value.weapon : null;
+  const color = bounded(value.color, 0, 3);
+  if (!id || !name || x === null || y === null || z === null || yaw === null || pitch === null || !weapon || color === null) {
+    return null;
+  }
+  return {
+    id,
+    name,
+    color: Math.floor(color),
+    x,
+    y,
+    z,
+    yaw,
+    pitch,
+    weapon,
+    jetpack: Boolean(value.jetpack),
+    mining: Boolean(value.mining),
+  };
+}
+
+function parseHostSnapshot(value: unknown): DaySnapshot | null {
+  if (!isRecord(value) || typeof value.phase !== 'string') return null;
+  if (!['playing', 'shop', 'gameover', 'victory'].includes(value.phase)) return null;
+  const day = bounded(value.day, 1, 9999);
+  const seed = bounded(value.seed, 0, 0xffffffff);
+  const quota = bounded(value.quota, 0, MAX_ECONOMY_VALUE);
+  const timeLeft = bounded(value.timeLeft, 0, 3600);
+  const money = bounded(value.money, 0, MAX_ECONOMY_VALUE);
+  const carbon = bounded(value.carbon, 0, MAX_ECONOMY_VALUE);
+  const dayMoneyBase = bounded(value.dayMoneyBase, 0, MAX_ECONOMY_VALUE);
+  const dayReport = value.dayReport == null ? null : parseDayReport(value.dayReport);
+  if (value.dayReport != null && dayReport === null) return null;
+  if (day === null || seed === null || quota === null || timeLeft === null || money === null || carbon === null || dayMoneyBase === null || !isRecord(value.loadout)) {
+    return null;
+  }
+  if (!Array.isArray(value.players) || !Array.isArray(value.staff)) return null;
+
+  const players: NetworkPlayerState[] = [];
+  for (const rawPlayer of value.players) {
+    if (!isRecord(rawPlayer)) continue;
+    const player = parseHostPlayerState(rawPlayer);
+    if (player) players.push(player);
+  }
+
+  const ladders: NetworkLadderState[] = [];
+  if (Array.isArray(value.ladders)) {
+    for (const rawLadder of value.ladders.slice(0, 200)) {
+      const ladder = parseLadderState(rawLadder);
+      if (ladder) ladders.push(ladder);
+    }
+  }
+
+  const winches = Array.isArray(value.winches)
+    ? value.winches.slice(0, 32).map(parseWinch).filter((w): w is NonNullable<typeof w> => w !== null)
+    : [];
+  const depots = Array.isArray(value.depots)
+    ? value.depots.slice(0, 16).map(parseFieldDepot).filter((d): d is NonNullable<typeof d> => d !== null)
+    : [];
+  const beacons = Array.isArray(value.beacons)
+    ? value.beacons.slice(0, 16).map(parseBeacon).filter((b): b is NonNullable<typeof b> => b !== null)
+    : [];
+
+  const staff: NetworkStaffState[] = [];
+  for (const rawStaff of value.staff) {
+    if (!isRecord(rawStaff) || typeof rawStaff.id !== 'string') continue;
+    const x = bounded(rawStaff.x, -WORLD_BOUND, WORLD_BOUND);
+    const y = bounded(rawStaff.y, -125, 10);
+    const z = bounded(rawStaff.z, -WORLD_BOUND, WORLD_BOUND);
+    const yaw = finite(rawStaff.yaw);
+    const rank = bounded(rawStaff.rank, 0, 3);
+    if (x === null || y === null || z === null || yaw === null || rank === null || (rawStaff.kind !== 'miner' && rawStaff.kind !== 'collector')) continue;
+    staff.push({
+      id: rawStaff.id.slice(0, 80),
+      kind: rawStaff.kind,
+      rank: Math.floor(rank),
+      x,
+      y,
+      z,
+      yaw,
+      active: Boolean(rawStaff.active),
+    });
+  }
+
+  const carveHistory: CarveEvent[] = [];
+  if (Array.isArray(value.carveHistory)) {
+    for (const rawEvent of value.carveHistory.slice(0, 5000)) {
+      const event = parseCarveEvent(rawEvent);
+      if (event) carveHistory.push(event);
+    }
+  }
+
+  const brokenNodes = Array.isArray(value.brokenNodes)
+    ? value.brokenNodes.filter((id): id is string => typeof id === 'string').map((id) => id.slice(0, 96))
+    : [];
+
+  const nodeHp: Record<string, number> = {};
+  if (isRecord(value.nodeHp)) {
+    for (const [rawId, rawHp] of Object.entries(value.nodeHp).slice(0, 2000)) {
+      const hp = bounded(rawHp, 0, 1e40);
+      if (hp !== null) nodeHp[rawId.slice(0, 96)] = hp;
+    }
+  }
+
+  return {
+    phase: value.phase as DaySnapshot['phase'],
+    day,
+    seed: seed >>> 0,
+    quota,
+    timeLeft,
+    money,
+    carbon,
+    dayMoneyBase,
+    dayReport,
+    infinite: Boolean(value.infinite),
+    mode:
+      value.mode === 'tough' || value.mode === 'peaceful' ? value.mode : 'normal',
+    modifiers: Array.isArray(value.modifiers)
+      ? value.modifiers.filter(
+          (m): m is DifficultyModifier =>
+            m === 'no_chests' ||
+            m === 'only_coal' ||
+            m === 'coal_worthless' ||
+            m === 'no_bonus_cash' ||
+            m === 'no_time_upgrades' ||
+            m === 'only_clay',
+        )
+      : [],
+    map: typeof value.map === 'string' ? value.map.slice(0, 32) : 'standard',
+    loadout: value.loadout as unknown as Loadout,
+    stats: (isRecord(value.stats) ? value.stats : {}) as unknown as RunStats,
+    carveHistory,
+    brokenNodes,
+    nodeHp,
+    players,
+    staff,
+    ladders,
+    winches,
+    depots,
+    beacons,
+    brigades: Array.isArray(value.brigades) ? (value.brigades as BrigadeRecord[]) : undefined,
+    sectors: Array.isArray(value.sectors) ? (value.sectors as SectorBeacon[]) : undefined,
+    conveyors: Array.isArray(value.conveyors) ? (value.conveyors as ConveyorModule[]) : undefined,
+    moneyWire: typeof value.moneyWire === 'string' ? value.moneyWire : undefined,
+    carbonWire: typeof value.carbonWire === 'string' ? value.carbonWire : undefined,
+    quotaWire: typeof value.quotaWire === 'string' ? value.quotaWire : undefined,
+    platformDepth: typeof value.platformDepth === 'number' ? Math.max(0, value.platformDepth) : undefined,
+  };
+}
+
+export function parseHostMessage(raw: string): HostMessage | null {
+  if (raw.length > MAX_MESSAGE_LENGTH) return null;
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
     return null;
   }
-  if (!isRecord(parsed) || parsed.v !== PROTOCOL_VERSION || typeof parsed.t !== 'string') {
-    return null;
-  }
+  if (!isRecord(parsed) || parsed.v !== PROTOCOL_VERSION || typeof parsed.t !== 'string') return null;
   const v = PROTOCOL_VERSION;
   switch (parsed.t) {
     case 'welcome':
@@ -581,54 +676,32 @@ export function parseHostMessage(raw: string): HostMessage | null {
       };
     case 'start_day':
     case 'sync': {
-      const snapshot = parseSnapshot(parsed.snapshot);
-      if (!snapshot) {
-        return null;
-      }
-      if (parsed.t === 'start_day') {
-        return { t: 'start_day', v, snapshot };
-      }
-      return { t: 'sync', v, snapshot };
+      const snapshot = parseHostSnapshot(parsed.snapshot);
+      if (!snapshot) return null;
+      return parsed.t === 'start_day' ? { t: 'start_day', v, snapshot } : { t: 'sync', v, snapshot };
     }
     case 'players': {
-      if (!Array.isArray(parsed.states) || parsed.states.length > 4) {
-        return null;
-      }
+      if (!Array.isArray(parsed.states) || parsed.states.length > 4) return null;
       const states: NetworkPlayerState[] = [];
       for (const rawState of parsed.states) {
-        if (!isRecord(rawState)) {
-          return null;
-        }
+        if (!isRecord(rawState)) return null;
         const playerState = parseHostPlayerState(rawState);
-        if (!playerState) {
-          return null;
-        }
+        if (!playerState) return null;
         states.push(playerState);
       }
       return { t: 'players', v, states };
     }
     case 'staff': {
-      if (!Array.isArray(parsed.states) || parsed.states.length > 16) {
-        return null;
-      }
+      if (!Array.isArray(parsed.states) || parsed.states.length > 16) return null;
       const states: NetworkStaffState[] = [];
       for (const rawState of parsed.states) {
-        if (!isRecord(rawState) || typeof rawState.id !== 'string') {
-          return null;
-        }
+        if (!isRecord(rawState) || typeof rawState.id !== 'string') return null;
         const x = bounded(rawState.x, -WORLD_BOUND, WORLD_BOUND);
         const y = bounded(rawState.y, -125, 10);
         const z = bounded(rawState.z, -WORLD_BOUND, WORLD_BOUND);
         const yaw = finite(rawState.yaw);
         const rank = bounded(rawState.rank, 0, 3);
-        if (
-          x === null ||
-          y === null ||
-          z === null ||
-          yaw === null ||
-          rank === null ||
-          (rawState.kind !== 'miner' && rawState.kind !== 'collector')
-        ) {
+        if (x === null || y === null || z === null || yaw === null || rank === null || (rawState.kind !== 'miner' && rawState.kind !== 'collector')) {
           return null;
         }
         states.push({
@@ -645,72 +718,57 @@ export function parseHostMessage(raw: string): HostMessage | null {
       return { t: 'staff', v, states };
     }
     case 'ladder_placed': {
-      const ladder = parseLadder(parsed.ladder);
+      const ladder = parseLadderState(parsed.ladder);
       return ladder ? { t: 'ladder_placed', v, ladder } : null;
+    }
+    case 'winch_placed': {
+      const winch = parseWinch(parsed.winch);
+      return winch ? { t: 'winch_placed', v, winch } : null;
+    }
+    case 'depot_sync': {
+      if (!Array.isArray(parsed.depots)) return null;
+      const depots = parsed.depots.slice(0, 16).map(parseFieldDepot).filter((d): d is NonNullable<typeof d> => d !== null);
+      return { t: 'depot_sync', v, depots };
+    }
+    case 'beacon_sync': {
+      if (!Array.isArray(parsed.beacons)) return null;
+      const beacons = parsed.beacons.slice(0, 16).map(parseBeacon).filter((b): b is NonNullable<typeof b> => b !== null);
+      return { t: 'beacon_sync', v, beacons };
+    }
+    case 'brigade_state': {
+      if (!Array.isArray(parsed.brigades) || !Array.isArray(parsed.sectors)) return null;
+      return { t: 'brigade_state', v, brigades: parsed.brigades as BrigadeRecord[], sectors: parsed.sectors as SectorBeacon[] };
+    }
+    case 'belt_state': {
+      if (!Array.isArray(parsed.modules)) return null;
+      return { t: 'belt_state', v, modules: parsed.modules as ConveyorModule[], isJammed: Boolean(parsed.isJammed) };
     }
     case 'carve': {
       const e = parseCarveEvent(parsed.e);
-      if (!e) {
-        return null;
-      }
-      return { t: 'carve', v, e, by: String(parsed.by ?? '').slice(0, 96) };
+      return e ? { t: 'carve', v, e, by: String(parsed.by ?? '').slice(0, 96) } : null;
     }
     case 'node_hit': {
       const dmg = bounded(parsed.dmg, 0, 500);
-      if (dmg === null || typeof parsed.id !== 'string') {
-        return null;
-      }
-      return {
-        t: 'node_hit',
-        v,
-        id: parsed.id.slice(0, 96),
-        dmg,
-        by: String(parsed.by ?? '').slice(0, 96),
-      };
+      if (dmg === null || typeof parsed.id !== 'string') return null;
+      return { t: 'node_hit', v, id: parsed.id.slice(0, 96), dmg, by: String(parsed.by ?? '').slice(0, 96) };
     }
     case 'node_break': {
       const seed = bounded(parsed.dropSeed, 0, 0xffffffff);
-      if (seed === null || typeof parsed.id !== 'string') {
-        return null;
-      }
-      return {
-        t: 'node_break',
-        v,
-        id: parsed.id.slice(0, 96),
-        dropSeed: seed >>> 0,
-        by: String(parsed.by ?? '').slice(0, 96),
-      };
+      if (seed === null || typeof parsed.id !== 'string') return null;
+      return { t: 'node_break', v, id: parsed.id.slice(0, 96), dropSeed: seed >>> 0, by: String(parsed.by ?? '').slice(0, 96) };
     }
     case 'economy': {
-      const money = bounded(parsed.money, 0, 1e9);
-      const carbon = bounded(parsed.carbon, 0, 1e9);
+      const money = bounded(parsed.money, 0, MAX_ECONOMY_VALUE);
+      const carbon = bounded(parsed.carbon, 0, MAX_ECONOMY_VALUE);
       const timeLeft = bounded(parsed.timeLeft, 0, 3600);
       const day = bounded(parsed.day, 1, 9999);
-      const quota = bounded(parsed.quota, 0, 1e9);
+      const quota = bounded(parsed.quota, 0, MAX_ECONOMY_VALUE);
       const ladders = bounded(parsed.ladders, 0, 999);
       const grenades = parseGrenadeCounts(parsed.grenades);
-      if (
-        money === null ||
-        carbon === null ||
-        timeLeft === null ||
-        day === null ||
-        quota === null ||
-        ladders === null ||
-        grenades === null
-      ) {
+      if (money === null || carbon === null || timeLeft === null || day === null || quota === null || ladders === null || grenades === null) {
         return null;
       }
-      return {
-        t: 'economy',
-        v,
-        money,
-        carbon,
-        timeLeft,
-        day,
-        quota,
-        ladders: Math.floor(ladders),
-        grenades,
-      };
+      return { t: 'economy', v, money, carbon, timeLeft, day, quota, ladders: Math.floor(ladders), grenades };
     }
     case 'fx': {
       const fx = parseFx(parsed.fx);
@@ -718,19 +776,11 @@ export function parseHostMessage(raw: string): HostMessage | null {
     }
     case 'day_result': {
       const day = bounded(parsed.day, 1, 9999);
-      const carbon = bounded(parsed.carbon, 0, 1e9);
-      const quota = bounded(parsed.quota, 0, 1e9);
-      const money = bounded(parsed.money, 0, 1e9);
+      const carbon = bounded(parsed.carbon, 0, MAX_ECONOMY_VALUE);
+      const quota = bounded(parsed.quota, 0, MAX_ECONOMY_VALUE);
+      const money = bounded(parsed.money, 0, MAX_ECONOMY_VALUE);
       const report = parseDayReport(parsed.report);
-      if (
-        day === null ||
-        carbon === null ||
-        quota === null ||
-        money === null ||
-        report === null ||
-        !isRecord(parsed.loadout) ||
-        !isRecord(parsed.stats)
-      ) {
+      if (day === null || carbon === null || quota === null || money === null || report === null || !isRecord(parsed.loadout) || !isRecord(parsed.stats)) {
         return null;
       }
       return {
@@ -750,18 +800,10 @@ export function parseHostMessage(raw: string): HostMessage | null {
       };
     }
     case 'shop_state': {
-      const money = bounded(parsed.money, 0, 1e9);
-      const quota = bounded(parsed.quota, 0, 1e9);
+      const money = bounded(parsed.money, 0, MAX_ECONOMY_VALUE);
+      const quota = bounded(parsed.quota, 0, MAX_ECONOMY_VALUE);
       const day = bounded(parsed.day, 1, 9999);
-      if (
-        money === null ||
-        quota === null ||
-        day === null ||
-        !isRecord(parsed.loadout) ||
-        !isRecord(parsed.stats)
-      ) {
-        return null;
-      }
+      if (money === null || quota === null || day === null || !isRecord(parsed.loadout) || !isRecord(parsed.stats)) return null;
       return {
         t: 'shop_state',
         v,
@@ -774,19 +816,9 @@ export function parseHostMessage(raw: string): HostMessage | null {
       };
     }
     case 'passive': {
-      if (!isRecord(parsed.loadout) || typeof parsed.passive !== 'string') {
-        return null;
-      }
-      const passives = [
-        'digRadius',
-        'nodeDamage',
-        'magnet',
-        'employeeSpeed',
-        'jetpackFuel',
-      ];
-      if (!passives.includes(parsed.passive)) {
-        return null;
-      }
+      if (!isRecord(parsed.loadout) || typeof parsed.passive !== 'string') return null;
+      const passives = ['digRadius', 'nodeDamage', 'magnet', 'employeeSpeed', 'jetpackFuel'];
+      if (!passives.includes(parsed.passive)) return null;
       return {
         t: 'passive',
         v,
@@ -796,17 +828,9 @@ export function parseHostMessage(raw: string): HostMessage | null {
         by: String(parsed.by ?? '').slice(0, 96),
       };
     }
-    case 'game_over': {
-      if (!isRecord(parsed.stats)) {
-        return null;
-      }
-      return {
-        t: 'game_over',
-        v,
-        stats: parsed.stats as unknown as RunStats,
-        message: String(parsed.message ?? 'Cuota incumplida.').slice(0, 240),
-      };
-    }
+    case 'game_over':
+      if (!isRecord(parsed.stats)) return null;
+      return { t: 'game_over', v, stats: parsed.stats as unknown as RunStats, message: String(parsed.message ?? 'Cuota incumplida.').slice(0, 240) };
     case 'disconnect':
       return { t: 'disconnect', v, reason: String(parsed.reason ?? 'Desconectado') };
     case 'error':
@@ -814,175 +838,6 @@ export function parseHostMessage(raw: string): HostMessage | null {
     default:
       return null;
   }
-}
-
-function parseHostPlayerState(value: Record<string, unknown>): NetworkPlayerState | null {
-  const id = typeof value.id === 'string' ? value.id.slice(0, 96) : null;
-  const name = typeof value.name === 'string' ? sanitizeName(value.name) : null;
-  const x = bounded(value.x, -WORLD_BOUND, WORLD_BOUND);
-  const y = bounded(value.y, -125, 10);
-  const z = bounded(value.z, -WORLD_BOUND, WORLD_BOUND);
-  const yaw = finite(value.yaw);
-  const pitch = bounded(value.pitch, -1.6, 1.6);
-  const weapon = isWeaponId(value.weapon) ? value.weapon : null;
-  const color = bounded(value.color, 0, 3);
-  if (
-    !id ||
-    !name ||
-    x === null ||
-    y === null ||
-    z === null ||
-    yaw === null ||
-    pitch === null ||
-    !weapon ||
-    color === null
-  ) {
-    return null;
-  }
-  return {
-    id,
-    name,
-    color: Math.floor(color),
-    x,
-    y,
-    z,
-    yaw,
-    pitch,
-    weapon,
-    jetpack: Boolean(value.jetpack),
-    mining: Boolean(value.mining),
-  };
-}
-
-function parseSnapshot(value: unknown): DaySnapshot | null {
-  if (!isRecord(value) || typeof value.phase !== 'string') {
-    return null;
-  }
-  if (!['playing', 'shop', 'gameover', 'victory'].includes(value.phase)) {
-    return null;
-  }
-  const day = bounded(value.day, 1, 9999);
-  const seed = bounded(value.seed, 0, 0xffffffff);
-  const quota = bounded(value.quota, 0, 1e9);
-  const timeLeft = bounded(value.timeLeft, 0, 3600);
-  const money = bounded(value.money, 0, 1e9);
-  const carbon = bounded(value.carbon, 0, 1e9);
-  const dayMoneyBase = bounded(value.dayMoneyBase, 0, 1e9);
-  const dayReport = value.dayReport == null ? null : parseDayReport(value.dayReport);
-  if (value.dayReport != null && dayReport === null) {
-    return null;
-  }
-  if (
-    day === null ||
-    seed === null ||
-    quota === null ||
-    timeLeft === null ||
-    money === null ||
-    carbon === null ||
-    dayMoneyBase === null ||
-    !isRecord(value.loadout)
-  ) {
-    return null;
-  }
-  if (!Array.isArray(value.players) || !Array.isArray(value.staff)) {
-    return null;
-  }
-  const players: NetworkPlayerState[] = [];
-  for (const rawPlayer of value.players) {
-    if (!isRecord(rawPlayer)) {
-      continue;
-    }
-    const player = parseHostPlayerState(rawPlayer);
-    if (player) {
-      players.push(player);
-    }
-  }
-  const ladders: NetworkLadderState[] = [];
-  if (Array.isArray(value.ladders)) {
-    for (const rawLadder of value.ladders.slice(0, 200)) {
-      const ladder = parseLadder(rawLadder);
-      if (ladder) {
-        ladders.push(ladder);
-      }
-    }
-  }
-  const staff: NetworkStaffState[] = [];
-  for (const rawStaff of value.staff) {
-    if (!isRecord(rawStaff) || typeof rawStaff.id !== 'string') {
-      continue;
-    }
-    const x = bounded(rawStaff.x, -WORLD_BOUND, WORLD_BOUND);
-    const y = bounded(rawStaff.y, -125, 10);
-    const z = bounded(rawStaff.z, -WORLD_BOUND, WORLD_BOUND);
-    const yaw = finite(rawStaff.yaw);
-    const rank = bounded(rawStaff.rank, 0, 3);
-    if (
-      x === null ||
-      y === null ||
-      z === null ||
-      yaw === null ||
-      rank === null ||
-      (rawStaff.kind !== 'miner' && rawStaff.kind !== 'collector')
-    ) {
-      continue;
-    }
-    staff.push({
-      id: rawStaff.id.slice(0, 80),
-      kind: rawStaff.kind,
-      rank: Math.floor(rank),
-      x,
-      y,
-      z,
-      yaw,
-      active: Boolean(rawStaff.active),
-    });
-  }
-  const carveHistory: CarveEvent[] = [];
-  if (Array.isArray(value.carveHistory)) {
-    for (const rawEvent of value.carveHistory.slice(0, 5000)) {
-      const event = parseCarveEvent(rawEvent);
-      if (event) {
-        carveHistory.push(event);
-      }
-    }
-  }
-  const brokenNodes: string[] = [];
-  if (Array.isArray(value.brokenNodes)) {
-    for (const rawId of value.brokenNodes) {
-      if (typeof rawId === 'string') {
-        brokenNodes.push(rawId.slice(0, 96));
-      }
-    }
-  }
-  const nodeHp: Record<string, number> = {};
-  if (isRecord(value.nodeHp)) {
-    for (const [rawId, rawHp] of Object.entries(value.nodeHp).slice(0, 2000)) {
-      const hp = bounded(rawHp, 0, 100000);
-      if (hp !== null) {
-        nodeHp[rawId.slice(0, 96)] = hp;
-      }
-    }
-  }
-  return {
-    phase: value.phase as DaySnapshot['phase'],
-    day,
-    seed: seed >>> 0,
-    quota,
-    timeLeft,
-    money,
-    carbon,
-    dayMoneyBase,
-    dayReport,
-    infinite: Boolean(value.infinite),
-    loadout: value.loadout as unknown as Loadout,
-    stats: (isRecord(value.stats) ? value.stats : {}) as unknown as RunStats,
-    carveHistory,
-    brokenNodes,
-    nodeHp,
-    players,
-    staff,
-    ladders,
-  };
 }
 
 export function encodeMessage(message: HostMessage | ClientMessage): string {

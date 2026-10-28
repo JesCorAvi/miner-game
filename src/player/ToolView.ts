@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { WEAPONS, WEAPON_FAMILY_ORDER, weaponFamily } from '../config';
+import { PATENTS } from '../core/Progression';
 import type { WeaponId } from '../types';
 import {
   PICKAXE_IMPACT_FRACTION,
@@ -23,7 +25,7 @@ interface ModelRig {
 const REST_POSITION = new THREE.Vector3(0.4, -0.62, -0.68);
 const REST_ROTATION = new THREE.Euler(0.06, 0.3, 0.22, 'YXZ');
 
-const WEAPON_POSES: Record<WeaponId, { position: THREE.Vector3; rotation: THREE.Euler }> = {
+const WEAPON_POSES: Record<string, { position: THREE.Vector3; rotation: THREE.Euler }> = {
   pickaxe: {
     position: REST_POSITION.clone(),
     rotation: REST_ROTATION.clone(),
@@ -110,6 +112,24 @@ export class ToolView {
     this.rigs.set('tesla', this.buildTesla());
     this.rigs.set('drill', this.buildDrill());
     this.rigs.set('shotgun', this.buildShotgun());
+    for (const id of WEAPON_FAMILY_ORDER) {
+      if (this.rigs.has(id)) {
+        continue;
+      }
+      const family = weaponFamily(id);
+      const base =
+        family.style === 'melee'
+          ? 'pickaxe'
+          : family.style === 'chain'
+            ? 'tesla'
+            : family.style === 'continuous'
+              ? 'drill'
+              : 'shotgun';
+      const rig = this.rigs.get(base);
+      if (rig) {
+        this.rigs.set(id, rig);
+      }
+    }
     this.setActive('pickaxe', false);
   }
 
@@ -450,6 +470,12 @@ export class ToolView {
         this.swingDuration = 0.24;
         this.swingTimer = this.swingDuration;
         break;
+      default: {
+        const style = WEAPONS[weapon]?.style;
+        this.swingDuration = style === 'melee' ? 0.34 : style === 'continuous' ? 0.08 : 0.24;
+        this.swingTimer = this.swingDuration;
+        break;
+      }
     }
     if (rig.flash) {
       rig.flash.visible = true;
@@ -460,13 +486,26 @@ export class ToolView {
   }
 
   playImpact(strong = false): void {
-    if (this.active !== 'pickaxe' || this.swingTimer <= 0) {
+    if (WEAPONS[this.active]?.style !== 'melee' || this.swingTimer <= 0) {
       return;
     }
     this.impactHold = PICKAXE_IMPACT_HOLD;
     this.recoilStrength = strong ? 1.35 : 0.9;
     this.swayX += (Math.random() - 0.5) * 0.012;
     this.swayY += (Math.random() - 0.5) * 0.012;
+  }
+
+  setPatent(tier: number): void {
+    if (tier <= 0 || !PATENTS[tier]) {
+      this.pickaxeMaterials.edge.emissive.setHex(0x101617);
+      this.pickaxeMaterials.edge.emissiveIntensity = 0.12;
+      this.cyan.color.setHex(0x59d7e7);
+      return;
+    }
+    const patent = PATENTS[tier];
+    this.pickaxeMaterials.edge.emissive.setHex(patent.emissive);
+    this.pickaxeMaterials.edge.emissiveIntensity = 0.55;
+    this.cyan.color.setHex(patent.emissive);
   }
 
   setFiringHeld(firing: boolean): void {
@@ -518,7 +557,7 @@ export class ToolView {
     const bobX = Math.cos(this.bobTime * 0.52) * bobStrength;
     const bobY = Math.sin(this.bobTime) * bobStrength;
     const jetTilt = jetpackActive ? 0.06 : 0;
-    const isPickaxe = this.active === 'pickaxe';
+    const isPickaxe = WEAPONS[this.active]?.style === 'melee';
     const breatheY = isPickaxe ? Math.sin(this.elapsed * 1.7) * 0.004 : 0;
     const breatheRot = isPickaxe ? Math.sin(this.elapsed * 1.15 + 0.7) * 0.008 : 0;
 
@@ -543,7 +582,7 @@ export class ToolView {
         }
       } else {
         swing = Math.sin(progress * Math.PI);
-        if (this.active === 'shotgun') {
+        if (WEAPONS[this.active]?.style === 'shotgun') {
           kick = Math.sin(Math.min(1, progress * 1.7) * Math.PI);
           swing = 0;
         }
@@ -612,14 +651,18 @@ export class ToolView {
       rig.group.rotation.y = rig.restRotation.y + swing * 0.2 - bobX * 2.2;
       rig.group.rotation.z = rig.restRotation.z + swing * 0.45 + bobX * 1.6;
       rig.group.scale.setScalar(
-        (this.active === 'tesla' ? 0.72 : this.active === 'drill' ? 0.7 : 0.74) *
+        (WEAPONS[this.active]?.style === 'chain'
+          ? 0.72
+          : WEAPONS[this.active]?.style === 'continuous'
+            ? 0.7
+            : 0.74) *
           weaponScale(this.active) *
           scale *
           0.36,
       );
     }
 
-    if (this.active === 'drill') {
+    if (WEAPONS[this.active]?.style === 'continuous') {
       const desiredSpin = this.firingHeld ? 1 : 0;
       this.drillSpin = THREE.MathUtils.damp(this.drillSpin, desiredSpin, 8, safeDt);
       if (rig.movingPart) {
@@ -631,7 +674,7 @@ export class ToolView {
           rig.flashMaterial.opacity = this.drillSpin * 0.48;
         }
       }
-    } else if (this.active === 'tesla' && rig.movingPart) {
+    } else if (WEAPONS[this.active]?.style === 'chain' && rig.movingPart) {
       rig.movingPart.rotation.y += safeDt * 1.6;
     }
 
@@ -702,6 +745,8 @@ function weaponScale(weapon: WeaponId): number {
     case 'drill':
       return 0.98;
     case 'shotgun':
+      return 1;
+    default:
       return 1;
   }
 }

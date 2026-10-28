@@ -45,6 +45,15 @@ function iconKind(item: InventoryItem): ItemIconKind {
   if (item.kind === 'ladder') {
     return { kind: 'ladder' };
   }
+  if (item.kind === 'winch') {
+    return { kind: 'winch' };
+  }
+  if (item.kind === 'field_depot') {
+    return { kind: 'field_depot' };
+  }
+  if (item.kind === 'beacon') {
+    return { kind: 'beacon' };
+  }
   return { kind: 'mineral', mineral: item.mineral };
 }
 
@@ -58,6 +67,9 @@ function glowFor(item: InventoryItem): number {
   if (item.kind === 'grenade') {
     return GRENADE_TIERS[item.tier].glow;
   }
+  if (item.kind === 'winch') return 0x94a3b8;
+  if (item.kind === 'field_depot') return 0xf59e0b;
+  if (item.kind === 'beacon') return 0x38bdf8;
   return LADDER_GLOW;
 }
 
@@ -71,6 +83,9 @@ function itemKey(item: InventoryItem): string {
   if (item.kind === 'grenade') {
     return `grenade-${item.tier}`;
   }
+  if (item.kind === 'winch') return 'winch';
+  if (item.kind === 'field_depot') return 'field_depot';
+  if (item.kind === 'beacon') return 'beacon';
   return 'ladder';
 }
 
@@ -87,6 +102,9 @@ function maxFor(item: InventoryItem): number {
   }
   if (item.kind === 'ladder') {
     return LADDER_STACK_MAX;
+  }
+  if (item.kind === 'winch' || item.kind === 'field_depot' || item.kind === 'beacon') {
+    return 99;
   }
   return 1;
 }
@@ -107,6 +125,15 @@ function tooltipFor(item: InventoryItem): string {
   }
   if (item.kind === 'ladder') {
     return `Escaleras de pared ×${item.count}\nSelecciona su casilla y pulsa E sobre una pared o el suelo.\nR alterna escalera/puente; G muestra u oculta el fantasma.`;
+  }
+  if (item.kind === 'winch') {
+    return `Cabria de contrapeso ×${item.count}\nInstalación vertical rápida. Sube/baja a 8 m/s.\nSelecciona esta casilla y haz clic para instalar en un borde o pared con tiro despejado.`;
+  }
+  if (item.kind === 'field_depot') {
+    return `Tolva de campaña ×${item.count}\nPunto de acopio temporal (30% de carga de mochila).\nSelecciona esta casilla y haz clic para instalar en suelo firme.`;
+  }
+  if (item.kind === 'beacon') {
+    return `Baliza de ruta ×${item.count}\nSeñal luminosa para marcar galerías. Visible en mapa (C).\nSelecciona esta casilla y haz clic o pulsa Q para colocar.`;
   }
   const grenade = GRENADE_TIERS[item.tier];
   return `${grenade.name} ×${item.count}\nÁrea de explosión: ${GRENADE_AREA_RADIUS.toFixed(1)} m\nRompe hasta la capa ${grenade.maxLayer}\nSelecciona esta casilla y haz clic para lanzar.`;

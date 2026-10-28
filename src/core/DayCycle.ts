@@ -1,9 +1,16 @@
 import {
+  TRUE_VICTORY_DAY,
   VICTORY_DAY,
   WEAPON_ORDER,
   dayDuration,
   quotaForDay,
 } from '../config';
+import {
+  computeDayDurationWithModifiers,
+  computeQuotaWithModifiers,
+  computeReserveApplication,
+  hasUtilityActive,
+} from './Progression';
 import {
   PROTOCOL_VERSION,
   type DaySnapshot,
@@ -12,7 +19,7 @@ import {
 import type { RunStats } from '../types';
 import { formatNumber } from '../ui/format';
 import { clearProjectiles } from './Combat';
-import { buildDayReport } from './DaySettlement';
+import { buildDayReport, computeFootprintStage } from './DaySettlement';
 import { discardCargo } from './Interaction';
 import { randomSeed } from './Rng';
 import { cloneLoadout, cloneStats } from './RunState';
@@ -20,7 +27,13 @@ import { buildShopView } from './ShopView';
 import { applyPixelMode, updateOfficeCamera } from './View';
 import type { Game } from './Game';
 
+export { computeFootprintStage };
+
 export function beginAuthorityDay(game: Game, broadcastStart = false): void {
+  game.environment.setFootprintStage(computeFootprintStage(game.run.day));
+  const hasDustClause = game.run.loadout.clauses?.includes('suspended_dust') ?? false;
+  const hasDustFilter = hasUtilityActive(game.run.loadout, 'dust_filter');
+  game.environment.setSuspendedDust(hasDustClause && !hasDustFilter);
   game.finishing = false;
   game.pendingPickaxeStrike = 0;
   game.carveHistory = [];
@@ -29,6 +42,7 @@ export function beginAuthorityDay(game: Game, broadcastStart = false): void {
   game.clearCargo();
   game.closeInventory();
   game.ladderCounter = 0;
+  game.hopperTripsToday = 0;
   game.resetDaySettlement();
   game.dayMoneyBase = game.run.money;
   const snapshot: DaySnapshot = {
@@ -42,6 +56,9 @@ export function beginAuthorityDay(game: Game, broadcastStart = false): void {
     dayMoneyBase: game.dayMoneyBase,
     dayReport: game.dayReport,
     infinite: game.run.infinite,
+    mode: game.run.mode ?? 'normal',
+    modifiers: game.run.modifiers ?? [],
+    map: game.run.map ?? 'standard',
     loadout: cloneLoadout(game.run.loadout),
     stats: cloneStats(game.run.stats),
     carveHistory: [],
@@ -50,6 +67,10 @@ export function beginAuthorityDay(game: Game, broadcastStart = false): void {
     players: game.getAllHostStates(),
     staff: [],
     ladders: [],
+    winches: [],
+    depots: [],
+    beacons: [],
+    platformDepth: game.run.platformDepth || 0,
   };
   loadSnapshot(game, snapshot, true);
   if (broadcastStart && game.online && game.role === 'host' && game.network) {
@@ -64,6 +85,14 @@ export function beginAuthorityDay(game: Game, broadcastStart = false): void {
     `DÍA ${String(game.run.day).padStart(2, '0')} · CUOTA ${formatNumber(game.run.quota)} t`,
     2800,
   );
+  if (game.run.day === 1) {
+    window.setTimeout(() => {
+      game.ui.notify(
+        'DIRECTIVA: El carbón cubre la cuota diaria; los minerales financian la oficina.',
+        'info',
+      );
+    }, 1200);
+  }
   void game.input.requestLock();
 }
 
@@ -75,11 +104,16 @@ export function loadSnapshot(game: Game, snapshot: DaySnapshot, authority: boole
     quota: snapshot.quota,
     timeLeft: snapshot.timeLeft,
     infinite: snapshot.infinite,
+    mode: snapshot.mode ?? 'normal',
+    modifiers: snapshot.modifiers ?? [],
+    map: snapshot.map ?? 'standard',
     loadout: cloneLoadout(snapshot.loadout),
     stats: cloneStats(snapshot.stats),
+    platformDepth: snapshot.platformDepth || 0,
   };
   game.seed = snapshot.seed >>> 0;
   game.dayMoneyBase = snapshot.dayMoneyBase;
+  game.hopperTripsToday = 0;
   game.resetDaySettlement();
   game.dayReport = snapshot.dayReport;
   game.carveHistory = authority ? [] : [...snapshot.carveHistory];
@@ -100,14 +134,37 @@ export function loadSnapshot(game: Game, snapshot: DaySnapshot, authority: boole
   game.ladderCounter = 0;
   game.interactionPrompt = null;
   game.ladders.fromSnapshot(snapshot.ladders);
+  if (snapshot.winches) game.winches.fromSnapshot(snapshot.winches);
+  if (snapshot.depots) game.fieldDepots.fromSnapshot(snapshot.depots);
+  game.environment.setFootprintStage(computeFootprintStage(game.run.day));
+  const hasDustClause = game.run.loadout.clauses?.includes('suspended_dust') ?? false;
+  const hasDustFilter = hasUtilityActive(game.run.loadout, 'dust_filter');
+  game.environment.setSuspendedDust(hasDustClause && !hasDustFilter);
+  game.environment.updatePlatformDepth(game.run.platformDepth || 0);
+  game.hopper.setPlatformDepth(game.run.platformDepth || 0);
+  game.player.setPlatformDepth(game.run.platformDepth || 0);
+  if (snapshot.beacons) game.beacons.fromSnapshot(snapshot.beacons);
+  if (snapshot.brigades && snapshot.sectors && game.brigades) {
+    game.brigades.fromSnapshot(snapshot.brigades, snapshot.sectors);
+  }
+  if (snapshot.conveyors && game.conveyors) {
+    game.conveyors.fromSnapshot(snapshot.conveyors);
+  }
   game.remoteStates.clear();
   game.rewardedChests.clear();
   game.lastHudSignature = '';
   game.staffVisualAccumulator = 0;
   game.tools.setActive(game.activeWeapon, false);
+  game.tools.setPatent(game.run.loadout.patent ?? 0);
   game.ui.showLoading('GENERANDO POZO…');
-  game.terrain.generate(game.seed);
-  game.resources.generate(game.seed, game.run.day, game.terrain);
+  game.terrain.generate(game.seed, game.run.map ?? 'standard');
+  game.resources.generate(
+    game.seed,
+    game.run.day,
+    game.terrain,
+    game.run.modifiers ?? [],
+    game.run.map ?? 'standard',
+  );
   game.terrain.applyCarveHistory(snapshot.carveHistory);
   for (const nodeId of snapshot.brokenNodes) {
     game.resources.markBroken(nodeId);
@@ -143,6 +200,9 @@ export function loadSnapshot(game: Game, snapshot: DaySnapshot, authority: boole
   game.updateHud();
   game.ui.setObjective(game.computeObjective());
   applyPixelMode(game, true);
+  const hasDust = game.run.loadout.clauses?.includes('suspended_dust') ?? false;
+  const filterOk = hasUtilityActive(game.run.loadout, 'dust_filter');
+  game.environment.setSuspendedDust(hasDust && !filterOk);
   if (!authority) {
     game.ui.notify('Pozo sincronizado. Haz clic en la escena para capturar el ratón.', 'info');
   }
@@ -156,16 +216,24 @@ export function applyShopSnapshot(game: Game, snapshot: DaySnapshot): void {
     quota: snapshot.quota,
     timeLeft: snapshot.timeLeft,
     infinite: snapshot.infinite,
+    mode: snapshot.mode ?? 'normal',
+    modifiers: snapshot.modifiers ?? [],
+    map: snapshot.map ?? 'standard',
     loadout: cloneLoadout(snapshot.loadout),
     stats: cloneStats(snapshot.stats),
+    platformDepth: snapshot.platformDepth || 0,
   };
   game.seed = snapshot.seed >>> 0;
   game.dayMoneyBase = snapshot.dayMoneyBase;
+  game.hopperTripsToday = 0;
   game.resetDaySettlement();
   game.dayReport = snapshot.dayReport;
   game.phase = 'shop';
   game.shopSuccess = true;
-  game.shopVictory = snapshot.day >= VICTORY_DAY && !snapshot.infinite;
+  game.shopVictory =
+    (snapshot.day === VICTORY_DAY || snapshot.day === TRUE_VICTORY_DAY) &&
+    !snapshot.infinite &&
+    (snapshot.mode ?? 'normal') !== 'peaceful';
   game.syncEquipmentInventory();
   game.input.setEnabled(false);
   game.input.unlock();
@@ -201,8 +269,13 @@ export function finishDay(game: Game): void {
   clearProjectiles(game);
   discardCargo(game, 'La carga que no llegó a la tolva se ha perdido al cerrar el turno.');
   const success = game.run.carbon >= game.run.quota;
-  const victory = success && game.run.day >= VICTORY_DAY && !game.run.infinite;
+  const victory =
+    success &&
+    (game.run.mode ?? 'normal') !== 'peaceful' &&
+    !game.run.infinite &&
+    (game.run.day === VICTORY_DAY || game.run.day === TRUE_VICTORY_DAY);
   const oreValue = Math.max(0, game.run.money - game.dayMoneyBase);
+  const duration = dayDuration(game.run.loadout);
   const preview = buildDayReport(
     game.dayLedger,
     game.run.day,
@@ -210,10 +283,18 @@ export function finishDay(game: Game): void {
     game.run.quota,
     oreValue,
     game.run.money,
+    game.securedAt,
+    duration,
+    {
+      clauses: game.run.loadout.clauses,
+      modifiers: game.run.modifiers ?? [],
+      doctrine: game.run.loadout.doctrine,
+    },
   );
   if (success) {
-    game.run.money += preview.bonus;
-    game.run.stats.moneyEarned += preview.bonus;
+    const settlementProfit = preview.bonus + preview.punctuality + preview.surplusCapital;
+    game.run.money += settlementProfit;
+    game.run.stats.moneyEarned += settlementProfit;
   }
   const report = buildDayReport(
     game.dayLedger,
@@ -222,6 +303,13 @@ export function finishDay(game: Game): void {
     game.run.quota,
     oreValue,
     game.run.money,
+    game.securedAt,
+    duration,
+    {
+      clauses: game.run.loadout.clauses,
+      modifiers: game.run.modifiers ?? [],
+      doctrine: game.run.loadout.doctrine,
+    },
   );
   game.dayReport = report;
   if (success) {
@@ -233,7 +321,11 @@ export function finishDay(game: Game): void {
     game.ui.showDaySummary(report);
     updateOfficeCamera(game);
     applyPixelMode(game, true);
-    game.audio.playDayComplete(true);
+    if (victory) {
+      game.audio.playVictory();
+    } else {
+      game.audio.playDayComplete(true);
+    }
     saveRun(game, false);
     if (game.online && game.role === 'host' && game.network) {
       game.network.broadcast({
@@ -284,7 +376,7 @@ export function startNextDay(game: Game): void {
   if (game.phase !== 'shop' || !game.shopSuccess || game.role === 'client') {
     return;
   }
-  if (game.shopVictory && !game.run.infinite) {
+  if (game.shopVictory && game.run.day >= TRUE_VICTORY_DAY && !game.run.infinite) {
     game.run.infinite = true;
   }
   game.shopVictory = false;
@@ -295,12 +387,39 @@ export function startNextDay(game: Game): void {
   game.run.money = Math.max(0, game.run.money);
   const playerCount =
     game.online && game.network ? game.network.getPlayerCount() : 1;
-  game.run.quota = quotaForDay(game.run.day, playerCount);
-  game.run.timeLeft = dayDuration(game.run.loadout);
+  const rawQuota = quotaForDay(
+    game.run.day,
+    playerCount,
+    game.run.mode ?? 'normal',
+    game.run.modifiers ?? [],
+  );
+  const modifiedQuota = computeQuotaWithModifiers(
+    rawQuota,
+    game.run.loadout.doctrine,
+    game.run.loadout.clauses,
+  );
+  const { applied, effectiveQuota, remainingReserve } = computeReserveApplication(
+    modifiedQuota,
+    game.run.loadout.reserveCarbon ?? 0,
+  );
+  game.run.loadout.reserveCarbon = remainingReserve;
+  game.run.quota = effectiveQuota;
+  game.run.timeLeft = computeDayDurationWithModifiers(
+    dayDuration(game.run.loadout),
+    game.run.loadout.doctrine,
+    game.run.loadout.clauses,
+  );
   game.seed = randomSeed();
   game.carveHistory = [];
   game.ui.hideShop();
   game.ui.hideLoading();
+  if (applied > 0) {
+    game.ui.notify(`FONDO DE RESERVA · ${applied} t amortizadas con la reserva corporativa.`, 'positive');
+  }
+  game.environment.setFootprintStage(computeFootprintStage(game.run.day));
+  const hasDustClause = game.run.loadout.clauses?.includes('suspended_dust') ?? false;
+  const hasDustFilter = hasUtilityActive(game.run.loadout, 'dust_filter');
+  game.environment.setSuspendedDust(hasDustClause && !hasDustFilter);
   beginAuthorityDay(game, game.online && game.role === 'host');
   saveRun(game, false);
 }
@@ -318,10 +437,16 @@ export function saveRun(game: Game, showUi = true): boolean {
   const saved = game.saves.save({
     day: saveInShop ? game.run.day + 1 : game.run.day,
     money: game.run.money,
-    infinite: game.run.infinite || (saveInShop && game.shopVictory),
+    infinite:
+      game.run.infinite ||
+      (saveInShop && game.shopVictory && game.run.day >= TRUE_VICTORY_DAY),
+    mode: game.run.mode ?? 'normal',
+    modifiers: game.run.modifiers ?? [],
+    map: game.run.map ?? 'standard',
     loadout: cloneLoadout(game.run.loadout),
     stats: cloneStats(game.run.stats),
     playerName: game.ui.getPlayerName(),
+    platformDepth: game.run.platformDepth || 0,
   });
   if (saved && showUi) {
     game.ui.setSaved();

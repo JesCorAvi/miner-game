@@ -7,7 +7,9 @@ import {
   WEAPON_ORDER,
 } from '../config';
 import { AudioEngine } from './Audio';
+import { ReturnPlanner } from './ReturnPlanner';
 import { Effects } from './Effects';
+import { globalPresentationBudget } from './PresentationBudget';
 import { InputController } from './Input';
 import { Inventory, type InventoryItem } from './Inventory';
 import { RemotePlayerAvatars, StaffAvatars } from '../entities/Avatars';
@@ -17,6 +19,8 @@ import { PROTOCOL_VERSION, type DaySnapshot } from '../network/Protocol';
 import { Player } from '../player/Player';
 import { ToolView } from '../player/ToolView';
 import { SaveManager } from '../save/SaveManager';
+import { hasUtilityActive } from './Progression';
+import { PerfOverlay } from '../ui/PerfOverlay';
 import type {
   CarveEvent,
   DayReport,
@@ -33,6 +37,17 @@ import { UI, type LobbyViewData } from '../ui/UI';
 import { Environment } from '../world/Environment';
 import { Hopper } from '../world/Hopper';
 import { Ladders } from '../world/Ladders';
+import { WinchSystem } from '../world/Winch';
+import { FieldDepotSystem } from '../world/FieldDepot';
+import { BeaconSystem } from '../world/Beacons';
+import { ConveyorSystem } from '../world/Conveyors';
+import { BrigadeManager } from '../entities/Brigades';
+import { GalleryMap } from '../ui/GalleryMap';
+import { DoctrineModal } from '../ui/DoctrineModal';
+import { AccessibilityModal } from '../ui/AccessibilityModal';
+import { BrigadeModal } from '../ui/BrigadeModal';
+import { ConveyorOverlay } from '../ui/ConveyorOverlay';
+import { LedgerModeView } from '../ui/LedgerModeView';
 import { LootField, type CollectedLoot } from '../world/Loot';
 import { Resources, type ResourceNode } from '../world/Resources';
 import { Terrain } from '../world/Terrain';
@@ -54,6 +69,7 @@ import * as NetworkBridge from './NetworkBridge';
 import * as Session from './Session';
 import * as ShopView from './ShopView';
 import * as View from './View';
+import { handlePlaceEquipmentOnClick } from './EquipmentPlacement';
 
 function requiredElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -71,6 +87,17 @@ export class Game {
   readonly environment: Environment;
   readonly hopper = new Hopper();
   readonly ladders = new Ladders();
+  readonly winches = new WinchSystem();
+  readonly fieldDepots = new FieldDepotSystem();
+  readonly beacons = new BeaconSystem();
+  readonly galleryMap = new GalleryMap();
+  readonly doctrineModal = new DoctrineModal();
+  readonly accessibilityModal: AccessibilityModal;
+  readonly brigadeModal: BrigadeModal;
+  readonly conveyorOverlay: ConveyorOverlay;
+  readonly ledgerModeView: LedgerModeView;
+  readonly brigades = new BrigadeManager();
+  readonly conveyors = new ConveyorSystem();
   readonly terrain = new Terrain();
   readonly resources = new Resources();
   readonly loot = new LootField();
@@ -104,12 +131,9 @@ export class Game {
   activeWeapon: WeaponId = 'pickaxe';
   activeHotbarSlot = 0;
   grenadeCooldown = 0;
-  readonly cooldowns: Record<WeaponId, number> = {
-    pickaxe: 0,
-    tesla: 0,
-    drill: 0,
-    shotgun: 0,
-  };
+  readonly cooldowns: Record<WeaponId, number> = Object.fromEntries(
+    WEAPON_ORDER.map((weapon) => [weapon, 0]),
+  ) as Record<WeaponId, number>;
   aim: AimTarget | null = null;
   aimAccumulator = 0;
   hudAccumulator = 0;
@@ -133,9 +157,16 @@ export class Game {
   ladderDialPointerX = 0;
   ladderDialPointerY = 0;
   ladderDialStartOrientation: LadderOrientation = 'vertical';
+  readonly returnPlanner = new ReturnPlanner();
+  readonly perf = new PerfOverlay();
+  hopperTripsToday = 0;
   dayMoneyBase = 0;
   dayLedger: DayLedger = emptyDayLedger();
   dayReport: DayReport | null = null;
+  securedAt: number | null = null;
+  quotaWarningsPlayed: Record<number, boolean> = { 30: false, 15: false, 5: false };
+  shownDay1CoalToast = false;
+  shownDay1OreToast = false;
   nearHopper = false;
   interactionPrompt: { key: string; text: string } | null = null;
   staffVisualAccumulator = 0;
@@ -190,6 +221,11 @@ export class Game {
       this.loot.group,
       this.hopper.group,
       this.ladders.group,
+      this.winches.group,
+      this.fieldDepots.group,
+      this.beacons.group,
+      this.brigades.group,
+      this.conveyors.group,
     );
     this.effects = new Effects(this.scene);
 
@@ -200,25 +236,24 @@ export class Game {
       onMute: () => this.toggleMute(),
       onPauseRequest: () => this.pauseGame(),
       onInteract: () => this.handleInteract(),
-      onPlaceLadder: () => this.tryPlaceLadderOnClick(),
+      onSecondaryInteract: () => this.handleSecondaryInteract(),
+      onPlaceLadder: () => this.tryPlaceActiveEquipmentOnClick(),
       onToggleLadder: () => this.toggleLadderOrientation(),
       onToggleLadderPlacement: () => this.toggleLadderPlacement(),
       onLadderDialStart: () => this.openLadderDial(),
       onLadderDialMove: (dx, dy) => this.moveLadderDial(dx, dy),
       onLadderDialEnd: (commit) => this.closeLadderDial(commit),
       onToggleInventory: () => this.toggleInventory(),
+      onToggleMap: () => this.toggleMap(),
+      onPlaceBeacon: () => this.placeBeacon(),
+      onTogglePerf: () => this.perf.toggle(),
     });
 
-    this.player = new Player(
-      this.scene,
-      this.camera,
-      this.input,
-      this.terrain,
-      this.ladders,
-      {
-        onFootstep: (running, layer) => {
+    this.player = new Player(this.scene, this.camera, this.input, this.terrain, this.ladders, {
+      onFootstep: (running, layer) => {
           this.audio.playFootstep(this.player.getPosition(), running, layer);
         },
+        onHardLanding: (dist) => this.handleHardLanding(dist),
       },
     );
     this.player.setLoadout(this.run.loadout);
@@ -247,18 +282,22 @@ export class Game {
       returnToMenu: () => this.returnToMenu(),
       moveInventoryItem: (from, to) => this.moveInventoryItem(from, to),
       selectHotbarSlot: (index) => this.selectHotbarSlot(index),
+      openDoctrineModal: () =>
+        this.doctrineModal.show(this.run, !this.online || this.role === 'host', () => {
+          if (this.phase === 'shop') this.ui.showShop(this.buildShopView());
+        }),
     });
 
+    this.accessibilityModal = new AccessibilityModal(this);
+    this.brigadeModal = new BrigadeModal(this);
+    this.conveyorOverlay = new ConveyorOverlay(this);
+    this.ledgerModeView = new LedgerModeView(this);
     this.resizeHandler = () => this.handleResize();
     this.visibilityHandler = () => {
-      if (document.visibilityState === 'hidden') {
-        this.saveRun(false);
-      }
+      if (document.visibilityState === 'hidden') this.saveRun(false);
     };
     this.pageHideHandler = () => this.saveRun(false);
-    this.audioUnlockHandler = () => {
-      void this.audio.init();
-    };
+    this.audioUnlockHandler = () => { void this.audio.init(); };
     window.addEventListener('resize', this.resizeHandler);
     document.addEventListener('visibilitychange', this.visibilityHandler);
     window.addEventListener('pagehide', this.pageHideHandler);
@@ -286,13 +325,20 @@ export class Game {
   }
 
   private frame = (): void => {
-    const now = performance.now();
-    const dt = Math.min(0.05, Math.max(0, (now - this.lastTimestamp) / 1000));
-    this.lastTimestamp = now;
+    const frameStart = performance.now();
+    const dt = Math.min(0.05, Math.max(0, (frameStart - this.lastTimestamp) / 1000));
+    this.lastTimestamp = frameStart;
     this.visualTime += dt;
+    const degraded = this.perf.isDegraded();
+    globalPresentationBudget.setDegraded(degraded);
+    this.loot.setDegraded(degraded);
+    globalPresentationBudget.resetFrame();
     this.update(dt);
+    this.perf.begin('render');
     this.renderer.render(this.scene, this.camera);
     this.tools.render(this.renderer);
+    this.perf.end('render');
+    this.perf.recordFrame(performance.now() - frameStart);
     this.frameHandle = requestAnimationFrame(this.frame);
   };
 
@@ -312,6 +358,29 @@ export class Game {
     this.updatePixelMode();
     if (this.phase !== 'playing' || !this.input.isLocked()) {
       this.ladders.clearGhost();
+    }
+
+    if (this.winches.isRiding()) {
+      const newY = this.winches.updateRide(this.player.getPosition().y, dt);
+      if (newY !== null) {
+        this.player.getPosition().y = newY;
+      } else {
+        this.player.stopRidingWinch();
+      }
+    }
+    if (this.galleryMap.isOpen()) {
+      const playerPos = this.player.getPosition();
+      this.galleryMap.render({
+        playerX: playerPos.x,
+        playerY: playerPos.y,
+        playerZ: playerPos.z,
+        playerYaw: this.player.getLookAngles().yaw,
+        winches: this.winches.getSnapshot(),
+        fieldDepots: this.fieldDepots.getSnapshot(),
+        beacons: this.beacons.getSnapshot(),
+        carvePoints: this.carveHistory.slice(-200),
+        hasMapCert: hasUtilityActive(this.run.loadout, 'gallery_map'),
+      });
     }
 
     if (this.phase === 'playing') {
@@ -339,7 +408,9 @@ export class Game {
       this.hudAccumulator += dt;
       if (this.hudAccumulator >= HUD_INTERVAL) {
         this.hudAccumulator = 0;
+        this.perf.begin('ui');
         this.updateHud();
+        this.perf.end('ui');
       }
       this.objectiveAccumulator += dt;
       if (this.objectiveAccumulator >= 0.9) {
@@ -352,7 +423,9 @@ export class Game {
 
     this.remoteAvatars.update(dt);
     this.staffAvatars.update(dt);
+    this.perf.begin('effects');
     this.effects.update(dt);
+    this.perf.end('effects');
     const activeItem = this.getActiveHotbarItem();
     const hasTool = activeItem?.kind === 'tool';
     this.tools.update(
@@ -374,6 +447,7 @@ export class Game {
     );
     this.player.headlamp.visible =
       this.phase === 'playing' && this.input.isLocked();
+    this.perf.begin('audio');
     this.audio.updateListener(this.camera);
     this.audio.setJetpackActive(
       this.phase === 'playing' && this.input.isLocked() && this.player.isJetpackActive(),
@@ -385,7 +459,12 @@ export class Game {
         hasTool &&
         this.activeWeapon === 'drill',
     );
+    this.perf.end('audio');
     this.ui.updateFloats();
+
+    if (this.perf.isVisible()) {
+      this.perf.updateFromGame(this);
+    }
   }
 
   private fixedUpdate(dt: number): void {
@@ -408,10 +487,21 @@ export class Game {
 
     this.updatePendingPickaxeStrike(dt);
     this.updateProjectiles(dt);
-    this.terrain.update();
+    this.perf.begin('terrain');
+    this.terrain.update(this.camera.position, dt > 0.033 || this.perf.isDegraded());
+    this.perf.end('terrain');
     this.resources.update(dt);
+    this.conveyors.update(dt, this.loot, this.terrain);
+    this.conveyorOverlay.update();
 
+    this.perf.begin('staff');
     if (this.isAuthority()) {
+      const bYield = this.brigades.update(dt, true, this.seed);
+      if (bYield.carbon > 0 || bYield.money > 0) {
+        this.run.carbon += bYield.carbon;
+        this.run.money += bYield.money;
+        this.broadcastEconomy();
+      }
       this.staffManager.update(dt);
       this.staffVisualAccumulator += dt;
       if (this.staffVisualAccumulator >= 0.2) {
@@ -419,21 +509,24 @@ export class Game {
         this.staffAvatars.applyStates(this.staffManager.getStates());
       }
       this.run.timeLeft = Math.max(0, this.run.timeLeft - dt);
+      if (this.run.timeLeft <= 30 && !this.quotaWarningsPlayed[30]) { this.quotaWarningsPlayed[30] = true; this.audio.playQuotaWarning(); }
+      if (this.run.timeLeft <= 15 && !this.quotaWarningsPlayed[15]) { this.quotaWarningsPlayed[15] = true; this.audio.playQuotaWarning(); }
+      if (this.run.timeLeft <= 5 && !this.quotaWarningsPlayed[5]) { this.quotaWarningsPlayed[5] = true; this.audio.playQuotaWarning(); }
       this.saveAccumulator += dt;
-      if (this.saveAccumulator >= AUTOSAVE_INTERVAL) {
-        this.saveAccumulator = 0;
-        this.saveRun(false);
-      }
+      if (this.saveAccumulator >= AUTOSAVE_INTERVAL) { this.saveAccumulator = 0; this.saveRun(false); }
       if (this.run.timeLeft <= 0) {
+        this.perf.end('staff');
         this.finishDay();
         return;
       }
     } else {
       this.run.timeLeft = Math.max(0, this.run.timeLeft - dt);
     }
+    this.perf.end('staff');
 
     const magnetCenter = this.player.getPosition().clone();
     magnetCenter.y += 1;
+    this.perf.begin('loot');
     this.loot.update(
       dt,
       this.terrain,
@@ -441,6 +534,7 @@ export class Game {
       magnetRadius(this.run.loadout),
       (collected) => this.onLootCollected(collected),
     );
+    this.perf.end('loot');
 
     if (this.online && this.network) {
       if (this.role === 'client') {
@@ -455,77 +549,25 @@ export class Game {
     return this.role !== 'client';
   }
 
-  updateMenuCamera(): void {
-    View.updateMenuCamera(this);
-  }
+  updateMenuCamera(): void { View.updateMenuCamera(this); }
+  updateOfficeCamera(): void { View.updateOfficeCamera(this); }
+  updatePixelMode(force = false): void { View.updatePixelMode(this, force); }
+  applyRenderResolution(): void { View.applyRenderResolution(this); }
+  applyPixelMode(force = true): void { View.applyPixelMode(this, force); }
+  handleResize(): void { View.handleResize(this); }
+  prepareMenuWorld(): void { View.prepareMenuWorld(this); }
 
-  updateOfficeCamera(): void {
-    View.updateOfficeCamera(this);
-  }
-
-  updatePixelMode(force = false): void {
-    View.updatePixelMode(this, force);
-  }
-
-  applyRenderResolution(): void {
-    View.applyRenderResolution(this);
-  }
-
-  applyPixelMode(force = true): void {
-    View.applyPixelMode(this, force);
-  }
-
-  handleResize(): void {
-    View.handleResize(this);
-  }
-
-  prepareMenuWorld(): void {
-    View.prepareMenuWorld(this);
-  }
-
-  startSolo(): void {
-    Session.startSolo(this);
-  }
-
-  continueRun(): void {
-    Session.continueRun(this);
-  }
-
-  leaveLobby(): void {
-    Session.leaveLobby(this);
-  }
-
-  leaveGame(): void {
-    Session.leaveGame(this);
-  }
-
-  createRoom(name: string): Promise<void> {
-    return Session.createRoom(this, name);
-  }
-
-  joinRoom(name: string, code: string): Promise<void> {
-    return Session.joinRoom(this, name, code);
-  }
-
-  startOnlineMatch(): void {
-    Session.startOnlineMatch(this);
-  }
-
-  returnToMenu(): void {
-    Session.returnToMenu(this);
-  }
-
-  toggleMute(): void {
-    Session.toggleMute(this);
-  }
-
-  pauseGame(): void {
-    Session.pauseGame(this);
-  }
-
-  resumeGame(): void {
-    Session.resumeGame(this);
-  }
+  startSolo(): void { Session.startSolo(this); }
+  continueRun(): void { Session.continueRun(this); }
+  leaveLobby(): void { Session.leaveLobby(this); }
+  leaveGame(): void { Session.leaveGame(this); }
+  createRoom(name: string): Promise<void> { return Session.createRoom(this, name); }
+  joinRoom(name: string, code: string): Promise<void> { return Session.joinRoom(this, name, code); }
+  startOnlineMatch(): void { Session.startOnlineMatch(this); }
+  returnToMenu(): void { Session.returnToMenu(this); }
+  toggleMute(): void { Session.toggleMute(this); }
+  pauseGame(): void { Session.pauseGame(this); }
+  resumeGame(): void { Session.resumeGame(this); }
 
   handleLockChange(locked: boolean): void {
     Session.handleLockChange(this, locked);
@@ -544,41 +586,16 @@ export class Game {
     Session.closeNetwork(this, sendBye);
   }
 
-  beginAuthorityDay(broadcastStart = false): void {
-    DayCycle.beginAuthorityDay(this, broadcastStart);
-  }
-
-  loadSnapshot(snapshot: DaySnapshot, authority: boolean): void {
-    DayCycle.loadSnapshot(this, snapshot, authority);
-  }
-
-  finishDay(): void {
-    DayCycle.finishDay(this);
-  }
-
-  startNextDay(): void {
-    DayCycle.startNextDay(this);
-  }
-
-  saveRun(showUi = true): boolean {
-    return DayCycle.saveRun(this, showUi);
-  }
-
-  updateHud(): void {
-    Hud.updateHud(this);
-  }
-
-  updateAim(forceUi: boolean): void {
-    Hud.updateAim(this, forceUi);
-  }
-
-  computeObjective(): string {
-    return Hud.computeObjective(this);
-  }
-
-  tryUseWeapon(): void {
-    Combat.tryUseWeapon(this);
-  }
+  beginAuthorityDay(broadcastStart = false): void { DayCycle.beginAuthorityDay(this, broadcastStart); }
+  loadSnapshot(snapshot: DaySnapshot, authority: boolean): void { DayCycle.loadSnapshot(this, snapshot, authority); }
+  finishDay(): void { DayCycle.finishDay(this); }
+  startNextDay(): void { DayCycle.startNextDay(this); }
+  depositCargo(): void { Interaction.depositCargo(this); }
+  saveRun(showUi = true): boolean { return DayCycle.saveRun(this, showUi); }
+  updateHud(): void { Hud.updateHud(this); }
+  updateAim(forceUi: boolean): void { Hud.updateAim(this, forceUi); }
+  computeObjective(): string { return Hud.computeObjective(this); }
+  tryUseWeapon(): void { Combat.tryUseWeapon(this); }
 
   getActiveHotbarItem(): InventoryItem | null {
     return this.inventory.slots[this.activeHotbarSlot] ?? null;
@@ -597,14 +614,23 @@ export class Game {
 
   private applyActiveHotbarItem(announce: boolean): void {
     const item = this.getActiveHotbarItem();
+    this.ladderPlacementEnabled = item?.kind === 'ladder';
     if (item?.kind === 'tool') {
       this.activeWeapon = item.weapon;
-      this.ladderPlacementEnabled = false;
       this.tools.setActive(item.weapon, true);
-    } else if (item?.kind === 'ladder') {
-      this.ladderPlacementEnabled = true;
+      this.tools.setPatent(this.run.loadout.patent ?? 0);
     } else {
-      this.ladderPlacementEnabled = false;
+      this.tools.setActive('pickaxe', false);
+      this.tools.setPatent(this.run.loadout.patent ?? 0);
+    }
+    if (item?.kind !== 'winch') {
+      this.winches.clearGhost();
+    }
+    if (item?.kind !== 'field_depot') {
+      this.fieldDepots.clearGhost();
+    }
+    if (item?.kind !== 'ladder') {
+      this.ladders.clearGhost();
     }
     if (announce) {
       this.audio.playUi();
@@ -695,6 +721,8 @@ export class Game {
   resetDaySettlement(): void {
     this.dayLedger = emptyDayLedger();
     this.dayReport = null;
+    this.securedAt = null;
+    this.quotaWarningsPlayed = { 30: false, 15: false, 5: false };
   }
 
   recordDayDeposit(lines: readonly DaySaleLine[], money: number): void {
@@ -713,69 +741,32 @@ export class Game {
     this.ui.showShop(ShopView.buildShopView(this));
   }
 
-  updatePendingPickaxeStrike(dt: number): void {
-    Combat.updatePendingPickaxeStrike(this, dt);
-  }
+  updatePendingPickaxeStrike(dt: number): void { Combat.updatePendingPickaxeStrike(this, dt); }
+  updateProjectiles(dt: number): void { Combat.updateProjectiles(this, dt); }
+  clearProjectiles(): void { Combat.clearProjectiles(this); }
+  onLootCollected(collected: CollectedLoot): boolean { return Interaction.onLootCollected(this, collected); }
+  staffCollect(collected: CollectedLoot, count: number): void { Interaction.staffCollect(this, collected, count); }
+  carveFromStaff(event: CarveEvent): void { Combat.carveFromStaff(this, event); }
+  staffAttackNode(node: ResourceNode, damage: number): void { Combat.staffAttackNode(this, node, damage); }
+  updateInteractionState(): void { Interaction.updateInteractionState(this); }
+  handleInteract(): void { Interaction.handleInteract(this); }
+  handleSecondaryInteract(): void { Interaction.handleSecondaryInteract(this); }
+  toggleMap(): void { this.galleryMap.toggle(); }
+  placeBeacon(): void { Interaction.placeBeacon(this); }
+  handleHardLanding(dist: number): void { Interaction.handleHardLandingSpill(this, dist); }
 
-  updateProjectiles(dt: number): void {
-    Combat.updateProjectiles(this, dt);
-  }
-
-  clearProjectiles(): void {
-    Combat.clearProjectiles(this);
-  }
-
-  onLootCollected(collected: CollectedLoot): boolean {
-    return Interaction.onLootCollected(this, collected);
-  }
-
-  staffCollect(collected: CollectedLoot, count: number): void {
-    Interaction.staffCollect(this, collected, count);
-  }
-
-  carveFromStaff(event: CarveEvent): void {
-    Combat.carveFromStaff(this, event);
-  }
-
-  staffAttackNode(node: ResourceNode, damage: number): void {
-    Combat.staffAttackNode(this, node, damage);
-  }
-
-  updateInteractionState(): void {
-    Interaction.updateInteractionState(this);
-  }
-
-  handleInteract(): void {
-    Interaction.handleInteract(this);
-  }
-
-  tryPlaceLadderOnClick(): boolean {
-    if (this.phase !== 'playing' || !this.ladderPlacementEnabled) {
+  tryPlaceActiveEquipmentOnClick(): boolean {
+    if (this.phase !== 'playing') {
       return false;
     }
-    Interaction.placeLadder(this);
-    return true;
+    return handlePlaceEquipmentOnClick(this);
   }
 
-  toggleLadderOrientation(): void {
-    Session.toggleLadderOrientation(this);
-  }
-
-  toggleLadderPlacement(): void {
-    Session.toggleLadderPlacement(this);
-  }
-
-  openLadderDial(): boolean {
-    return Session.openLadderDial(this);
-  }
-
-  moveLadderDial(dx: number, dy: number): void {
-    Session.moveLadderDial(this, dx, dy);
-  }
-
-  closeLadderDial(commit: boolean): void {
-    Session.closeLadderDial(this, commit);
-  }
+  toggleLadderOrientation(): void { Session.toggleLadderOrientation(this); }
+  toggleLadderPlacement(): void { Session.toggleLadderPlacement(this); }
+  openLadderDial(): boolean { return Session.openLadderDial(this); }
+  moveLadderDial(dx: number, dy: number): void { Session.moveLadderDial(this, dx, dy); }
+  closeLadderDial(commit: boolean): void { Session.closeLadderDial(this, commit); }
 
   toggleInventory(): void {
     if (this.phase !== 'playing') {
@@ -814,56 +805,23 @@ export class Game {
     this.cargoMoney = 0;
     this.cargoWeight = 0;
     this.inventory.clearMinerals();
+    this.player.setWeightRatio(0);
     this.lastHudSignature = '';
   }
 
-  buildShopView(): ReturnType<typeof ShopView.buildShopView> {
-    return ShopView.buildShopView(this);
-  }
+  buildShopView(): ReturnType<typeof ShopView.buildShopView> { return ShopView.buildShopView(this); }
+  requestPurchase(itemId: string): void { ShopView.requestPurchase(this, itemId); }
+  applyPurchase(itemId: string): boolean { return ShopView.applyPurchase(this, itemId); }
+  broadcastShopState(): void { ShopView.broadcastShopState(this); }
+  networkCallbacks(): NetworkCallbacks { return NetworkBridge.networkCallbacks(this); }
 
-  requestPurchase(itemId: string): void {
-    ShopView.requestPurchase(this, itemId);
-  }
-
-  applyPurchase(itemId: string): boolean {
-    return ShopView.applyPurchase(this, itemId);
-  }
-
-  broadcastShopState(): void {
-    ShopView.broadcastShopState(this);
-  }
-
-  networkCallbacks(): NetworkCallbacks {
-    return NetworkBridge.networkCallbacks(this);
-  }
-
-  buildLobbyView(roomCode: string, role: 'host' | 'client'): LobbyViewData {
-    return NetworkBridge.buildLobbyView(this, roomCode, role);
-  }
-
-  handleNetworkClosed(reason: string): void {
-    NetworkBridge.handleNetworkClosed(this, reason);
-  }
-
-  buildSnapshot(): DaySnapshot {
-    return NetworkBridge.buildSnapshot(this);
-  }
-
-  getAllHostStates(): NetworkPlayerState[] {
-    return NetworkBridge.getAllHostStates(this);
-  }
-
-  hostNetworkTick(dt: number): void {
-    NetworkBridge.hostNetworkTick(this, dt);
-  }
-
-  clientNetworkTick(dt: number): void {
-    NetworkBridge.clientNetworkTick(this, dt);
-  }
-
-  broadcastEconomy(): void {
-    NetworkBridge.broadcastEconomy(this);
-  }
+  buildLobbyView(roomCode: string, role: 'host' | 'client'): LobbyViewData { return NetworkBridge.buildLobbyView(this, roomCode, role); }
+  handleNetworkClosed(reason: string): void { NetworkBridge.handleNetworkClosed(this, reason); }
+  buildSnapshot(): DaySnapshot { return NetworkBridge.buildSnapshot(this); }
+  getAllHostStates(): NetworkPlayerState[] { return NetworkBridge.getAllHostStates(this); }
+  hostNetworkTick(dt: number): void { NetworkBridge.hostNetworkTick(this, dt); }
+  clientNetworkTick(dt: number): void { NetworkBridge.clientNetworkTick(this, dt); }
+  broadcastEconomy(): void { NetworkBridge.broadcastEconomy(this); }
 
   dispose(): void {
     this.frameHandle = 0;
@@ -879,6 +837,14 @@ export class Game {
     this.loot.dispose();
     this.hopper.dispose();
     this.ladders.dispose();
+    this.winches.dispose();
+    this.fieldDepots.dispose();
+    this.beacons.dispose();
+    this.brigades.dispose();
+    this.conveyors.dispose();
+    this.conveyorOverlay.dispose();
+    this.galleryMap.dispose();
+    this.perf.dispose();
     this.terrain.dispose();
     this.environment.dispose();
     this.clearProjectiles();

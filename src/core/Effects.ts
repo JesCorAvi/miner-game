@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { PIT_HALF } from '../config';
+import { MINE_DEPTH, PIT_HALF } from '../config';
 import { mulberry32 } from '../core/Rng';
+import { globalPresentationBudget } from './PresentationBudget';
 
 const MAX_SPARKS = 900;
 const MAX_DEBRIS = 220;
@@ -261,7 +262,7 @@ export class Effects {
       });
     }
 
-    for (let index = 0; index < 4; index += 1) {
+    for (let index = 0; index < 2; index += 1) {
       const light = new THREE.PointLight(0xffa04a, 0, 18, 1.5);
       this.group.add(light);
       this.explosionLights.push(light);
@@ -410,11 +411,13 @@ export class Effects {
       radius,
     });
 
-    const light = this.explosionLights[this.explosionLightCursor % this.explosionLights.length];
-    this.explosionLightCursor += 1;
-    light.position.copy(position);
-    light.intensity = 110 + radius * 36;
-    light.distance = radius * 9;
+    if (globalPresentationBudget.request('light', 1)) {
+      const light = this.explosionLights[this.explosionLightCursor % this.explosionLights.length];
+      this.explosionLightCursor += 1;
+      light.position.copy(position);
+      light.intensity = 110 + radius * 36;
+      light.distance = radius * 9;
+    }
   }
 
   spawnLightning(
@@ -682,8 +685,8 @@ export class Effects {
       piece.x += piece.vx * dt;
       piece.y += piece.vy * dt;
       piece.z += piece.vz * dt;
-      if (piece.y < -119.8) {
-        piece.y = -119.8;
+      if (piece.y < -MINE_DEPTH + 0.2) {
+        piece.y = -MINE_DEPTH + 0.2;
         piece.vy *= -0.25;
         piece.vx *= 0.7;
         piece.vz *= 0.7;
@@ -740,7 +743,7 @@ export class Effects {
       const yIndex = index * 3 + 1;
       this.dustPositions[yIndex] += dt * (0.05 + (index % 7) * 0.008);
       if (this.dustPositions[yIndex] > 1) {
-        this.dustPositions[yIndex] = -119;
+        this.dustPositions[yIndex] = -MINE_DEPTH + 1;
       }
       this.dustPositions[index * 3] =
         this.dustBase[index * 3] +

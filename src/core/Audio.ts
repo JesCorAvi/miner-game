@@ -14,6 +14,10 @@ export class AudioEngine {
   private ready = false;
   private jetpackGain: GainNode | null = null;
   private drillGain: GainNode | null = null;
+  private ambientGain: GainNode | null = null;
+  private activeVoiceCount = 0;
+  private activePositionalCount = 0;
+  private lastPickaxeTime = 0;
   private readonly forward = new THREE.Vector3();
   private readonly up = new THREE.Vector3();
   private lastFootstepAt = 0;
@@ -23,6 +27,14 @@ export class AudioEngine {
 
   isMuted(): boolean {
     return this.muted;
+  }
+
+  getActiveVoiceCount(): number {
+    return this.activeVoiceCount;
+  }
+
+  getActivePositionalCount(): number {
+    return this.activePositionalCount;
   }
 
   setMuted(muted: boolean): void {
@@ -100,6 +112,7 @@ export class AudioEngine {
 
   private buildAmbient(context: AudioContext, destination: AudioNode): void {
     const ambient = context.createGain();
+    this.ambientGain = ambient;
     ambient.gain.value = 0.032;
     ambient.connect(destination);
 
@@ -276,6 +289,15 @@ export class AudioEngine {
     return panner;
   }
 
+  duckAmbient(factor = 0.25, duration = 1.6): void {
+    if (!this.context || !this.ambientGain) return;
+    const now = this.context.currentTime;
+    this.ambientGain.gain.cancelScheduledValues(now);
+    this.ambientGain.gain.setValueAtTime(this.ambientGain.gain.value, now);
+    this.ambientGain.gain.linearRampToValueAtTime(0.032 * factor, now + 0.08);
+    this.ambientGain.gain.linearRampToValueAtTime(0.032, now + duration);
+  }
+
   private noise(
     position: THREE.Vector3 | null,
     filterType: BiquadFilterType,
@@ -290,6 +312,12 @@ export class AudioEngine {
     if (!context || !this.master || !this.noiseBuffer) {
       return;
     }
+    if (this.activeVoiceCount >= 24 || (position && this.activePositionalCount >= 12)) {
+      return;
+    }
+    this.activeVoiceCount += 1;
+    if (position) this.activePositionalCount += 1;
+
     const source = context.createBufferSource();
     source.buffer = this.noiseBuffer;
     source.playbackRate.value = Math.max(0.5, pitch);
@@ -300,6 +328,8 @@ export class AudioEngine {
     const gain = context.createGain();
     const destination = position ? this.panner(position) : this.master;
     if (!destination) {
+      this.activeVoiceCount = Math.max(0, this.activeVoiceCount - 1);
+      if (position) this.activePositionalCount = Math.max(0, this.activePositionalCount - 1);
       return;
     }
     const start = context.currentTime + delay;
@@ -311,11 +341,13 @@ export class AudioEngine {
     gain.connect(destination);
     source.start(start, Math.random() * 1.2, duration + 0.03);
     source.stop(start + duration + 0.04);
-    if (destination !== this.master) {
-      source.onended = () => {
+    source.onended = () => {
+      this.activeVoiceCount = Math.max(0, this.activeVoiceCount - 1);
+      if (position) this.activePositionalCount = Math.max(0, this.activePositionalCount - 1);
+      if (destination !== this.master) {
         destination.disconnect();
-      };
-    }
+      }
+    };
   }
 
   private tone(
@@ -332,6 +364,12 @@ export class AudioEngine {
     if (!context || !this.master) {
       return;
     }
+    if (this.activeVoiceCount >= 24 || (position && this.activePositionalCount >= 12)) {
+      return;
+    }
+    this.activeVoiceCount += 1;
+    if (position) this.activePositionalCount += 1;
+
     const oscillator = context.createOscillator();
     oscillator.type = type;
     const detune = THREE.MathUtils.clamp(1200 * Math.log2(pitch), -1200, 1200);
@@ -347,15 +385,21 @@ export class AudioEngine {
     gain.gain.exponentialRampToValueAtTime(MIN_GAIN, start + duration);
     const destination = position ? this.panner(position) : this.master;
     if (!destination) {
+      this.activeVoiceCount = Math.max(0, this.activeVoiceCount - 1);
+      if (position) this.activePositionalCount = Math.max(0, this.activePositionalCount - 1);
       return;
     }
     oscillator.connect(gain);
     gain.connect(destination);
     oscillator.start(start);
     oscillator.stop(start + duration + 0.03);
-    if (destination !== this.master) {
-      oscillator.onended = () => destination.disconnect();
-    }
+    oscillator.onended = () => {
+      this.activeVoiceCount = Math.max(0, this.activeVoiceCount - 1);
+      if (position) this.activePositionalCount = Math.max(0, this.activePositionalCount - 1);
+      if (destination !== this.master) {
+        destination.disconnect();
+      }
+    };
   }
 
   private getSaturationCurve(): Float32Array<ArrayBuffer> {
@@ -503,8 +547,13 @@ export class AudioEngine {
     }
   }
 
-  playPickaxe(position: THREE.Vector3, layer: number, hasNode: boolean, isOre = false): void {
-    const pitch = 0.88 + Math.random() * 0.24;
+  playPickaxe(position: THREE.Vector3, layer: number, hasNode: boolean, isOre = false, pitchMultiplier = 1.0): void {
+    const now = performance.now();
+    if (now - this.lastPickaxeTime < 30) {
+      return;
+    }
+    this.lastPickaxeTime = now;
+    const pitch = (0.88 + Math.random() * 0.24) * pitchMultiplier;
     const layerIndex = Math.max(1, Math.min(4, layer));
     const crunchFrequency = isOre
       ? 1200 + layerIndex * 60
@@ -523,13 +572,14 @@ export class AudioEngine {
     this.thud(position, 150, 42, 0.065, isOre ? 0.13 : 0.15, pitch);
   }
 
-  playNodeBreak(position: THREE.Vector3, isOre: boolean): void {
-    this.noise(position, 'lowpass', isOre ? 1900 : 850, 0.42, 0.22);
-    this.noise(position, 'highpass', isOre ? 3400 : 2300, 0.22, 0.12, 0.02);
-    this.tone(position, 'triangle', isOre ? 420 : 140, 0.32, 0.1, 0, isOre ? 130 : 42);
+  playNodeBreak(position: THREE.Vector3, isOre: boolean, pitchMultiplier = 1.0): void {
+    const p = Math.max(0.5, pitchMultiplier);
+    this.noise(position, 'lowpass', (isOre ? 1900 : 850) * p, 0.42, 0.22, 0, p);
+    this.noise(position, 'highpass', (isOre ? 3400 : 2300) * p, 0.22, 0.12, 0.02, p);
+    this.tone(position, 'triangle', (isOre ? 420 : 140) * p, 0.32, 0.1, 0, (isOre ? 130 : 42) * p);
     if (isOre) {
-      this.tone(position, 'sine', 820, 0.28, 0.045, 0.05, 1350);
-      this.tone(position, 'sine', 1230, 0.24, 0.028, 0.12, 870);
+      this.tone(position, 'sine', 820 * p, 0.28, 0.045, 0.05, 1350 * p);
+      this.tone(position, 'sine', 1230 * p, 0.24, 0.028, 0.12, 870 * p);
     }
   }
 
@@ -559,6 +609,7 @@ export class AudioEngine {
   }
 
   playExplosion(position: THREE.Vector3, radius: number): void {
+    this.duckAmbient(0.25, 1.8);
     const strength = Math.min(1.5, radius / 3);
     this.noise(position, 'lowpass', 600, 0.85, 0.4 * strength);
     this.noise(position, 'bandpass', 1200, 0.3, 0.22, 0.02, 0.9);
@@ -639,6 +690,7 @@ export class AudioEngine {
   }
 
   playQuotaWarning(): void {
+    this.duckAmbient(0.3, 1.4);
     this.tone(null, 'triangle', 392, 0.16, 0.05);
     this.tone(null, 'triangle', 311.13, 0.22, 0.045, 0.21);
   }

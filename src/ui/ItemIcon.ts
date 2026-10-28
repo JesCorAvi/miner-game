@@ -161,6 +161,76 @@ function drawLadder(context: CanvasRenderingContext2D): void {
   context.strokeRect(19, 8, 26, 48);
 }
 
+function drawWinch(context: CanvasRenderingContext2D): void {
+  context.strokeStyle = '#4a5568';
+  context.lineWidth = 4;
+  context.beginPath();
+  context.moveTo(16, 26);
+  context.lineTo(32, 10);
+  context.lineTo(48, 26);
+  context.stroke();
+  context.fillStyle = '#cbd5e0';
+  context.beginPath();
+  context.arc(32, 22, 8, 0, Math.PI * 2);
+  context.fill();
+  context.strokeStyle = '#2d3748';
+  context.lineWidth = 2.5;
+  context.stroke();
+  context.strokeStyle = '#94a3b8';
+  context.lineWidth = 3;
+  context.beginPath();
+  context.moveTo(32, 30);
+  context.lineTo(32, 44);
+  context.stroke();
+  context.fillStyle = '#e2a247';
+  context.fillRect(20, 44, 24, 14);
+  outline(context);
+}
+
+function drawFieldDepot(context: CanvasRenderingContext2D): void {
+  context.fillStyle = '#8a6234';
+  context.fillRect(14, 24, 36, 28);
+  outline(context);
+  context.fillStyle = '#4a5568';
+  context.fillRect(10, 52, 44, 5);
+  context.fillStyle = '#4fd1c5';
+  context.fillRect(22, 32, 20, 12);
+  context.strokeStyle = '#2d3748';
+  context.lineWidth = 1.5;
+  context.strokeRect(22, 32, 20, 12);
+  context.fillStyle = '#f59e0b';
+  context.beginPath();
+  context.arc(32, 16, 5, 0, Math.PI * 2);
+  context.fill();
+  outline(context);
+}
+
+function drawBeacon(context: CanvasRenderingContext2D): void {
+  context.strokeStyle = '#334155';
+  context.lineWidth = 4;
+  context.beginPath();
+  context.moveTo(18, 54);
+  context.lineTo(32, 44);
+  context.lineTo(46, 54);
+  context.stroke();
+  context.strokeStyle = '#64748b';
+  context.lineWidth = 4;
+  context.beginPath();
+  context.moveTo(32, 44);
+  context.lineTo(32, 18);
+  context.stroke();
+  context.fillStyle = '#38bdf8';
+  context.beginPath();
+  context.arc(32, 16, 6, 0, Math.PI * 2);
+  context.fill();
+  outline(context);
+  context.strokeStyle = '#7dd3fc';
+  context.lineWidth = 2;
+  context.beginPath();
+  context.arc(32, 16, 12, -Math.PI * 0.75, -Math.PI * 0.25);
+  context.stroke();
+}
+
 function drawGrenade(context: CanvasRenderingContext2D, tier: GrenadeTierId): void {
   const definition = GRENADE_TIERS[tier];
   context.fillStyle = cssHex(definition.color);
@@ -325,13 +395,71 @@ function drawEmployee(context: CanvasRenderingContext2D, role: EmployeeKind): vo
   }
 }
 
+function drawPatent(context: CanvasRenderingContext2D, tier: number): void {
+  const colors = ['#38bdf8', '#4ade80', '#fbbf24', '#f87171', '#c084fc', '#f43f5e'];
+  const color = colors[Math.max(0, Math.min(5, (tier || 1) - 1))];
+  context.fillStyle = '#182026';
+  context.beginPath();
+  context.arc(32, 30, 20, 0, Math.PI * 2);
+  context.fill();
+  context.strokeStyle = color;
+  context.lineWidth = 3.5;
+  context.stroke();
+  context.fillStyle = color;
+  context.beginPath();
+  context.arc(32, 30, 11, 0, Math.PI * 2);
+  context.fill();
+  outline(context);
+  context.fillStyle = color;
+  context.beginPath();
+  context.moveTo(25, 46);
+  context.lineTo(20, 58);
+  context.lineTo(28, 53);
+  context.lineTo(32, 48);
+  context.closePath();
+  context.fill();
+  context.beginPath();
+  context.moveTo(39, 46);
+  context.lineTo(44, 58);
+  context.lineTo(36, 53);
+  context.lineTo(32, 48);
+  context.closePath();
+  context.fill();
+}
+
+function drawCertification(context: CanvasRenderingContext2D): void {
+  context.fillStyle = '#1e293b';
+  context.beginPath();
+  context.rect(14, 10, 36, 44);
+  context.fill();
+  context.strokeStyle = '#38bdf8';
+  context.lineWidth = 2.5;
+  context.stroke();
+  outline(context);
+
+  context.fillStyle = '#38bdf8';
+  context.fillRect(20, 18, 24, 4);
+  context.fillRect(20, 26, 24, 3);
+  context.fillRect(20, 33, 16, 3);
+
+  context.fillStyle = '#f59e0b';
+  context.beginPath();
+  context.arc(32, 44, 5, 0, Math.PI * 2);
+  context.fill();
+}
+
 export type ItemIconKind =
   | { kind: 'mineral'; mineral: MineralId }
   | { kind: 'tool'; weapon: WeaponId }
   | { kind: 'grenade'; tier: GrenadeTierId }
   | { kind: 'ladder' }
+  | { kind: 'winch' }
+  | { kind: 'field_depot' }
+  | { kind: 'beacon' }
   | { kind: 'upgrade'; upgrade: UpgradeId }
-  | { kind: 'employee'; role: EmployeeKind };
+  | { kind: 'employee'; role: EmployeeKind }
+  | { kind: 'patent'; tier: number }
+  | { kind: 'certification'; certId?: string };
 
 export function itemIconUrl(item: ItemIconKind): string {
   switch (item.kind) {
@@ -353,6 +481,12 @@ export function itemIconUrl(item: ItemIconKind): string {
       return canvasFor(`grenade-${item.tier}`, (context) => drawGrenade(context, item.tier));
     case 'ladder':
       return canvasFor('ladder', drawLadder);
+    case 'winch':
+      return canvasFor('winch', drawWinch);
+    case 'field_depot':
+      return canvasFor('field_depot', drawFieldDepot);
+    case 'beacon':
+      return canvasFor('beacon', drawBeacon);
     case 'upgrade':
       return canvasFor(`upgrade-${item.upgrade}`, (context) =>
         drawUpgrade(context, item.upgrade),
@@ -361,6 +495,12 @@ export function itemIconUrl(item: ItemIconKind): string {
       return canvasFor(`employee-${item.role}`, (context) =>
         drawEmployee(context, item.role),
       );
+    case 'patent':
+      return canvasFor(`patent-${item.tier}`, (context) =>
+        drawPatent(context, item.tier),
+      );
+    case 'certification':
+      return canvasFor('cert-badge', drawCertification);
   }
 }
 
@@ -374,11 +514,26 @@ export function itemIconKey(item: ItemIconKind): string {
   if (item.kind === 'grenade') {
     return `grenade-${item.tier}`;
   }
+  if (item.kind === 'winch') {
+    return 'winch';
+  }
+  if (item.kind === 'field_depot') {
+    return 'field_depot';
+  }
+  if (item.kind === 'beacon') {
+    return 'beacon';
+  }
   if (item.kind === 'upgrade') {
     return `upgrade-${item.upgrade}`;
   }
   if (item.kind === 'employee') {
     return `employee-${item.role}`;
+  }
+  if (item.kind === 'patent') {
+    return `patent-${item.tier}`;
+  }
+  if (item.kind === 'certification') {
+    return `cert-${item.certId ?? 'badge'}`;
   }
   return 'ladder';
 }
@@ -393,11 +548,23 @@ export function itemDisplayName(item: ItemIconKind): string {
   if (item.kind === 'grenade') {
     return GRENADE_TIERS[item.tier].name;
   }
+  if (item.kind === 'winch') {
+    return 'Cabria de contrapeso';
+  }
+  if (item.kind === 'field_depot') {
+    return 'Tolva de campaña';
+  }
+  if (item.kind === 'beacon') {
+    return 'Balizas de ruta';
+  }
   if (item.kind === 'upgrade') {
     return item.upgrade;
   }
   if (item.kind === 'employee') {
     return item.role === 'collector' ? 'Recolector' : 'Minero';
+  }
+  if (item.kind === 'patent') {
+    return `Patente ${item.tier}`;
   }
   return 'Escaleras de pared';
 }

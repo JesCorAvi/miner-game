@@ -17,7 +17,6 @@
       <div class="screen-vignette" aria-hidden="true"></div>
       <div class="screen-scanlines" aria-hidden="true"></div>
       <div id="screen-fade" class="screen-fade" aria-hidden="true"></div>
-
       <section id="hud" class="hud is-hidden" aria-label="Interfaz de juego">
         <header class="hud-top">
           <div class="hud-identity">
@@ -34,14 +33,16 @@
               <span id="hud-layer" class="layer-name">ARCILLA OCRE</span>
             </div>
           </div>
-
           <div id="quota-card" class="quota-card">
             <div class="quota-heading">
               <span><span id="hud-day">DÍA 01</span> · <span id="hud-objective-kind">CUOTA OBLIGATORIA</span></span>
-              <strong id="hud-time">01:30</strong>
+              <div class="quota-timer-wrap">
+                <span id="hud-return" class="return-chip status-safe"><span class="return-dot" aria-hidden="true"></span><strong id="hud-return-time">REGRESO 00:00</strong></span>
+                <strong id="hud-time">01:30</strong>
+              </div>
             </div>
             <div class="quota-title">
-              <span>CARBÓN DEPOSITADO</span>
+              <span>CUOTA · CARBÓN EN TOLVA</span>
               <span id="hud-carbon">0 / 40 t</span>
             </div>
             <div class="progress-track">
@@ -51,11 +52,14 @@
               <span id="hud-quota-status">EN EXTRACCIÓN</span>
               <span id="hud-quota-hint">OBJETIVO DEL EQUIPO</span>
             </div>
+            <div id="hud-hopper-ribbon" class="hopper-ribbon">
+              <span id="hud-hopper-bearing">▲ TOLVA 0 m</span>
+              <span id="hud-hopper-vertical">+0 m</span>
+            </div>
           </div>
-
           <div class="hud-side">
             <div class="resource-card wallet-card">
-              <span class="resource-label">FONDOS CORPORATIVOS</span>
+              <span class="resource-label">CAPITAL DE REPOSICIÓN</span>
               <strong id="hud-money">$ 0</strong>
               <span id="hud-income" class="resource-sub">Minerales cobrados · bonus al cerrar</span>
             </div>
@@ -66,12 +70,10 @@
             </div>
           </div>
         </header>
-
         <div id="objective-hint" class="objective-hint">
           <span class="objective-label">DIRECTIVA</span>
           <span id="objective-text">Desciende con cuidado, extrae carbón y vuelve a la tolva para que cuente.</span>
         </div>
-
         <div id="crosshair" class="crosshair" aria-hidden="true">
           <span class="crosshair-line crosshair-top"></span>
           <span class="crosshair-line crosshair-right"></span>
@@ -79,7 +81,6 @@
           <span class="crosshair-line crosshair-left"></span>
           <span class="crosshair-dot"></span>
         </div>
-
         <div id="aim-panel" class="aim-panel" hidden>
           <div class="aim-heading">
             <span id="aim-type">VETA</span>
@@ -88,12 +89,10 @@
           <div class="aim-bar"><span id="aim-fill"></span></div>
           <span id="aim-detail">0 / 0</span>
         </div>
-
         <div id="interaction-prompt" class="interaction-prompt" hidden>
           <kbd id="interaction-key">E</kbd>
           <span id="interaction-text">DEPOSITAR CARGA</span>
         </div>
-
         <div id="ladder-dial" class="ladder-dial" hidden role="dialog" aria-label="Selector de orientación de escalera">
           <div class="ladder-dial-panel">
             <span class="ladder-dial-label">ORIENTACIÓN DE ESCALERA</span>
@@ -116,18 +115,17 @@
             <span class="ladder-dial-hint">MUEVE EL RATÓN · CLIC IZQ CONFIRMA · CLIC DER CANCELA</span>
           </div>
         </div>
-
         <div id="cargo-card" class="cargo-card">
           <div class="cargo-heading">
-            <span class="section-label">MOCHILA</span>
+            <span class="section-label">CARGA NO ASEGURADA</span>
             <strong id="hud-cargo-weight">PESO: 0.0 / 40 kg</strong>
           </div>
           <div class="cargo-weight-track"><span id="hud-cargo-weight-fill"></span></div>
           <div class="cargo-footer">
+            <span id="hud-cargo-unbanked">MOCHILA: 0 t · $ 0</span>
             <span id="hud-hopper">TOLVA: 0 / 40 t</span>
           </div>
         </div>
-
         <div class="jet-card" id="jet-card">
           <div class="jet-copy">
             <span class="section-label">JETPACK INDUSTRIAL</span>
@@ -136,9 +134,11 @@
           <div class="jet-track"><span id="hud-fuel-fill"></span></div>
           <span id="hud-jet-hint" class="jet-hint"><kbd>ESPACIO</kbd> desbloquea el jetpack en la oficina nocturna</span>
         </div>
-
+        <div id="conveyor-jam-banner" class="conveyor-jam-banner" hidden>
+          <span class="warning-mark">⚠</span>
+          <strong>LÍNEA DE CINTA ATASCADA</strong> — Un derrumbe de roca bloquea el transporte de mineral
+        </div>
         <div id="inventory-hotbar" class="inventory-hotbar" aria-label="Hotbar de herramientas y objetos"></div>
-
         <section id="inventory-panel" class="inventory-panel" hidden aria-label="Inventario">
           <header class="inventory-head">
             <span class="section-label">INVENTARIO</span>
@@ -151,7 +151,6 @@
             <span>STACK MÁX. 64</span>
           </footer>
         </section>
-
         <div class="bottom-hints">
           <span><kbd>WASD</kbd> MOVER</span>
           <span><kbd>CLIC IZQ</kbd> EXCAVAR / COLOCAR</span>
@@ -159,12 +158,12 @@
           <span><kbd>E</kbd> DEPOSITAR</span>
           <span><kbd>W</kbd> SUBIR ESCALERA</span>
           <span><kbd>TAB</kbd> INVENTARIO</span>
+          <span><kbd>C</kbd> PLANO</span>
           <span><kbd>ESPACIO</kbd> SALTO / SOLTAR</span>
           <span><kbd>SHIFT</kbd> CORRER</span>
           <span><kbd>1-9</kbd> HOTBAR</span>
           <span><kbd>ESC</kbd> PAUSA</span>
         </div>
-
         <div id="toast-stack" class="toast-stack" aria-live="polite"></div>
         <div id="float-layer" class="float-layer" aria-hidden="true"></div>
         <div id="hud-banner" class="hud-banner" hidden>
@@ -172,15 +171,9 @@
           <strong id="hud-banner-text">DÍA 01</strong>
         </div>
       </section>
-
       <section id="menu-overlay" class="overlay menu-overlay" aria-label="Menú principal">
         <div class="pixel-sky" aria-hidden="true">
-          <span class="pixel-moon"></span>
-          <span class="pixel-cloud cloud-a"></span>
-          <span class="pixel-cloud cloud-b"></span>
-          <span class="pixel-cloud cloud-c"></span>
-          <span class="pixel-skyline skyline-back"></span>
-          <span class="pixel-skyline skyline-front"></span>
+          <span class="pixel-moon"></span><span class="pixel-cloud cloud-a"></span><span class="pixel-cloud cloud-b"></span><span class="pixel-cloud cloud-c"></span><span class="pixel-skyline skyline-back"></span><span class="pixel-skyline skyline-front"></span>
         </div>
         <div class="menu-topbar">
           <span>MAGNATE OS // TERMINAL DE OPERACIONES</span>
@@ -189,42 +182,44 @@
         <main class="menu-layout">
           <div class="menu-hero">
             <span class="eyebrow">DIVISIÓN MINERA DE EXTRACCIÓN PROFUNDA</span>
-            <canvas
-              id="pixel-logo"
-              class="pixel-logo"
-              width="700"
-              height="218"
-              role="img"
-              aria-label="Carbon Magnate"
-            ></canvas>
-            <p class="menu-lead">
-              Desciende con cuidado, extrae la veta y vuelve a la tolva de superficie.
-              Lo que no llegue arriba no cuenta para la cuota.
-            </p>
-
+            <canvas id="pixel-logo" class="pixel-logo" width="700" height="218" role="img" aria-label="Carbon Magnate"></canvas>
+            <p class="menu-lead">Desciende con cuidado, extrae la veta y vuelve a la tolva de superficie. Lo que no llegue arriba no cuenta para la cuota.</p>
             <div class="menu-name-row">
               <label for="player-name">NOMBRE DE OPERARIO</label>
-              <input
-                id="player-name"
-                class="field"
-                type="text"
-                maxlength="16"
-                autocomplete="off"
-                spellcheck="false"
-                value="Operario"
-              />
+              <input id="player-name" class="field" type="text" maxlength="16" autocomplete="off" spellcheck="false" value="Operario" />
             </div>
-
             <div class="menu-actions">
-              <button id="start-continue" class="button primary large" type="button" hidden>
-                CONTINUAR EXPEDIENTE
-              </button>
-              <button id="start-new" class="button primary large" type="button">
-                NUEVA OPERACIÓN
-              </button>
+              <button id="start-continue" class="button primary large" type="button" hidden>CONTINUAR EXPEDIENTE</button>
+              <button id="start-new" class="button primary large" type="button">NUEVA OPERACIÓN</button>
+            </div>
+            <div class="menu-run-config">
+              <div class="menu-name-row">
+                <label for="menu-mode">MODO DE JORNADA</label>
+                <select id="menu-mode" class="field">
+                  <option value="normal">JORNADA NORMAL</option>
+                  <option value="tough">ARRANQUE DURO (×0,5)</option>
+                  <option value="peaceful">OPERACIÓN EN PAZ (CUOTA 0)</option>
+                </select>
+              </div>
+              <div class="menu-name-row">
+                <label for="menu-map">TOPOLOGÍA</label>
+                <select id="menu-map" class="field"><option value="standard">POZO ESTÁNDAR</option><option value="funnel">EMBUDO DE EXTRACCIÓN</option><option value="tightFunnel">EMBUDO ESTRECHO</option><option value="skyMine">MINA CELESTE</option><option value="shallow">ESTRATO SUPERFICIAL</option><option value="sparse">MINA DISPERSA</option><option value="sparseSky">CIELO DISPERSO</option></select>
+              </div>
+              <div class="menu-name-row">
+                <label for="menu-profession">PROFESIÓN</label>
+                <select id="menu-profession" class="field"><option value="internship">BECARIO CORPORATIVO</option><option value="shaman">CHAMÁN DE ESTRATO</option><option value="gunslinger">PISTOLERO DE GALERÍA</option><option value="wizard">INGENIERO ARCANO</option><option value="barbarian">BÁRBARO DE TÚNEL</option><option value="loneRanger">OPERARIO SOLITARIO</option><option value="demolitionist">DEMOLEDOR DE CONTRATO</option><option value="waterbender">HIDRÓGRAFO DE MINA</option><option value="maverick">PILOTO DE ASCENSO</option><option value="lumberjack">LEÑADOR DE ESTRATO</option><option value="destructor">DESTRUCTOR DE FRENTE</option><option value="mule">MULA DE CARGA</option><option value="generalist">GENERALISTA DE OPERACIONES</option></select>
+              </div>
+              <fieldset id="menu-modifiers" class="menu-modifiers">
+                <legend>CLÁUSULAS DE DIFICULTAD</legend>
+                <label><input type="checkbox" value="no_chests" /> SIN COFRES</label>
+                <label><input type="checkbox" value="only_coal" /> SOLO CARBÓN</label>
+                <label><input type="checkbox" value="coal_worthless" /> CARBÓN SIN VALOR</label>
+                <label><input type="checkbox" value="no_bonus_cash" /> SIN BONUS</label>
+                <label><input type="checkbox" value="no_time_upgrades" /> SIN TIEMPO EXTRA</label>
+                <label><input type="checkbox" value="only_clay" /> SOLO ARCILLA</label>
+              </fieldset>
             </div>
             <p id="save-summary" class="menu-save-summary">Sin expediente activo.</p>
-
             <div class="menu-online-block">
               <div class="menu-section-head">
                 <span class="section-label">COOPERATIVO ONLINE · 1–4 OPERARIOS</span>
@@ -233,24 +228,13 @@
               <div class="menu-online-actions">
                 <button id="create-room" class="button secondary" type="button">CREAR SALA</button>
                 <div class="join-inline">
-                  <input
-                    id="join-code"
-                    class="field code-field"
-                    type="text"
-                    maxlength="6"
-                    autocomplete="off"
-                    spellcheck="false"
-                    placeholder="CÓDIGO"
-                  />
+                  <input id="join-code" class="field code-field" type="text" maxlength="6" autocomplete="off" spellcheck="false" placeholder="CÓDIGO" />
                   <button id="join-room" class="button secondary" type="button">UNIRSE</button>
                 </div>
               </div>
               <p id="menu-error" class="form-error" role="alert"></p>
-              <p class="fine-print">
-                WebRTC P2P: navegador y ejecutable Windows se conectan con el mismo código de 6 caracteres.
-              </p>
+              <p class="fine-print">WebRTC P2P: navegador y ejecutable Windows se conectan con el mismo código de 6 caracteres.</p>
             </div>
-
             <div class="menu-controls">
               <span><kbd>WASD</kbd> MOVER</span>
               <span><kbd>CLIC IZQ</kbd> MINAR / COLOCAR</span>
@@ -261,7 +245,6 @@
               <span><kbd>ESC</kbd> PAUSA</span>
             </div>
           </div>
-
           <aside class="pixel-panel menu-dossier">
             <div class="panel-corners" aria-hidden="true"></div>
             <header class="dossier-head">
@@ -305,7 +288,6 @@
           <span>BUILD 2.0 // HYBRID ENGINE</span>
         </footer>
       </section>
-
       <section id="lobby-overlay" class="overlay modal-overlay" hidden aria-label="Lobby cooperativo">
         <div class="pixel-shell lobby-shell">
           <div class="panel-corners" aria-hidden="true"></div>
@@ -329,7 +311,6 @@
                 Comparte el código. Los operarios pueden entrar desde navegador o desde el .exe.
               </p>
             </section>
-
             <section class="lobby-roster-panel">
               <span class="section-label">OPERARIOS EN LÍNEA <span id="lobby-count">1/4</span></span>
               <div id="lobby-roster" class="roster-list"></div>
@@ -345,7 +326,6 @@
           </footer>
         </div>
       </section>
-
       <section id="shop-overlay" class="overlay modal-overlay shop-overlay" hidden aria-label="Oficina nocturna">
         <div class="pixel-shell shop-shell">
           <div class="panel-corners" aria-hidden="true"></div>
@@ -370,22 +350,12 @@
               <span class="shop-save-note">EXPEDIENTE GUARDADO</span>
             </div>
           </header>
-
           <nav class="shop-tabs" role="tablist" aria-label="Secciones de la oficina">
-            <button id="shop-tab-employees" class="shop-tab" type="button" role="tab" data-shop-tab="employees">
-              EMPLEADOS <span class="shop-tab-count" data-shop-count="employees">0</span>
-            </button>
-            <button id="shop-tab-equipment" class="shop-tab" type="button" role="tab" data-shop-tab="equipment">
-              EQUIPO <span class="shop-tab-count" data-shop-count="equipment">0</span>
-            </button>
-            <button id="shop-tab-bonuses" class="shop-tab" type="button" role="tab" data-shop-tab="bonuses">
-              MEJORAS <span class="shop-tab-count" data-shop-count="bonuses">0</span>
-            </button>
-            <button id="shop-tab-inventory" class="shop-tab" type="button" role="tab" data-shop-tab="inventory">
-              INVENTARIO <span class="shop-tab-count" data-shop-count="inventory">0</span>
-            </button>
+            <button id="shop-tab-employees" class="shop-tab" type="button" role="tab" data-shop-tab="employees">EMPLEADOS <span class="shop-tab-count" data-shop-count="employees">0</span></button>
+            <button id="shop-tab-equipment" class="shop-tab" type="button" role="tab" data-shop-tab="equipment">EQUIPO <span class="shop-tab-count" data-shop-count="equipment">0</span></button>
+            <button id="shop-tab-bonuses" class="shop-tab" type="button" role="tab" data-shop-tab="bonuses">MEJORAS <span class="shop-tab-count" data-shop-count="bonuses">0</span></button>
+            <button id="shop-tab-inventory" class="shop-tab" type="button" role="tab" data-shop-tab="inventory">INVENTARIO <span class="shop-tab-count" data-shop-count="inventory">0</span></button>
           </nav>
-
           <div class="shop-body">
             <section class="shop-board">
               <header class="shop-board-head">
@@ -397,7 +367,6 @@
               </header>
               <div id="shop-content" class="shop-content" role="tabpanel"></div>
             </section>
-
             <aside class="shop-side">
               <span class="section-label">REGISTRO DEL TURNO</span>
               <div class="shop-ledger">
@@ -415,10 +384,13 @@
               </div>
             </aside>
           </div>
-
           <footer class="shop-foot">
             <div class="shop-foot-left">
               <button id="shop-menu" class="button ghost small" type="button">ABANDONAR EXPEDIENTE</button>
+              <button id="shop-doctrine-btn" class="button ghost small" type="button">ACTA Y CLÁUSULAS</button>
+              <button id="shop-brigades-btn" class="button ghost small" type="button">BRIGADAS Y SECTORES</button>
+              <button id="shop-ledger-mode-btn" class="button ghost small" type="button">LIBRO MAYOR: OFF</button>
+              <button id="shop-accessibility-btn" class="button ghost small" type="button">AJUSTES</button>
             </div>
             <div class="shop-foot-actions">
               <span id="shop-wait-host" class="waiting-label" hidden>ESPERANDO AL ANFITRIÓN…</span>
@@ -427,12 +399,11 @@
           </footer>
         </div>
       </section>
-
       <section id="day-summary-overlay" class="overlay modal-overlay day-summary-overlay" hidden aria-label="Liquidación del turno">
         <div class="pixel-shell day-summary-shell">
           <div class="panel-corners" aria-hidden="true"></div>
           <header class="day-summary-head">
-            <span class="eyebrow">CIERRE DE TURNO // LIQUIDACIÓN</span>
+            <span class="eyebrow">ACTA DE EXTRACCIÓN // CIERRE DE TURNO</span>
             <h2 id="day-summary-title">DÍA 01 COMPLETADO</h2>
             <p id="day-summary-subtitle">La junta revisa el carbón entregado.</p>
           </header>
@@ -445,31 +416,64 @@
               <div id="day-summary-lines" class="day-summary-lines"></div>
             </section>
             <aside class="day-summary-side">
-              <div class="summary-stat">
-                <span>CARBÓN ENTREGADO</span>
-                <strong id="day-summary-carbon">0 / 40 t</strong>
-              </div>
-              <div class="summary-stat">
-                <span>RENDIMIENTO</span>
-                <strong id="day-summary-performance">100%</strong>
-              </div>
-              <div class="summary-stat">
-                <span>BONUS DE TURNO</span>
-                <strong id="day-summary-bonus">$ 0</strong>
-              </div>
-              <div class="summary-total">
-                <span>TOTAL ACREDITADO</span>
-                <strong id="day-summary-total">$ 0</strong>
-              </div>
-              <div class="summary-stat summary-bank">
-                <span>CAJA ACTUAL</span>
-                <strong id="day-summary-money">$ 0</strong>
-              </div>
+              <div class="summary-stat"><span>CUOTA CUBIERTA</span><strong id="day-summary-carbon">0 / 40 t</strong></div>
+              <div class="summary-stat"><span>RENDIMIENTO</span><strong id="day-summary-performance">100%</strong></div>
+              <div class="summary-stat"><span>BONUS DE TURNO</span><strong id="day-summary-bonus">$ 0</strong></div>
+              <div class="summary-stat"><span>PRIMA PUNTUALIDAD</span><strong id="day-summary-punctuality">$ 0</strong></div>
+              <div class="summary-stat"><span>CANJE EXCEDENTE</span><strong id="day-summary-surplus">$ 0</strong></div>
+              <div class="summary-total"><span>TOTAL ACREDITADO</span><strong id="day-summary-total">$ 0</strong></div>
+              <div class="summary-stat summary-bank"><span>CAJA ACTUAL</span><strong id="day-summary-money">$ 0</strong></div>
             </aside>
           </div>
           <footer class="day-summary-foot">
-            <span class="summary-note">Los minerales se abonan en la tolva; el bonus se acredita al cerrar el turno.</span>
+            <span class="summary-note">Los minerales se abonan en la tolva; prima, canje y bonus se acreditan al cerrar el turno.</span>
             <button id="day-summary-continue" class="button primary" type="button">CONTINUAR A LA OFICINA</button>
+          </footer>
+        </div>
+      </section>
+      <section id="gallery-map-overlay" class="overlay modal-overlay gallery-map-overlay" hidden aria-label="Plano de galerías">
+        <div class="gallery-map-frame">
+          <div class="gallery-map-header">
+            <span class="gallery-map-title">PLANO DE GALERÍAS Y TOPOGRAFÍA</span>
+            <span class="gallery-map-close" id="gallery-map-close">[C / ESC CERRAR]</span>
+          </div>
+          <div class="gallery-map-body">
+            <canvas id="gallery-map-canvas" width="280" height="280" class="gallery-map-canvas"></canvas>
+            <div class="gallery-map-sidebar">
+              <div class="gallery-map-depth" id="gallery-map-depth-info">COTA: 0 m · SUPERFICIE</div>
+              <div class="gallery-map-legend">
+                <div class="legend-item"><span class="legend-swatch hopper-swatch"></span> TOLVA DE RECEPCIÓN</div>
+                <div class="legend-item"><span class="legend-swatch player-swatch"></span> TU POSICIÓN</div>
+                <div class="legend-item"><span class="legend-swatch winch-swatch"></span> CABRIA VERTICAL</div>
+                <div class="legend-item"><span class="legend-swatch depot-swatch"></span> TOLVA DE CAMPAÑA</div>
+                <div class="legend-item"><span class="legend-swatch beacon-swatch"></span> BALIZAS DE RUTA</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="doctrine-overlay" class="overlay modal-overlay doctrine-overlay" hidden aria-label="Actas y Cláusulas">
+        <div class="pixel-shell doctrine-shell">
+          <div class="panel-corners" aria-hidden="true"></div>
+          <header class="doctrine-header">
+            <span class="eyebrow">DOCTRINA DE EQUIPO Y CLÁUSULAS DE LA JUNTA</span>
+            <h2>ACTAS DE OPERACIÓN</h2>
+            <p>Elige la doctrina para la cuadrilla y ratifica las cláusulas de riesgo antes del turno.</p>
+          </header>
+          <div class="doctrine-body">
+            <div id="doctrine-cards" class="doctrine-cards"></div>
+            <div class="doctrine-clauses-wrapper">
+              <span class="eyebrow">CLÁUSULAS ESPECIALES DE LA JUNTA</span>
+              <div id="doctrine-clauses-grid" class="doctrine-clauses-grid"></div>
+            </div>
+            <div class="doctrine-reserve-box">
+              <span class="eyebrow">FONDO DE RESERVA CORPORATIVO</span>
+              <p>El excedente de carbón se almacena para amortizar hasta el 20 % de la cuota del día siguiente en lugar de canjearlo a 0,20 $/t.</p>
+              <div id="doctrine-reserve-status" class="doctrine-reserve-status"></div>
+            </div>
+          </div>
+          <footer class="doctrine-footer">
+            <button id="doctrine-close-btn" class="button primary" type="button">RATIFICAR EXPEDIENTE</button>
           </footer>
         </div>
       </section>
@@ -482,7 +486,50 @@
           <p id="pause-detail">El turno está congelado. Vuelve al túnel cuando estés listo.</p>
           <div class="modal-actions">
             <button id="pause-resume" class="button primary" type="button">VOLVER AL POZO</button>
+            <button id="pause-accessibility-btn" class="button ghost" type="button">AJUSTES</button>
             <button id="pause-leave" class="button danger" type="button">ABANDONAR</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="accessibility-overlay" class="overlay modal-overlay" hidden aria-label="Ajustes y Accesibilidad">
+        <div class="pixel-panel compact-panel">
+          <div class="panel-corners" aria-hidden="true"></div>
+          <span class="eyebrow">CONFIGURACIÓN OPERATIVA</span>
+          <h2>AJUSTES DE ACCESIBILIDAD</h2>
+          <div class="accessibility-body">
+            <div class="accessibility-row">
+              <label for="setting-shake">TEMBLOR DE PANTALLA (TRAUMA)</label>
+              <select id="setting-shake" class="input"><option value="1">100 % (COMPLETO)</option><option value="0.5">50 % (REDUCIDO)</option><option value="0">0 % (DESACTIVADO)</option></select>
+            </div>
+            <div class="accessibility-row">
+              <label for="setting-fov">CAMPO DE VISIÓN: <span id="setting-fov-val">75°</span></label>
+              <input id="setting-fov" type="range" min="60" max="100" step="1" value="75" class="input" />
+            </div>
+            <div class="accessibility-row">
+              <label for="setting-bulk-loot">MODO GRANEL (DEPÓSITO DIRECTO DE VETAS)</label>
+              <select id="setting-bulk-loot" class="input"><option value="false">DESACTIVADO (PELLETS FÍSICOS)</option><option value="true">ACTIVADO (FLUJO DIRECTO A MOCHILA)</option></select>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button id="accessibility-close-btn" class="button primary" type="button">GUARDAR Y CERRAR</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="brigades-overlay" class="overlay modal-overlay" hidden aria-label="Gestión de brigadas y sectores">
+        <div class="pixel-panel compact-panel brigades-panel">
+          <div class="panel-corners" aria-hidden="true"></div>
+          <span class="eyebrow">PLANTILLA Y MULTITUD INDUSTRIAL</span>
+          <h2>BRIGADAS Y SECTORES</h2>
+          <div class="brigades-body">
+            <div class="brigades-section"><div class="section-label">SECTORES DELIMITADOS (MÁX 4)</div><div id="brigades-sectors-list" class="brigades-list"></div></div>
+            <div class="brigades-section"><div class="section-label">BRIGADAS ASIGNADAS (MÁX 8)</div><div id="brigades-roster-list" class="brigades-list"></div></div>
+          </div>
+          <div class="modal-actions">
+            <button id="brigades-hire-miner-btn" class="button secondary small" type="button">+ BRIGADA MINERA ($ 450)</button>
+            <button id="brigades-hire-gatherer-btn" class="button secondary small" type="button">+ BRIGADA FLETE ($ 450)</button>
+            <button id="brigades-close-btn" class="button primary" type="button">VOLVER A LA OFICINA</button>
           </div>
         </div>
       </section>

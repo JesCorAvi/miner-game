@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import {
-  HOPPER_INTERACT_RADIUS,
-  HOPPER_POSITION,
+  CRITICAL_LOAD_RATIO,
   LADDER_HEIGHT,
   LADDER_ORIENTATION_LABELS,
   LADDER_REACH,
@@ -11,15 +10,16 @@ import {
   maxCarryWeight,
 } from '../config';
 import { PROTOCOL_VERSION } from '../network/Protocol';
-import type {
-  DaySaleLine,
-  LadderOrientation,
-  NetworkLadderState,
-} from '../types';
+import type { LadderOrientation, NetworkLadderState } from '../types';
 import type { CollectedLoot } from '../world/Loot';
 import { formatMoney, formatNumber } from '../ui/format';
 import { roundCoordinate } from './RunState';
 import type { Game } from './Game';
+import {
+  applyTeamDeposit,
+  depositCargo,
+  isNearHopper,
+} from './Deposit';
 import {
   footingHeight,
   isDiagonalOrientation,
@@ -27,6 +27,8 @@ import {
   validateLadderCandidate,
   type LadderCandidate,
 } from './LadderSupport';
+
+export { applyTeamDeposit, depositCargo, discardCargo, isNearHopper } from './Deposit';
 
 export function staffCollect(game: Game, collected: CollectedLoot, count: number): void {
   if (!game.isAuthority()) {
@@ -87,6 +89,21 @@ export function onLootCollected(game: Game, collected: CollectedLoot): boolean {
   game.cargoWeight = updated.weight;
   game.audio.playPickup(collected.position, updated.count);
   game.effects.spawnMuzzle(collected.position, collected.carbon > 0 ? 0x77e6dd : 0xffd576, 3);
+  if (game.run.day === 1) {
+    if (collected.carbon > 0 && !game.shownDay1CoalToast) {
+      game.shownDay1CoalToast = true;
+      game.ui.notify(
+        'CARBÓN OBTENIDO · Súbelo a la tolva antes de que acabe el turno para asegurar la cuota.',
+        'positive',
+      );
+    } else if (collected.money > 0 && !game.shownDay1OreToast) {
+      game.shownDay1OreToast = true;
+      game.ui.notify(
+        'MINERAL VALIOSO · Se convertirá en capital al depositarlo en la tolva corporativa.',
+        'info',
+      );
+    }
+  }
   const now = performance.now();
   if (now - game.lastCollectFloat > 150) {
     game.lastCollectFloat = now;
@@ -103,98 +120,6 @@ export function onLootCollected(game: Game, collected: CollectedLoot): boolean {
   }
   game.lastHudSignature = '';
   return true;
-}
-
-export function isNearHopper(game: Game): boolean {
-  const feet = game.player.getPosition();
-  const dx = feet.x - HOPPER_POSITION.x;
-  const dz = feet.z - HOPPER_POSITION.z;
-  return (
-    Math.hypot(dx, dz) <= HOPPER_INTERACT_RADIUS &&
-    feet.y > SURFACE_DECK_Y - 0.5 &&
-    feet.y < SURFACE_DECK_Y + 2.5
-  );
-}
-
-export function applyTeamDeposit(
-  game: Game,
-  coal: number,
-  money: number,
-  fromStaff = false,
-  lines: readonly DaySaleLine[] = [],
-): void {
-  const cleanCoal = Math.max(0, Math.floor(coal));
-  const cleanMoney = Math.max(0, Math.floor(money));
-  if (cleanCoal <= 0 && cleanMoney <= 0) {
-    return;
-  }
-  game.run.carbon += cleanCoal;
-  game.run.money += cleanMoney;
-  game.run.stats.coalMined += cleanCoal;
-  game.run.stats.moneyEarned += cleanMoney;
-  game.recordDayDeposit(lines, cleanMoney);
-  game.hopper.triggerPulse();
-  game.audio.playDeposit(game.hopper.getPosition(), fromStaff);
-  game.lastHudSignature = '';
-  if (game.online && game.role === 'host' && game.network) {
-    game.broadcastEconomy();
-  }
-}
-
-export function depositCargo(game: Game): void {
-  if (game.phase !== 'playing' || !isNearHopper(game)) {
-    return;
-  }
-  const totals = game.inventory.totals();
-  const lines = game.inventory.breakdown();
-  const coal = Math.max(0, Math.floor(totals.carbon));
-  const money = Math.max(0, Math.floor(totals.money));
-  if (totals.count <= 0) {
-    game.audio.playError();
-    game.ui.notify('La tolva espera carga. Extrae mineral y vuelve a la superficie.', 'info');
-    return;
-  }
-  if (game.online && game.role === 'client' && game.network) {
-    const sent = game.network.sendToHost({
-      t: 'deposit',
-      v: PROTOCOL_VERSION,
-      coal,
-      money,
-      lines,
-    });
-    if (!sent) {
-      game.ui.notify('No se pudo enviar la carga al anfitrión. Inténtalo de nuevo.', 'danger');
-      return;
-    }
-    game.clearCargo();
-    game.ui.notify('Carga entregada. El anfitrión está actualizando la tolva.', 'positive');
-  } else {
-    game.clearCargo();
-    applyTeamDeposit(game, coal, money, false, lines);
-    game.ui.notify('Carga depositada en la tolva corporativa.', 'positive');
-  }
-  game.hopper.triggerPulse();
-  game.audio.playUnload(game.hopper.getPosition());
-  game.ui.flashInventoryDump();
-  game.effects.spawnNodeBreak(
-    game.hopper.getPosition().clone().add(new THREE.Vector3(0, 2.4, 0)),
-    0xffc46a,
-    0.8,
-  );
-  game.ui.spawnFloat(
-    game.hopper.getPosition().clone().add(new THREE.Vector3(0, 3.1, 0)),
-    `TOLVA +${formatNumber(coal)} t · ${formatMoney(money)} · ${formatNumber(totals.count)} PIEZAS`,
-    'positive',
-  );
-}
-
-export function discardCargo(game: Game, reason: string): void {
-  const totals = game.inventory.totals();
-  if (totals.count <= 0 && game.cargoCoal <= 0 && game.cargoMoney <= 0) {
-    return;
-  }
-  game.clearCargo();
-  game.ui.notify(reason, 'danger');
 }
 
 function makeLadderState(
@@ -679,12 +604,56 @@ export function nextLadderId(game: Game): string {
   return `l-${game.run.day}-${owner}-${game.ladderCounter}`;
 }
 
+import {
+  depositToFieldDepot,
+  handleHardLandingSpill,
+  placeBeaconFromPlayer as placeBeacon,
+  placeFieldDepot,
+  placeWinch,
+  withdrawFromFieldDepot,
+} from './EquipmentPlacement';
+
+export { depositToFieldDepot, handleHardLandingSpill, placeBeacon, placeFieldDepot, placeWinch, withdrawFromFieldDepot };
+
 export function handleInteract(game: Game): void {
   if (game.phase !== 'playing' || !game.input.isLocked()) {
     return;
   }
   if (isNearHopper(game)) {
     depositCargo(game);
+    return;
+  }
+  const winch = game.winches.findNearestInteractive(game.player.getPosition(), game.terrain);
+  if (winch) {
+    game.winches.startRide(winch.winch.id, winch.targetY, winch.direction);
+    game.player.rideWinch(winch.winch.id);
+    game.audio.playLadder(game.player.getPosition());
+    return;
+  }
+  const depot = game.fieldDepots.findNearestInteractive(game.player.getPosition());
+  if (depot) {
+    const carried = game.inventory.totals();
+    if (carried.count > 0 && depot.totalWeight < depot.maxCapacity - 0.05) {
+      depositToFieldDepot(game, depot.id);
+    } else if (depot.stored.length > 0) {
+      withdrawFromFieldDepot(game, depot.id);
+    } else if (carried.count > 0) {
+      depositToFieldDepot(game, depot.id);
+    } else {
+      game.audio.playError();
+      game.ui.notify('TOLVA DE CAMPAÑA VACÍA · Almacena mineral con E o retíralo con F.', 'info');
+    }
+    return;
+  }
+}
+
+export function handleSecondaryInteract(game: Game): void {
+  if (game.phase !== 'playing' || !game.input.isLocked()) {
+    return;
+  }
+  const depot = game.fieldDepots.findNearestInteractive(game.player.getPosition());
+  if (depot) {
+    withdrawFromFieldDepot(game, depot.id);
   }
 }
 
@@ -700,15 +669,102 @@ export function updateInteractionState(game: Game): void {
     game.ladders.clearGhost();
     const pieces = game.inventory.totals().count;
     const hasCargo = pieces > 0;
+    const isCritical = game.cargoWeight > maxCarryWeight(game.run.loadout) * CRITICAL_LOAD_RATIO;
+    const actionLabel = isCritical ? 'ASEGURAR CARGA CRÍTICA' : 'DEPOSITAR CARGA';
     game.interactionPrompt = {
       key: 'E',
       text: hasCargo
-        ? `DEPOSITAR CARGA · ${formatNumber(game.cargoCoal)} t · ${formatMoney(game.cargoMoney)} · ${formatNumber(pieces)} PIEZAS`
+        ? `${actionLabel} · ${formatNumber(game.cargoCoal)} t · ${formatMoney(game.cargoMoney)} · ${formatNumber(pieces)} PIEZAS`
         : 'TOLVA VACÍA · EXTRAE MINERAL Y VUELVE',
     };
     return;
   }
-  if (!game.ladderPlacementEnabled) {
+
+  const winch = game.winches.findNearestInteractive(game.player.getPosition(), game.terrain);
+  if (winch) {
+    game.ladders.clearGhost();
+    const dirText = winch.direction === 'up' ? 'SUBIR' : 'BAJAR';
+    game.interactionPrompt = { key: 'E', text: `${dirText} POR CABRIA (8 m/s)` };
+    return;
+  }
+
+  const depot = game.fieldDepots.findNearestInteractive(game.player.getPosition());
+  if (depot) {
+    game.ladders.clearGhost();
+    const carried = game.inventory.totals().count;
+    const hasStored = depot.stored.length > 0 && depot.totalWeight > 0.01;
+    const isFull = depot.totalWeight >= depot.maxCapacity - 0.05;
+    let key = 'E';
+    let text = '';
+    if (carried > 0 && hasStored) {
+      key = 'E / F';
+      text = isFull
+        ? `TOLVA LLENA · RETIRAR (F) [${depot.totalWeight.toFixed(1)} / ${depot.maxCapacity} kg]`
+        : `ALMACENAR (E) · RETIRAR (F) [${depot.totalWeight.toFixed(1)} / ${depot.maxCapacity} kg]`;
+    } else if (carried > 0) {
+      key = 'E';
+      text = isFull
+        ? `TOLVA DE CAMPAÑA LLENA [${depot.totalWeight.toFixed(1)} / ${depot.maxCapacity} kg]`
+        : `ALMACENAR EN TOLVA [${depot.totalWeight.toFixed(1)} / ${depot.maxCapacity} kg]`;
+    } else if (hasStored) {
+      key = 'E / F';
+      text = `RETIRAR DE TOLVA [${depot.totalWeight.toFixed(1)} / ${depot.maxCapacity} kg]`;
+    } else {
+      key = 'E';
+      text = `TOLVA DE CAMPAÑA VACÍA [0.0 / ${depot.maxCapacity} kg]`;
+    }
+    game.interactionPrompt = { key, text };
+    return;
+  }
+
+  const activeItem = game.getActiveHotbarItem();
+  if (activeItem?.kind === 'winch') {
+    game.ladders.clearGhost();
+    game.fieldDepots.clearGhost();
+    const origin = game.player.getEyePosition();
+    const dir = game.player.getAimDirection();
+    const candidate = game.winches.validatePlacement(origin, dir, game.terrain);
+    game.winches.showGhost(candidate);
+    game.interactionPrompt = {
+      key: 'CLIC IZQ',
+      text: candidate?.valid
+        ? `INSTALAR CABRIA (8 m/s) · TIRO DESPEJADO · QUEDAN ${game.run.loadout.winches ?? 0}`
+        : `${candidate?.reason ?? 'APUNTA A BORDE O PARED VERTICAL'}`,
+    };
+    return;
+  }
+
+  if (activeItem?.kind === 'field_depot') {
+    game.ladders.clearGhost();
+    game.winches.clearGhost();
+    const origin = game.player.getEyePosition();
+    const dir = game.player.getAimDirection();
+    const candidate = game.fieldDepots.validatePlacement(origin, dir, game.terrain, game.run.loadout);
+    game.fieldDepots.showGhost(candidate);
+    game.interactionPrompt = {
+      key: 'CLIC IZQ',
+      text: candidate?.valid
+        ? `INSTALAR TOLVA DE CAMPAÑA (${candidate.state.maxCapacity} kg) · QUEDAN ${game.run.loadout.fieldDepots ?? 0}`
+        : `${candidate?.reason ?? 'APUNTA A SUELO FIRME'}`,
+    };
+    return;
+  }
+
+  if (activeItem?.kind === 'beacon') {
+    game.ladders.clearGhost();
+    game.winches.clearGhost();
+    game.fieldDepots.clearGhost();
+    game.interactionPrompt = {
+      key: 'CLIC IZQ / Q',
+      text: `COLOCAR BALIZA DE RUTA · QUEDAN ${game.run.loadout.beacons ?? 0}`,
+    };
+    return;
+  }
+
+  game.winches.clearGhost();
+  game.fieldDepots.clearGhost();
+
+  if (!game.ladderPlacementEnabled || activeItem?.kind !== 'ladder') {
     game.ladders.clearGhost();
     game.interactionPrompt = null;
     return;

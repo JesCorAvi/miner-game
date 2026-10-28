@@ -2,10 +2,12 @@ import * as THREE from 'three';
 import {
   COLLECTOR_CARRY_WEIGHT,
   HOPPER_POSITION,
+  MINE_DEPTH,
   PIT_HALF,
   SAFE_ZONE_HALF,
   SURFACE_DECK_Y,
   employeeRankMultiplier,
+  passiveMultiplier,
 } from '../config';
 import type {
   CarveEvent,
@@ -34,6 +36,8 @@ interface StaffEntity {
   rank: number;
   index: number;
   efficiency: number;
+  damageMultiplier: number;
+  carryCapacity: number;
   position: THREE.Vector3;
   yaw: number;
   target: THREE.Vector3 | null;
@@ -105,13 +109,27 @@ export class StaffManager {
   private spawnEntities(loadout: Loadout): void {
     this.entities = [];
     loadout.employees.roster.forEach((employee, index) => {
+      const speedId = employee.kind === 'collector' ? 'collectorSpeed' : 'minerSpeed';
+      const speedMultiplier = passiveMultiplier(
+        speedId,
+        loadout.passives[speedId] ?? 0,
+      );
+      const damageMultiplier = passiveMultiplier(
+        'minerDamage',
+        loadout.passives.minerDamage ?? 0,
+      );
+      const carryCapacity =
+        COLLECTOR_CARRY_WEIGHT *
+        passiveMultiplier('collectorCapacity', loadout.passives.collectorCapacity ?? 0);
       this.entities.push(
         this.makeEntity(
           employee.id,
           employee.kind,
           index,
           employee.rank,
-          employeeRankMultiplier(employee.rank, loadout.passives.employeeSpeed),
+          employeeRankMultiplier(employee.rank, speedMultiplier),
+          damageMultiplier,
+          carryCapacity,
         ),
       );
     });
@@ -123,6 +141,8 @@ export class StaffManager {
     index: number,
     rank: number,
     efficiency: number,
+    damageMultiplier: number,
+    carryCapacity: number,
   ): StaffEntity {
     const angle = (index / 6) * Math.PI * 2 + (kind === 'collector' ? 1.7 : 0.2);
     const radius = 0.8 + (index % 3) * 0.4;
@@ -144,6 +164,8 @@ export class StaffManager {
       rank,
       index,
       efficiency,
+      damageMultiplier,
+      carryCapacity,
       position,
       yaw: -angle,
       target: null,
@@ -222,7 +244,7 @@ export class StaffManager {
       entity.moving = false;
       if (entity.attackCooldown <= 0) {
         entity.attackCooldown = ATTACK_INTERVAL;
-        this.callbacks.onAttackNode(node, 9.2 * entity.efficiency);
+        this.callbacks.onAttackNode(node, 9.2 * entity.efficiency * entity.damageMultiplier);
       }
     }
   }
@@ -260,8 +282,8 @@ export class StaffManager {
       return;
     }
 
-    const remaining = COLLECTOR_CARRY_WEIGHT - cargo.weight;
-    if (cargo.weight >= COLLECTOR_CARRY_WEIGHT - 1e-6 || remaining <= 1e-6) {
+    const remaining = entity.carryCapacity - cargo.weight;
+    if (cargo.weight >= entity.carryCapacity - 1e-6 || remaining <= 1e-6) {
       this.beginCollectorReturn(entity);
       return;
     }
@@ -342,7 +364,7 @@ export class StaffManager {
     entity.target = null;
     entity.retargetCooldown = 0;
     entity.seekWithoutCollect = 0;
-    if (cargo.weight >= COLLECTOR_CARRY_WEIGHT - 1e-6) {
+    if (cargo.weight >= entity.carryCapacity - 1e-6) {
       this.beginCollectorReturn(entity);
     }
   }
@@ -478,7 +500,7 @@ export class StaffManager {
     );
     const nextY = THREE.MathUtils.clamp(
       entity.position.y + direction.y * step,
-      -117,
+      -MINE_DEPTH + 3,
       1.8,
     );
     const nextZ = THREE.MathUtils.clamp(
@@ -551,7 +573,7 @@ export class StaffManager {
     );
     let nextY = THREE.MathUtils.clamp(
       entity.position.y + direction.y * step,
-      -117,
+      -MINE_DEPTH + 3,
       COLLECTOR_MAX_Y,
     );
     // Frontera dura de la plataforma: fuera de la boca del pozo no se baja

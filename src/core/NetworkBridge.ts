@@ -16,6 +16,7 @@ import {
 } from './GameConstants';
 import { handleClientMessage, handleHostMessage } from './NetworkMessages';
 import { cloneLoadout, cloneStats } from './RunState';
+import { BigValue } from './BigValue';
 import type { Game } from './Game';
 
 export function networkCallbacks(game: Game): NetworkCallbacks {
@@ -182,6 +183,9 @@ export function buildSnapshot(game: Game): DaySnapshot {
     dayMoneyBase: game.dayMoneyBase,
     dayReport: game.dayReport,
     infinite: game.run.infinite,
+    mode: game.run.mode ?? 'normal',
+    modifiers: game.run.modifiers ?? [],
+    map: game.run.map ?? 'standard',
     loadout: cloneLoadout(game.run.loadout),
     stats: cloneStats(game.run.stats),
     carveHistory: game.phase === 'playing' ? [...game.carveHistory] : [],
@@ -190,6 +194,16 @@ export function buildSnapshot(game: Game): DaySnapshot {
     players: getAllHostStates(game),
     staff: game.staffManager.getStates(),
     ladders: game.ladders.getSnapshot(),
+    winches: game.winches ? game.winches.getSnapshot() : [],
+    depots: game.fieldDepots ? game.fieldDepots.getSnapshot() : [],
+    beacons: game.beacons ? game.beacons.getSnapshot() : [],
+    brigades: game.brigades ? [...game.brigades.getBrigades()] : [],
+    sectors: game.brigades ? [...game.brigades.getSectors()] : [],
+    conveyors: game.conveyors ? [...game.conveyors.getModules()] : [],
+    moneyWire: BigValue.fromNumber(game.run.money).toWire(),
+    carbonWire: BigValue.fromNumber(game.run.carbon).toWire(),
+    quotaWire: BigValue.fromNumber(game.run.quota).toWire(),
+    platformDepth: game.run.platformDepth || 0,
   };
 }
 

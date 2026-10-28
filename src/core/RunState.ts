@@ -26,6 +26,7 @@ export function cloneStats(stats: RunStats): RunStats {
 export function cloneLoadout(loadout: Loadout): Loadout {
   return {
     weapons: { ...loadout.weapons },
+    weaponTiers: loadout.weaponTiers ? { ...loadout.weaponTiers } : undefined,
     upgrades: { ...loadout.upgrades },
     passives: { ...loadout.passives },
     employees: {
@@ -34,6 +35,19 @@ export function cloneLoadout(loadout: Loadout): Loadout {
     },
     ladders: loadout.ladders,
     grenades: { ...loadout.grenades },
+    winches: loadout.winches ?? 0,
+    fieldDepots: loadout.fieldDepots ?? 0,
+    beacons: loadout.beacons ?? 0,
+    patent: loadout.patent ?? 0,
+    pickaxeTier: loadout.pickaxeTier ?? 1,
+    profession: loadout.profession ?? 'internship',
+    doctrine: loadout.doctrine ?? null,
+    clauses: loadout.clauses ? [...loadout.clauses] : [],
+    reserveCarbon: loadout.reserveCarbon ?? 0,
+    maxLayerReached: loadout.maxLayerReached ?? 1,
+    conveyors: loadout.conveyors ?? 0,
+    certifications: loadout.certifications ? [...loadout.certifications] : [],
+    utilitySlots: loadout.utilitySlots ? [loadout.utilitySlots[0], loadout.utilitySlots[1]] : [null, null],
   };
 }
 
@@ -46,8 +60,12 @@ export function defaultRun(): RunSnapshot {
     quota: quotaForDay(1, 1),
     timeLeft: dayDuration(loadout),
     infinite: false,
+    mode: 'normal',
+    modifiers: [],
+    map: 'standard',
     loadout,
     stats: emptyStats(),
+    platformDepth: 0,
   };
 }
 

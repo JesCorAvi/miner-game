@@ -1,0 +1,260 @@
+/* Toast notifications, floating text, HUD banner y superposiciones auxiliares */
+
+.toast-stack {
+  position: absolute;
+  right: 20px;
+  bottom: 105px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  width: min(340px, 44vw);
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 100%;
+  padding: 8px 11px;
+  border-left: 2px solid var(--amber);
+  background: rgba(7, 13, 14, 0.9);
+  color: var(--ink-soft);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  font-size: 0.71rem;
+  line-height: 1.4;
+  animation: toast-in 180ms ease both;
+}
+
+.toast::before {
+  content: "//";
+  color: var(--amber);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+}
+
+.toast.is-positive {
+  border-left-color: var(--green);
+}
+
+.toast.is-positive::before {
+  color: var(--green);
+}
+
+.toast.is-danger {
+  border-left-color: var(--danger);
+  color: #f0b9ad;
+}
+
+.toast.is-danger::before {
+  color: var(--danger);
+}
+
+.toast.is-leaving {
+  animation: toast-out 220ms ease both;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateX(9px);
+  }
+}
+
+.float-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.float-text {
+  position: absolute;
+  z-index: 2;
+  color: var(--amber-bright);
+  font-family: var(--mono);
+  font-size: 0.71rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.85);
+  white-space: nowrap;
+  animation: float-up 1.5s ease-out both;
+}
+
+.float-text.is-positive {
+  color: var(--green);
+}
+
+.float-text.is-cyan {
+  color: var(--cyan);
+}
+
+@keyframes float-up {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 7px);
+  }
+  18% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -36px);
+  }
+}
+
+.hud-banner {
+  position: absolute;
+  top: 24%;
+  left: 50%;
+  min-width: min(430px, 70vw);
+  padding: 14px 24px;
+  border-top: 2px solid var(--amber);
+  border-bottom: 2px solid var(--amber);
+  background: linear-gradient(90deg, transparent, rgba(8, 13, 14, 0.92) 18%, rgba(8, 13, 14, 0.92) 82%, transparent);
+  text-align: center;
+  transform: translateX(-50%);
+  animation: banner-in 280ms ease both;
+}
+
+.hud-banner span {
+  display: block;
+  color: var(--amber);
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.17em;
+}
+
+.hud-banner strong {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--display);
+  font-size: clamp(2rem, 5vw, 3.8rem);
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+@keyframes banner-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 9px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* Plano de galerías (Fase 2) */
+.gallery-map-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 8, 12, 0.78);
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+}
+
+.gallery-map-frame {
+  width: min(520px, 92vw);
+  background: #0f172a;
+  border: 1px solid #334155;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  padding: 16px;
+  color: #e2e8f0;
+  font-family: var(--mono, monospace);
+}
+
+.gallery-map-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #1e293b;
+  padding-bottom: 10px;
+  margin-bottom: 14px;
+}
+
+.gallery-map-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #38bdf8;
+}
+
+.gallery-map-close {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.gallery-map-close:hover {
+  color: #f1f5f9;
+}
+
+.gallery-map-body {
+  display: flex;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.gallery-map-canvas {
+  border: 1px solid #334155;
+  background: #020617;
+  display: block;
+}
+
+.gallery-map-sidebar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.gallery-map-depth {
+  font-size: 0.78rem;
+  color: #facc15;
+  font-weight: 600;
+  padding: 8px;
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid #334155;
+}
+
+.gallery-map-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.hopper-swatch { background: #10b981; }
+.player-swatch { background: #facc15; }
+.winch-swatch { background: #38bdf8; }
+.depot-swatch { background: #f59e0b; }
+.beacon-swatch { background: #ec4899; }

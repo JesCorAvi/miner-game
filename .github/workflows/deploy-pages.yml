@@ -40,6 +40,9 @@ jobs:
           # Habilita Pages con origen "GitHub Actions" si aún no lo está.
           enablement: true
 
+      - name: Ejecutar pruebas unitarias
+        run: npm test
+
       - name: Comprobar tipos y compilar
         run: npm run build:web
 

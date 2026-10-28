@@ -5,6 +5,8 @@ import {
   PIT_HALF,
   PIT_SIZE,
   layerAtDepth,
+  mapDefinition,
+  mapMaxDepth,
 } from '../config';
 import { clamp, fbm3, hash3, smoothstep, valueNoise3 } from '../core/Rng';
 import {
@@ -13,11 +15,11 @@ import {
   geometryFromChunk,
   type DensityGrid,
 } from './MarchingCubes';
-import type { CarveEvent } from '../types';
+import type { CarveEvent, MapId } from '../types';
 
 export const GRID_CELL = 1;
 export const GRID_X = PIT_SIZE + 1;
-export const GRID_Y = 129;
+export const GRID_Y = MINE_DEPTH + 9;
 export const GRID_Z = PIT_SIZE + 1;
 export const GRID_ORIGIN_X = -PIT_HALF;
 export const GRID_ORIGIN_Y = -MINE_DEPTH;
@@ -26,7 +28,7 @@ export const CHUNK_CELLS_X = 12;
 export const CHUNK_CELLS_Y = 8;
 export const CHUNK_CELLS_Z = 12;
 export const CHUNK_X = Math.ceil(PIT_SIZE / CHUNK_CELLS_X);
-export const CHUNK_Y = 16;
+export const CHUNK_Y = Math.ceil(GRID_Y / CHUNK_CELLS_Y);
 export const CHUNK_Z = Math.ceil(PIT_SIZE / CHUNK_CELLS_Z);
 
 export interface TerrainRayHit {
@@ -58,6 +60,7 @@ export class Terrain {
   private chunks: ChunkSlot[] = [];
   private readonly dirty = new Set<number>();
   private seed = 0;
+  private mapId: MapId = 'standard';
   private solidCount = 0;
   private readonly layerColors = LAYERS.map((layer) => ({
     rock: new THREE.Color(layer.rock),
@@ -134,11 +137,14 @@ export class Terrain {
     this.boundaryMeshes.push(mesh);
   }
 
-  generate(seed: number): void {
+  generate(seed: number, mapId: MapId = 'standard'): void {
     this.seed = seed >>> 0;
+    this.mapId = mapId;
     this.clearMeshes();
     const data = this.grid.data;
     const phase = (seed % 6283) / 1000;
+    const map = mapDefinition(mapId);
+    const depthLimit = mapMaxDepth(mapId);
 
     for (let iy = 0; iy < GRID_Y; iy += 1) {
       const worldY = GRID_ORIGIN_Y + iy * GRID_CELL;
@@ -166,6 +172,33 @@ export class Terrain {
           density += (1 - clamp(depth / 7, 0, 1)) * 0.08;
           if (depth === 0) {
             density = 0.5;
+          }
+          if (depth > depthLimit) {
+            data[index] = 1;
+            continue;
+          }
+          const radial = Math.hypot(worldX, worldZ);
+          if (map.funnelFactor) {
+            const funnelRadius =
+              PIT_HALF * map.funnelFactor * (1 - depth / MINE_DEPTH) + 1;
+            if (radial < funnelRadius) {
+              density = 0.12;
+            }
+          }
+          if (map.openShaftRadius && radial < map.openShaftRadius) {
+            density = 0.12;
+          }
+          if (map.sparseThreshold) {
+            const cave = fbm3(
+              worldX * 0.085,
+              worldY * 0.085,
+              worldZ * 0.085,
+              seed ^ 0x51ed270b,
+              3,
+            );
+            if (cave > map.sparseThreshold) {
+              density = 0.12;
+            }
           }
 
           const edge = Math.min(ix, GRID_X - 1 - ix, iz, GRID_Z - 1 - iz);
@@ -198,6 +231,10 @@ export class Terrain {
       }
     }
     this.solidCount = count;
+  }
+
+  getSolidCount(): number {
+    return this.solidCount;
   }
 
   getSolidFraction(): number {
@@ -275,15 +312,24 @@ export class Terrain {
   }
 
   carve(event: CarveEvent, deferRebuild = false): boolean {
-    const { x, y, z, r, s } = event;
+    const { x, y, z, r, s, shape, length, dirY } = event;
+    if (-y > mapMaxDepth(this.mapId)) {
+      return false;
+    }
     if (r <= 0.05 || s <= 0.01) {
       return false;
     }
+    const len = length ?? 0;
+    const dy = dirY ?? -1;
     const reach = r + 1.15;
+    const targetEndY = len > 0 ? y + dy * len : y;
+    const minBoundY = Math.min(y, targetEndY);
+    const maxBoundY = Math.max(y, targetEndY);
+
     const minX = Math.max(0, Math.floor((x - reach - GRID_ORIGIN_X) / GRID_CELL));
     const maxX = Math.min(GRID_X - 1, Math.ceil((x + reach - GRID_ORIGIN_X) / GRID_CELL));
-    const minY = Math.max(0, Math.floor((y - reach - GRID_ORIGIN_Y) / GRID_CELL));
-    const maxY = Math.min(GRID_Y - 1, Math.ceil((y + reach - GRID_ORIGIN_Y) / GRID_CELL));
+    const minY = Math.max(0, Math.floor((minBoundY - reach - GRID_ORIGIN_Y) / GRID_CELL));
+    const maxY = Math.min(GRID_Y - 1, Math.ceil((maxBoundY + reach - GRID_ORIGIN_Y) / GRID_CELL));
     const minZ = Math.max(0, Math.floor((z - reach - GRID_ORIGIN_Z) / GRID_CELL));
     const maxZ = Math.min(GRID_Z - 1, Math.ceil((z + reach - GRID_ORIGIN_Z) / GRID_CELL));
     const data = this.grid.data;
@@ -295,7 +341,21 @@ export class Terrain {
         const wz = GRID_ORIGIN_Z + iz * GRID_CELL;
         for (let ix = minX; ix <= maxX; ix += 1) {
           const wx = GRID_ORIGIN_X + ix * GRID_CELL;
-          const distance = Math.hypot(wx - x, wy - y, wz - z);
+          let distance = Math.hypot(wx - x, wy - y, wz - z);
+          if (shape === 'capsule' && len > 0) {
+            const segSpan = targetEndY - y;
+            const t = clamp((wy - y) / (Math.abs(segSpan) > 1e-4 ? segSpan : 1), 0, 1);
+            const closeY = y + segSpan * t;
+            distance = Math.hypot(wx - x, wy - closeY, wz - z);
+          } else if (shape === 'cone' && len > 0) {
+            const t = clamp((y - wy) / len, 0, 1);
+            const coneScale = 0.35 + 0.65 * t;
+            const horiz = Math.hypot(wx - x, wz - z);
+            if (wy < minBoundY - reach * 0.2 || wy > maxBoundY + reach * 0.4) {
+              continue;
+            }
+            distance = Math.max(horiz / coneScale, Math.abs(wy - (y + targetEndY) * 0.5) * 0.3);
+          }
           if (distance > reach) {
             continue;
           }
@@ -304,10 +364,14 @@ export class Terrain {
           const macro = 0.92 + hash3(ix >> 1, iy >> 1, iz >> 1, this.seed ^ 0x165667b1) * 0.16;
           const target = 0.5 - s * 1.12 * Math.pow(smooth, 1.7) * macro;
           const index = this.gridIndex(ix, iy, iz);
+          const wasSolid = data[index] > 0.5;
           if (data[index] <= target) {
             continue;
           }
           data[index] = Math.max(0, target);
+          if (wasSolid && data[index] <= 0.5) {
+            this.solidCount -= 1;
+          }
           changed = true;
         }
       }
@@ -330,11 +394,24 @@ export class Terrain {
         }
       }
     }
-    this.countSolids();
     if (!deferRebuild) {
-      this.rebuildDirty(5);
+      this.rebuildDirty(4);
     }
     return true;
+  }
+
+  carveBatch(events: readonly CarveEvent[], deferRebuild = false): boolean {
+    if (events.length === 0) return false;
+    let anyChanged = false;
+    for (const event of events) {
+      if (this.carve(event, true)) {
+        anyChanged = true;
+      }
+    }
+    if (anyChanged && !deferRebuild) {
+      this.rebuildDirty(4);
+    }
+    return anyChanged;
   }
 
   applyCarveHistory(events: readonly CarveEvent[]): void {
@@ -344,14 +421,19 @@ export class Terrain {
     this.rebuildDirty(Number.MAX_SAFE_INTEGER);
   }
 
-  update(): void {
+  update(cameraPos?: THREE.Vector3, slowFrame = false): void {
     if (this.dirty.size > 0) {
-      this.rebuildDirty(4);
+      const budget = slowFrame ? 2 : 4;
+      this.rebuildDirty(budget, cameraPos);
     }
   }
 
   flushDirty(): void {
     this.rebuildDirty(Number.MAX_SAFE_INTEGER);
+  }
+
+  getDirtyCount(): number {
+    return this.dirty.size;
   }
 
   private markAllDirty(): void {
@@ -360,9 +442,27 @@ export class Terrain {
     }
   }
 
-  private rebuildDirty(maxChunks: number): void {
+  private rebuildDirty(maxChunks: number, cameraPos?: THREE.Vector3): void {
+    let keys = [...this.dirty];
+    if (cameraPos && keys.length > 1) {
+      keys.sort((a, b) => {
+        const slotA = this.chunks[a];
+        const slotB = this.chunks[b];
+        if (!slotA || !slotB) return 0;
+        const ax = GRID_ORIGIN_X + (slotA.cx + 0.5) * CHUNK_CELLS_X * GRID_CELL;
+        const ay = GRID_ORIGIN_Y + (slotA.cy + 0.5) * CHUNK_CELLS_Y * GRID_CELL;
+        const az = GRID_ORIGIN_Z + (slotA.cz + 0.5) * CHUNK_CELLS_Z * GRID_CELL;
+        const bx = GRID_ORIGIN_X + (slotB.cx + 0.5) * CHUNK_CELLS_X * GRID_CELL;
+        const by = GRID_ORIGIN_Y + (slotB.cy + 0.5) * CHUNK_CELLS_Y * GRID_CELL;
+        const bz = GRID_ORIGIN_Z + (slotB.cz + 0.5) * CHUNK_CELLS_Z * GRID_CELL;
+        const distA = (ax - cameraPos.x) ** 2 + (ay - cameraPos.y) ** 2 + (az - cameraPos.z) ** 2;
+        const distB = (bx - cameraPos.x) ** 2 + (by - cameraPos.y) ** 2 + (bz - cameraPos.z) ** 2;
+        return distA - distB;
+      });
+    }
+
     let rebuilt = 0;
-    for (const key of [...this.dirty]) {
+    for (const key of keys) {
       if (rebuilt >= maxChunks) {
         break;
       }

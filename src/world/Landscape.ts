@@ -18,6 +18,18 @@ const TERRAIN_HOLE = SURFACE_DECK_HALF - 1;
 const TERRAIN_SEED = 0x4c2a7b13;
 const GROUND_BASE = SURFACE_DECK_Y - 0.06;
 
+let globalFoliageMesh: THREE.InstancedMesh | null = null;
+let globalTrunkMesh: THREE.InstancedMesh | null = null;
+
+export function setLandscapeFootprintStage(stage: number): void {
+  if (globalFoliageMesh) {
+    globalFoliageMesh.visible = stage < 2;
+  }
+  if (globalTrunkMesh) {
+    globalTrunkMesh.visible = stage < 4;
+  }
+}
+
 const PALETTE = {
   clay: new THREE.Color(0x9a744d),
   clayLight: new THREE.Color(0xb48e61),
@@ -335,6 +347,8 @@ function addForest(
   const maxTrees = 240;
   const foliageMesh = new THREE.InstancedMesh(foliageGeometry, foliageMaterial, maxTrees);
   const trunkMesh = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, maxTrees);
+  globalFoliageMesh = foliageMesh;
+  globalTrunkMesh = trunkMesh;
   foliageMesh.count = 0;
   trunkMesh.count = 0;
 

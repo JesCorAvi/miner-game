@@ -133,6 +133,84 @@ export function handleClientMessage(
       }
       break;
     }
+    case 'winch_place': {
+      if (game.phase !== 'playing' || (game.run.loadout.winches ?? 0) <= 0) {
+        break;
+      }
+      if (game.winches.add(message.winch)) {
+        game.run.loadout.winches = Math.max(0, (game.run.loadout.winches ?? 0) - 1);
+        game.network?.broadcast(
+          {
+            t: 'winch_placed',
+            v: PROTOCOL_VERSION,
+            winch: message.winch,
+          },
+          fromId,
+        );
+      }
+      break;
+    }
+    case 'depot_place': {
+      if (game.phase !== 'playing' || (game.run.loadout.fieldDepots ?? 0) <= 0) {
+        break;
+      }
+      if (game.fieldDepots.add(message.depot)) {
+        game.run.loadout.fieldDepots = Math.max(0, (game.run.loadout.fieldDepots ?? 0) - 1);
+        game.network?.broadcast({
+          t: 'depot_sync',
+          v: PROTOCOL_VERSION,
+          depots: game.fieldDepots.getSnapshot(),
+        });
+      }
+      break;
+    }
+    case 'depot_interact': {
+      if (message.depot) {
+        game.fieldDepots.add(message.depot);
+      }
+      game.network?.broadcast({
+        t: 'depot_sync',
+        v: PROTOCOL_VERSION,
+        depots: game.fieldDepots.getSnapshot(),
+      });
+      break;
+    }
+    case 'beacon_place': {
+      if (game.phase !== 'playing' || (game.run.loadout.beacons ?? 0) <= 0) {
+        break;
+      }
+      if (game.beacons.add(message.beacon)) {
+        game.run.loadout.beacons = Math.max(0, (game.run.loadout.beacons ?? 0) - 1);
+        game.network?.broadcast({
+          t: 'beacon_sync',
+          v: PROTOCOL_VERSION,
+          beacons: game.beacons.getSnapshot(),
+        });
+      }
+      break;
+    }
+    case 'sector_place': {
+      if (game.brigades.addSector(message.beacon, game.terrain)) {
+        game.network?.broadcast({
+          t: 'brigade_state',
+          v: PROTOCOL_VERSION,
+          brigades: [...game.brigades.getBrigades()],
+          sectors: [...game.brigades.getSectors()],
+        });
+      }
+      break;
+    }
+    case 'belt_place': {
+      if (game.conveyors.placeModule(message.module.x, message.module.y, message.module.z, message.module.dirX, message.module.dirZ, game.terrain)) {
+        game.network?.broadcast({
+          t: 'belt_state',
+          v: PROTOCOL_VERSION,
+          modules: [...game.conveyors.getModules()],
+          isJammed: game.conveyors.isAnyJammed(),
+        });
+      }
+      break;
+    }
     case 'fx': {
       showRemoteFx(game, message.fx);
       game.network?.broadcast(
@@ -223,6 +301,24 @@ export function handleHostMessage(game: Game, message: GameHostMessage): void {
     }
     case 'ladder_placed': {
       game.ladders.add(message.ladder);
+      break;
+    }
+    case 'winch_placed': {
+      game.winches.add(message.winch);
+      break;
+    }
+    case 'depot_sync': {
+      game.fieldDepots.fromSnapshot(message.depots);
+      break;
+    }
+    case 'beacon_sync': {
+      game.beacons.fromSnapshot(message.beacons);
+      break;
+    }
+    case 'brigade_state': {
+      break;
+    }
+    case 'belt_state': {
       break;
     }
     case 'fx': {

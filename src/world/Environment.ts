@@ -6,7 +6,7 @@ import {
   SURFACE_SPAWN,
 } from '../config';
 import { mulberry32 } from '../core/Rng';
-import { buildLandscape } from './Landscape';
+import { buildLandscape, setLandscapeFootprintStage } from './Landscape';
 import { SkyCycle } from './SkyCycle';
 
 // La superficie se renderiza a ~900 px de ancho como máximo: si el título es
@@ -266,6 +266,9 @@ export class Environment {
   private readonly signRaycaster = new THREE.Raycaster();
   private readonly skyCycle: SkyCycle;
   private readonly camera: THREE.PerspectiveCamera;
+  private descentSignMesh: THREE.Mesh | null = null;
+  private spoilPlugMesh: THREE.Mesh | null = null;
+  private mobileDeckMesh: THREE.Mesh | null = null;
   private elapsed = 0;
 
   constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
@@ -531,7 +534,7 @@ export class Environment {
       this.meshes.push(chevron);
     }
 
-    const safeSign = makeTextTexture('ZONA SEGURA', 'NO MINABLE · TOLVA CORPORATIVA', '#6edfd5');
+    const safeSign = makeTextTexture('CARBÓN = CUOTA', 'MINERAL = CAPITAL // PAGA EN TOLVA', '#6edfd5');
     this.textures.push(safeSign);
     const safeSignMaterial = new THREE.MeshBasicMaterial({ map: safeSign, toneMapped: false });
     this.materials.push(safeSignMaterial);
@@ -540,7 +543,7 @@ export class Environment {
     sign.rotation.y = 1.9;
     this.group.add(sign);
     this.meshes.push(sign);
-    this.registerSign(sign, 'ZONA SEGURA', 'NO MINABLE · TOLVA CORPORATIVA');
+    this.registerSign(sign, 'CARBÓN = CUOTA', 'MINERAL = CAPITAL // PAGA EN TOLVA');
     const signYaw = sign.rotation.y;
     const alongX = Math.cos(signYaw);
     const alongZ = -Math.sin(signYaw);
@@ -593,6 +596,7 @@ export class Environment {
     sign.position.set(0, 2.85, -PIT_HALF - 0.9);
     this.group.add(sign);
     this.meshes.push(sign);
+    this.descentSignMesh = sign;
     this.registerSign(sign, 'DESCENSO', 'CUBO MINERO · 120 M');
 
     const postMaterial = new THREE.MeshStandardMaterial({
@@ -621,6 +625,66 @@ export class Environment {
       this.group.add(lamp);
       this.meshes.push(lamp);
     }
+  }
+
+  setFootprintStage(stage: number): void {
+    const banners = [
+      { title: 'OPERACIÓN INICIAL', subtitle: 'BOSQUE INTACTO // DÍAS 1–3' },
+      { title: 'RÉCORD DE EXTRACCIÓN', subtitle: 'ESTÉRIL EN ACOPIO // DÍAS 4–7' },
+      { title: 'ZONA EN REVISIÓN', subtitle: 'EROSIÓN FORESTAL // DÍAS 8–12' },
+      { title: 'ZONA DE SACRIFICIO', subtitle: 'CRÁTER INDUSTRIAL // DÍAS 13–15' },
+      { title: 'OPERACIÓN ILIMITADA', subtitle: 'PAISAJE DE CENIZA // DÍA 16+' },
+    ];
+    const b = banners[Math.max(0, Math.min(4, Math.floor(stage)))];
+    if (this.descentSignMesh) {
+      this.signLabels.set(this.descentSignMesh, b);
+    }
+    this.skyCycle.setFootprintStage(stage);
+    setLandscapeFootprintStage(stage);
+  }
+
+  setSuspendedDust(active: boolean): void {
+    this.skyCycle.setSuspendedDust(active);
+  }
+
+  updatePlatformDepth(depth: number): void {
+    if (this.spoilPlugMesh) {
+      this.group.remove(this.spoilPlugMesh);
+      this.spoilPlugMesh.geometry.dispose();
+      (this.spoilPlugMesh.material as THREE.Material).dispose();
+      this.spoilPlugMesh = null;
+    }
+    if (this.mobileDeckMesh) {
+      this.group.remove(this.mobileDeckMesh);
+      this.mobileDeckMesh.geometry.dispose();
+      (this.mobileDeckMesh.material as THREE.Material).dispose();
+      this.mobileDeckMesh = null;
+    }
+    if (depth <= 0) return;
+
+    const plugGeo = new THREE.BoxGeometry(PIT_HALF * 2 - 0.4, depth, PIT_HALF * 2 - 0.4);
+    const plugMat = new THREE.MeshStandardMaterial({
+      color: 0x363028,
+      roughness: 0.95,
+      metalness: 0.05,
+      flatShading: true,
+    });
+    this.spoilPlugMesh = new THREE.Mesh(plugGeo, plugMat);
+    this.spoilPlugMesh.position.set(0, -depth / 2, 0);
+    this.group.add(this.spoilPlugMesh);
+    this.meshes.push(this.spoilPlugMesh);
+
+    const deckGeo = new THREE.BoxGeometry(PIT_HALF * 2 - 0.2, 0.45, PIT_HALF * 2 - 0.2);
+    const deckMat = new THREE.MeshStandardMaterial({
+      color: 0x48504e,
+      roughness: 0.45,
+      metalness: 0.75,
+      flatShading: true,
+    });
+    this.mobileDeckMesh = new THREE.Mesh(deckGeo, deckMat);
+    this.mobileDeckMesh.position.set(0, -depth - 0.22, 0);
+    this.group.add(this.mobileDeckMesh);
+    this.meshes.push(this.mobileDeckMesh);
   }
 
   update(dt: number, dayProgress = 0.15): void {

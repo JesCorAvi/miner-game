@@ -3,6 +3,8 @@ import {
   MAX_EMPLOYEES,
   NAME_KEY,
   PASSIVE_ORDER,
+  LEGACY_PASSIVE_IDS,
+  familyTierCount,
   SAVE_KEY,
   STARTING_LADDERS,
   UPGRADES,
@@ -22,11 +24,18 @@ import type {
 } from '../types';
 
 const LEGACY_SAVE_KEYS = [
+  'carbon-magnate.save.v8',
+  'carbon-magnate.save.v7',
+  'carbon-magnate.save.v6',
+  'carbon-magnate.save.v5',
   'carbon-magnate.save.v4',
   'carbon-magnate.save.v3',
   'carbon-magnate.save.v2',
 ];
-const SAVE_VERSION = 5;
+const SAVE_VERSION = 9;
+const SHAKE_KEY = 'carbon-magnate.shake';
+const FOV_KEY = 'carbon-magnate.fov';
+const BULK_LOOT_KEY = 'carbon-magnate.bulk-loot';
 
 function num(value: unknown, fallback: number, min: number, max: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
@@ -46,9 +55,25 @@ function normalizeLoadout(value: unknown): Loadout {
       ? (record.weapons as Record<string, unknown>)
       : {};
   const weapons = { ...fallback.weapons } as WeaponUnlocks;
+  const tiersRecord =
+    typeof record.weaponTiers === 'object' && record.weaponTiers !== null
+      ? (record.weaponTiers as Record<string, unknown>)
+      : {};
+  const weaponTiers = { ...(fallback.weaponTiers ?? {}) } as Record<string, number>;
   for (const id of WEAPON_ORDER) {
-    weapons[id] = id === 'pickaxe' ? true : Boolean(weaponsRecord[id]);
+    const maxTier = familyTierCount(id);
+    const fallbackTier = id === 'pickaxe' ? 1 : 0;
+    const requested = Math.floor(
+      num(tiersRecord[id], fallbackTier, 0, maxTier),
+    );
+    const ownedByLegacy = id === 'pickaxe' || Boolean(weaponsRecord[id]);
+    const tier = Math.max(requested, ownedByLegacy ? Math.max(1, fallbackTier) : 0);
+    weaponTiers[id] = Math.max(0, Math.min(maxTier, tier));
+    weapons[id] = id === 'pickaxe' ? true : weaponTiers[id] > 0;
   }
+  const savedPickaxeTier = Math.floor(num(record.pickaxeTier, 1, 1, 15));
+  weaponTiers.pickaxe = Math.max(weaponTiers.pickaxe ?? 1, savedPickaxeTier);
+  weapons.pickaxe = true;
   const upgradesRecord =
     typeof record.upgrades === 'object' && record.upgrades !== null
       ? (record.upgrades as Record<string, unknown>)
@@ -64,6 +89,11 @@ function normalizeLoadout(value: unknown): Loadout {
   const passives = { ...fallback.passives } as PassiveLevels;
   for (const key of PASSIVE_ORDER) {
     passives[key] = Math.floor(num(passiveRecord[key], 0, 0, 99));
+  }
+  for (const key of LEGACY_PASSIVE_IDS) {
+    passives[key] = Math.floor(
+      num(passiveRecord[key], fallback.passives[key] ?? 0, 0, 99),
+    );
   }
   const employeesRecord =
     typeof record.employees === 'object' && record.employees !== null
@@ -82,11 +112,32 @@ function normalizeLoadout(value: unknown): Loadout {
   }
   return {
     weapons,
+    weaponTiers,
     upgrades,
     passives,
     employees,
     ladders: Math.floor(num(record.ladders, STARTING_LADDERS, 0, 999)),
     grenades,
+    winches: Math.floor(num(record.winches, fallback.winches, 0, 999)),
+    fieldDepots: Math.floor(num(record.fieldDepots, fallback.fieldDepots, 0, 999)),
+    beacons: Math.floor(num(record.beacons, fallback.beacons, 0, 999)),
+    conveyors: Math.floor(num(record.conveyors, fallback.conveyors ?? 0, 0, 32)),
+    patent: Math.floor(num(record.patent, fallback.patent ?? 0, 0, 6)),
+    pickaxeTier: weaponTiers.pickaxe ?? 1,
+    profession:
+      typeof record.profession === 'string'
+        ? record.profession.slice(0, 32)
+        : 'internship',
+    doctrine: typeof record.doctrine === 'string' ? (record.doctrine as any) : null,
+    clauses: Array.isArray(record.clauses) ? record.clauses.filter((c): c is any => typeof c === 'string') : [],
+    reserveCarbon: Math.floor(num(record.reserveCarbon, 0, 0, 1e100)),
+    maxLayerReached: Math.floor(num(record.maxLayerReached, 1, 1, 12)),
+    certifications: Array.isArray(record.certifications)
+      ? record.certifications.filter((c): c is any => typeof c === 'string')
+      : [],
+    utilitySlots: Array.isArray(record.utilitySlots) && record.utilitySlots.length === 2
+      ? [record.utilitySlots[0] as any ?? null, record.utilitySlots[1] as any ?? null]
+      : [null, null],
   };
 }
 
@@ -163,8 +214,8 @@ function normalizeStats(value: unknown): RunStats {
   }
   const record = value as Record<string, unknown>;
   return {
-    coalMined: Math.floor(num(record.coalMined, 0, 0, 1e12)),
-    moneyEarned: Math.floor(num(record.moneyEarned, 0, 0, 1e12)),
+    coalMined: Math.floor(num(record.coalMined, 0, 0, 1e100)),
+    moneyEarned: Math.floor(num(record.moneyEarned, 0, 0, 1e100)),
     nodesBroken: Math.floor(num(record.nodesBroken, 0, 0, 1e9)),
     chestsOpened: Math.floor(num(record.chestsOpened, 0, 0, 1e6)),
     daysCompleted: Math.floor(num(record.daysCompleted, 0, 0, 9999)),
@@ -191,22 +242,52 @@ export class SaveManager {
         record.version !== 2 &&
         record.version !== 3 &&
         record.version !== 4 &&
+        record.version !== 5 &&
+        record.version !== 6 &&
+        record.version !== 7 &&
+        record.version !== 8 &&
         record.version !== SAVE_VERSION
       ) {
         return null;
       }
       return {
-        version: 5,
+        version: 9,
         savedAt: num(record.savedAt, Date.now(), 0, Number.MAX_SAFE_INTEGER),
         day: Math.floor(num(record.day, 1, 1, 9999)),
-        money: Math.floor(num(record.money, 0, 0, 1e12)),
+        money: Math.floor(num(record.money, 0, 0, 1e100)),
+        moneyWire: typeof record.moneyWire === 'string' ? record.moneyWire : undefined,
         infinite: Boolean(record.infinite),
+        mode:
+          record.mode === 'tough' || record.mode === 'peaceful'
+            ? record.mode
+            : 'normal',
+        map:
+          typeof record.map === 'string'
+            ? record.map.slice(0, 32)
+            : 'standard',
+        modifiers: Array.isArray(record.modifiers)
+          ? record.modifiers.filter(
+              (m): m is any =>
+                m === 'no_chests' ||
+                m === 'only_coal' ||
+                m === 'coal_worthless' ||
+                m === 'no_bonus_cash' ||
+                m === 'no_time_upgrades' ||
+                m === 'only_clay',
+            )
+          : [],
         loadout: normalizeLoadout(record.loadout),
         stats: normalizeStats(record.stats),
         playerName:
           typeof record.playerName === 'string'
             ? record.playerName.replace(/[^\p{L}\p{N} _-]/gu, '').slice(0, 16) || 'Operario'
             : 'Operario',
+        brigades: Array.isArray(record.brigades) ? (record.brigades as any) : undefined,
+        sectors: Array.isArray(record.sectors) ? (record.sectors as any) : undefined,
+        nextBrigadeId: typeof record.nextBrigadeId === 'number' ? record.nextBrigadeId : undefined,
+        conveyors: typeof record.conveyors === 'object' && record.conveyors !== null ? (record.conveyors as any) : undefined,
+        accessibility: typeof record.accessibility === 'object' && record.accessibility !== null ? (record.accessibility as any) : undefined,
+        platformDepth: typeof record.platformDepth === 'number' ? Math.max(0, record.platformDepth) : undefined,
       };
     } catch {
       return null;
@@ -230,7 +311,7 @@ export class SaveManager {
     try {
       const payload: SaveData = {
         ...data,
-        version: 5,
+        version: 9,
         savedAt: Date.now(),
       };
       window.localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
@@ -267,6 +348,45 @@ export class SaveManager {
       window.localStorage.setItem(NAME_KEY, name);
     } catch {
       // Name persistence is a convenience.
+    }
+  }
+
+  loadSettings(): { shake: number; fov: number; bulkLoot: boolean } {
+    try {
+      const shakeStr = window.localStorage.getItem(SHAKE_KEY);
+      const fovStr = window.localStorage.getItem(FOV_KEY);
+      const bulkStr = window.localStorage.getItem(BULK_LOOT_KEY);
+      return {
+        shake: shakeStr !== null ? parseFloat(shakeStr) : 1.0,
+        fov: fovStr !== null ? parseInt(fovStr, 10) : 75,
+        bulkLoot: bulkStr === 'true',
+      };
+    } catch {
+      return { shake: 1.0, fov: 75, bulkLoot: false };
+    }
+  }
+
+  saveShake(shake: number): void {
+    try {
+      window.localStorage.setItem(SHAKE_KEY, String(shake));
+    } catch {
+      // ignore
+    }
+  }
+
+  saveFov(fov: number): void {
+    try {
+      window.localStorage.setItem(FOV_KEY, String(fov));
+    } catch {
+      // ignore
+    }
+  }
+
+  saveBulkLoot(bulk: boolean): void {
+    try {
+      window.localStorage.setItem(BULK_LOOT_KEY, String(bulk));
+    } catch {
+      // ignore
     }
   }
 }

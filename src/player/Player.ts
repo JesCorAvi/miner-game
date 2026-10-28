@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import {
+  CRITICAL_LOAD_PENALTY,
+  CRITICAL_LOAD_RATIO,
   EYE_HEIGHT,
   MINE_DEPTH,
+  MIN_FALL_SPILL_DISTANCE,
   PIT_HALF,
   PLAYER_HEIGHT,
   PLAYER_RADIUS,
@@ -10,11 +13,14 @@ import {
   SURFACE_SPAWN,
   layerAtDepth,
   maxJetpackFuel,
+  passiveMultiplier,
 } from '../config';
 import type { Loadout, NetworkLadderState } from '../types';
 import type { InputController } from '../core/Input';
 import type { Ladders } from '../world/Ladders';
 import type { Terrain } from '../world/Terrain';
+import { TraumaSystem } from './TraumaSystem';
+import { hasUtilityActive } from '../core/Progression';
 
 const WALK_SPEED = 4.5;
 const SPRINT_SPEED = 6.6;
@@ -32,10 +38,10 @@ const LADDER_OFFSET = PLAYER_RADIUS + 0.18;
 const SAFE_FLOOR_Y = SURFACE_DECK_Y + 0.04;
 const SAFE_BOUND = SAFE_ZONE_HALF - 0.25;
 const MAX_SAFE_Y = 8;
-const IMPACT_SHAKE_DURATION = 0.075;
 
 export interface PlayerCallbacks {
   onFootstep: (running: boolean, layer: number) => void;
+  onHardLanding?: (fallDistance: number) => void;
 }
 
 export class Player {
@@ -63,15 +69,25 @@ export class Player {
   private bobTime = 0;
   private stepDistance = 0;
   private currentSpeed = 0;
-  private eyeShake = 0;
-  private impactShakeUntil = 0;
-  private impactShakeStrength = 0;
+  readonly trauma = new TraumaSystem();
   private lastLandingTime = -10;
   private elapsed = 0;
   private activeLadderId: string | null = null;
   private activeLadderSide: 1 | -1 = 1;
   private ladderCooldown = 0;
   private jumpSuppressUntil = 0;
+  private weightRatio = 0;
+  private fallStartY: number | null = null;
+  private activeWinchId: string | null = null;
+  private platformDepth = 0;
+
+  setPlatformDepth(depth: number): void {
+    this.platformDepth = Math.max(0, depth);
+  }
+
+  private getSafeFloorY(): number {
+    return (SURFACE_DECK_Y - this.platformDepth) + 0.04;
+  }
 
   constructor(
     scene: THREE.Scene,
@@ -106,9 +122,7 @@ export class Player {
     this.teleportToSpawn();
   }
 
-  setTerrain(terrain: Terrain): void {
-    this.terrain = terrain;
-  }
+  setTerrain(terrain: Terrain): void { this.terrain = terrain; }
 
   setLoadout(loadout: Loadout): void {
     const previousMax = this.maxFuel;
@@ -143,7 +157,7 @@ export class Player {
   }
 
   private teleportToSpawn(): void {
-    this.position.set(SURFACE_SPAWN.x, SAFE_FLOOR_Y, SURFACE_SPAWN.z);
+    this.position.set(SURFACE_SPAWN.x, this.getSafeFloorY(), SURFACE_SPAWN.z);
     this.yaw = 0;
     this.pitch = -0.03;
     this.velocity.set(0, 0, 0);
@@ -167,12 +181,26 @@ export class Player {
     this.pitch = THREE.MathUtils.clamp(this.pitch, -1.52, 1.52);
     this.yaw = Math.atan2(Math.sin(this.yaw), Math.cos(this.yaw));
 
+    if (this.activeWinchId !== null) {
+      this.fallStartY = null;
+      this.grounded = false;
+      this.velocity.set(0, 0, 0);
+      this.horizontalVelocity.set(0, 0, 0);
+      if (this.input.isJetpackHeld()) {
+        this.activeWinchId = null;
+      }
+      this.updateCamera();
+      this.trauma.update(dt);
+      return;
+    }
+
     if (this.updateLadderClimb(dt)) {
+      this.fallStartY = null;
       this.currentSpeed = 0;
       this.bobTime += dt * 4;
       this.stepDistance = 0;
       this.updateCamera();
-      this.eyeShake = Math.max(0, this.eyeShake - dt * 2.8);
+      this.trauma.update(dt);
       return;
     }
 
@@ -190,7 +218,13 @@ export class Player {
       desiredZ /= length;
     }
     const sprinting = this.input.isSprinting() && hasInput;
-    const targetSpeed = sprinting ? SPRINT_SPEED : WALK_SPEED;
+    const isCritical = this.weightRatio > CRITICAL_LOAD_RATIO;
+    const hasRappel = hasUtilityActive(this.loadout, 'rappel_harness');
+    const loadPenalty = isCritical && sprinting && !hasRappel ? 1 - CRITICAL_LOAD_PENALTY : 1;
+    const sprintBonus = sprinting
+      ? passiveMultiplier('sprintSpeed', this.loadout?.passives.sprintSpeed ?? 0)
+      : 1;
+    const targetSpeed = (sprinting ? SPRINT_SPEED : WALK_SPEED) * loadPenalty * sprintBonus;
     const airControl = this.grounded ? 1 : 0.52;
     const acceleration = (this.grounded ? 18 : 7.5) * airControl;
     this.horizontalVelocity.x = THREE.MathUtils.damp(
@@ -232,7 +266,7 @@ export class Player {
       wantsJetpack &&
       this.elapsed >= this.jumpSuppressUntil
     ) {
-      this.velocity.y = JUMP_SPEED;
+      this.velocity.y = JUMP_SPEED * passiveMultiplier('jumpVelocity', this.loadout?.passives.jumpVelocity ?? 0);
       this.grounded = false;
       if (this.maxFuel > 0) {
         this.fuel = Math.max(0, this.fuel - 2.5);
@@ -277,8 +311,9 @@ export class Player {
     }
 
     this.grounded = false;
-    if (outsidePit && this.position.y <= SAFE_FLOOR_Y && this.velocity.y <= 0) {
-      this.position.y = SAFE_FLOOR_Y;
+    const floorY = this.getSafeFloorY();
+    if ((outsidePit || (this.platformDepth > 0 && Math.abs(this.position.y - floorY) < 0.45)) && this.position.y <= floorY && this.velocity.y <= 0) {
+      this.position.y = floorY;
       this.velocity.y = 0;
       this.grounded = true;
     }
@@ -340,9 +375,23 @@ export class Player {
       this.stickToGround();
     }
 
+    if (!wasGrounded && this.grounded) {
+      if (this.fallStartY !== null) {
+        const fallDistance = this.fallStartY - this.position.y;
+        this.fallStartY = null;
+        if (fallDistance >= MIN_FALL_SPILL_DISTANCE && this.weightRatio >= CRITICAL_LOAD_RATIO) {
+          this.callbacks.onHardLanding?.(fallDistance);
+        }
+      }
+    } else if (!wasGrounded && !this.grounded && this.velocity.y < 0) {
+      if (this.fallStartY === null) {
+        this.fallStartY = this.position.y;
+      }
+    }
+
     this.checkBounds();
     this.updateCamera();
-    this.eyeShake = Math.max(0, this.eyeShake - dt * 2.8);
+    this.trauma.update(dt);
   }
 
   private updateLadderClimb(dt: number): boolean {
@@ -391,10 +440,12 @@ export class Player {
     }
 
     this.setLadderAttachment(ladder, false, dt, this.activeLadderSide);
+    const climbPenalty = this.weightRatio > CRITICAL_LOAD_RATIO ? 1 - CRITICAL_LOAD_PENALTY : 1;
+    const speed = CLIMB_SPEED * climbPenalty * passiveMultiplier('climbSpeed', this.loadout?.passives.climbSpeed ?? 0);
     if (wantsUp) {
-      this.position.y = Math.min(ladderTop, this.position.y + CLIMB_SPEED * dt);
+      this.position.y = Math.min(ladderTop, this.position.y + speed * dt);
     } else if (wantsDown) {
-      this.position.y = Math.max(ladder.y - 0.12, this.position.y - CLIMB_SPEED * dt);
+      this.position.y = Math.max(ladder.y - 0.12, this.position.y - speed * dt);
     }
     this.velocity.set(0, 0, 0);
     this.horizontalVelocity.set(0, 0, 0);
@@ -474,7 +525,7 @@ export class Player {
   private jumpOffLadder(ladder: NetworkLadderState): void {
     this.activeLadderId = null;
     this.ladderCooldown = 0.3;
-    this.velocity.set(0, JUMP_SPEED, 0);
+    this.velocity.set(0, JUMP_SPEED * passiveMultiplier('jumpVelocity', this.loadout?.passives.jumpVelocity ?? 0), 0);
     this.horizontalVelocity.set(ladder.nx * 2.4 * this.activeLadderSide, 0, ladder.nz * 2.4 * this.activeLadderSide);
     this.grounded = false;
     this.jetpackActive = false;
@@ -508,7 +559,7 @@ export class Player {
         }
         let supportY: number | null = null;
         if (this.isOutsidePit(candidateX, candidateZ)) {
-          supportY = SAFE_FLOOR_Y;
+          supportY = this.getSafeFloorY();
         } else {
           const hit = this.terrain.raycast(
             new THREE.Vector3(candidateX, this.position.y + 0.5, candidateZ),
@@ -639,29 +690,20 @@ export class Player {
   }
 
   private tryHorizontalAxis(dx: number, dz: number): void {
-    if (dx === 0 && dz === 0) {
-      return;
-    }
+    if (dx === 0 && dz === 0) return;
     const candidateX = this.position.x + dx;
     const candidateZ = this.position.z + dz;
     if (Math.abs(candidateX) > SAFE_BOUND || Math.abs(candidateZ) > SAFE_BOUND) {
-      if (dx !== 0) {
-        this.horizontalVelocity.x *= 0.15;
-      }
-      if (dz !== 0) {
-        this.horizontalVelocity.z *= 0.15;
-      }
+      if (dx !== 0) this.horizontalVelocity.x *= 0.15;
+      if (dz !== 0) this.horizontalVelocity.z *= 0.15;
       return;
     }
     const outside = this.isOutsidePit(candidateX, candidateZ);
-    const stepToSafeFloor = SAFE_FLOOR_Y - this.position.y;
+    const safeFloor = this.getSafeFloorY();
+    const stepToSafeFloor = safeFloor - this.position.y;
     if (outside && stepToSafeFloor > STEP_HEIGHT) {
-      if (dx !== 0) {
-        this.horizontalVelocity.x *= 0.15;
-      }
-      if (dz !== 0) {
-        this.horizontalVelocity.z *= 0.15;
-      }
+      if (dx !== 0) this.horizontalVelocity.x *= 0.15;
+      if (dz !== 0) this.horizontalVelocity.z *= 0.15;
       return;
     }
     if (
@@ -676,8 +718,8 @@ export class Player {
     ) {
       this.position.x = candidateX;
       this.position.z = candidateZ;
-      if (outside && this.position.y < SAFE_FLOOR_Y) {
-        this.position.y = SAFE_FLOOR_Y;
+      if (outside && this.position.y < safeFloor) {
+        this.position.y = safeFloor;
         this.velocity.y = Math.max(0, this.velocity.y);
         this.grounded = true;
       }
@@ -706,12 +748,8 @@ export class Player {
         return;
       }
     }
-    if (dx !== 0) {
-      this.horizontalVelocity.x *= 0.18;
-    }
-    if (dz !== 0) {
-      this.horizontalVelocity.z *= 0.18;
-    }
+    if (dx !== 0) this.horizontalVelocity.x *= 0.18;
+    if (dz !== 0) this.horizontalVelocity.z *= 0.18;
   }
 
   private checkBounds(): void {
@@ -725,12 +763,8 @@ export class Player {
     }
     const clampedX = THREE.MathUtils.clamp(this.position.x, -SAFE_BOUND, SAFE_BOUND);
     const clampedZ = THREE.MathUtils.clamp(this.position.z, -SAFE_BOUND, SAFE_BOUND);
-    if (clampedX !== this.position.x) {
-      this.horizontalVelocity.x = 0;
-    }
-    if (clampedZ !== this.position.z) {
-      this.horizontalVelocity.z = 0;
-    }
+    if (clampedX !== this.position.x) this.horizontalVelocity.x = 0;
+    if (clampedZ !== this.position.z) this.horizontalVelocity.z = 0;
     this.position.x = clampedX;
     this.position.z = clampedZ;
     if (this.position.y < -0.6) {
@@ -746,16 +780,14 @@ export class Player {
     }
     if (this.position.y < -MINE_DEPTH + 0.05) {
       this.position.y = -MINE_DEPTH + 0.05;
-      if (this.velocity.y < 0) {
-        this.velocity.y = 0;
-      }
+      if (this.velocity.y < 0) this.velocity.y = 0;
       this.grounded = true;
     }
     if (this.position.y > MAX_SAFE_Y) {
       this.position.y = MAX_SAFE_Y;
       this.velocity.y = Math.min(0, this.velocity.y);
     }
-    if (this.position.y < -118.5) {
+    if (this.position.y < -MINE_DEPTH + 1.5) {
       const below = this.terrain.getDensityAt(this.position.x, this.position.y - 0.6, this.position.z);
       if (below < 0.5) {
         this.spawnAtSurface();
@@ -767,39 +799,27 @@ export class Player {
     const speedRatio = Math.min(1, this.currentSpeed / SPRINT_SPEED);
     const bob = Math.sin(this.bobTime) * (this.grounded ? 0.032 + speedRatio * 0.025 : 0.006);
     const sway = Math.cos(this.bobTime * 0.5) * (this.grounded ? 0.014 * speedRatio : 0.003);
-    const shake = this.eyeShake * this.eyeShake;
-    const shakeX = (Math.random() - 0.5) * shake * 0.07;
-    const shakeY = (Math.random() - 0.5) * shake * 0.07;
-    const impactRemaining = Math.max(
-      0,
-      (this.impactShakeUntil - performance.now()) / (IMPACT_SHAKE_DURATION * 1000),
-    );
-    const impact = this.impactShakeStrength * impactRemaining * impactRemaining;
-    const impactX = (Math.random() - 0.5) * impact * 0.02;
-    const impactY = (Math.random() - 0.5) * impact * 0.018;
-    const impactYaw = (Math.random() - 0.5) * impact * 0.02;
-    const impactPitch = (Math.random() - 0.5) * impact * 0.016;
+    const shake = this.trauma.getShake();
     this.camera.position.set(
-      this.position.x + sway + shakeX + impactX,
-      this.position.y + EYE_HEIGHT + bob + shakeY + impactY,
+      this.position.x + sway + shake.x,
+      this.position.y + EYE_HEIGHT + bob + shake.y,
       this.position.z,
     );
     this.camera.rotation.set(
-      this.pitch + shakeY * 0.8 + impactPitch,
-      this.yaw + shakeX * 0.7 + impactYaw,
+      this.pitch + shake.pitch,
+      this.yaw + shake.yaw,
       sway * 0.7,
       'YXZ',
     );
   }
 
   addShake(amount: number): void {
-    this.eyeShake = Math.min(1.4, this.eyeShake + amount);
+    this.trauma.addTrauma(amount * 0.5);
   }
 
-  /** Micro-temblor corto (75 ms) para el impacto del pico. */
-  addImpactShake(strength = 0.6): void {
-    this.impactShakeStrength = Math.min(1, strength);
-    this.impactShakeUntil = performance.now() + IMPACT_SHAKE_DURATION * 1000;
+  /** Micro-temblor corto para el impacto del pico mediante trauma controlado. */
+  addImpactShake(_strength = 0.6): void {
+    this.trauma.addMiningTrauma();
   }
 
   addImpulse(impulse: THREE.Vector3): void {
@@ -824,76 +844,48 @@ export class Player {
     this.setLadderAttachment(ladder, true, 0, this.activeLadderSide);
   }
 
-  getPosition(): THREE.Vector3 {
-    return this.position;
+  setWeightRatio(ratio: number): void {
+    this.weightRatio = ratio;
   }
 
-  getEyePosition(): THREE.Vector3 {
-    return this.camera.position;
+  getWeightRatio(): number {
+    return this.weightRatio;
   }
 
-  getAimDirection(): THREE.Vector3 {
-    return this.camera.getWorldDirection(new THREE.Vector3());
+  rideWinch(winchId: string): void {
+    this.activeWinchId = winchId;
+    this.fallStartY = null;
+    this.velocity.set(0, 0, 0);
+    this.horizontalVelocity.set(0, 0, 0);
   }
 
-  getLookAngles(): { yaw: number; pitch: number } {
-    return { yaw: this.yaw, pitch: this.pitch };
+  stopRidingWinch(): void {
+    this.activeWinchId = null;
   }
 
-  getDepth(): number {
-    return Math.max(0, Math.min(120, -this.position.y));
+  isRidingWinch(): boolean {
+    return this.activeWinchId !== null;
   }
 
-  getLayer(): number {
-    return layerAtDepth(this.getDepth()).index;
-  }
-
-  getSpeed(): number {
-    return this.currentSpeed;
-  }
-
-  isMoving(): boolean {
-    return this.currentSpeed > 0.18;
-  }
-
-  isSprinting(): boolean {
-    return this.input.isSprinting() && this.isMoving();
-  }
-
-  isGrounded(): boolean {
-    return this.grounded;
-  }
-
-  isJetpackActive(): boolean {
-    return this.jetpackActive;
-  }
-
-  isClimbing(): boolean {
-    return this.activeLadderId !== null;
-  }
-
-  getJetpackFuel(): number {
-    return this.fuel;
-  }
-
-  getMaxFuel(): number {
-    return this.maxFuel;
-  }
-
-  getVelocity(): THREE.Vector3 {
-    return this.velocity;
-  }
-
-  getLastLandingTime(): number {
-    return this.lastLandingTime;
-  }
-
+  getPosition(): THREE.Vector3 { return this.position; }
+  getEyePosition(): THREE.Vector3 { return this.camera.position; }
+  getAimDirection(): THREE.Vector3 { return this.camera.getWorldDirection(new THREE.Vector3()); }
+  getLookAngles(): { yaw: number; pitch: number } { return { yaw: this.yaw, pitch: this.pitch }; }
+  getDepth(): number { return Math.max(0, Math.min(120, -this.position.y)); }
+  getLayer(): number { return layerAtDepth(this.getDepth()).index; }
+  getSpeed(): number { return this.currentSpeed; }
+  isMoving(): boolean { return this.currentSpeed > 0.18; }
+  isSprinting(): boolean { return this.input.isSprinting() && this.isMoving(); }
+  isGrounded(): boolean { return this.grounded; }
+  isJetpackActive(): boolean { return this.jetpackActive; }
+  isClimbing(): boolean { return this.activeLadderId !== null; }
+  getJetpackFuel(): number { return this.fuel; }
+  getMaxFuel(): number { return this.maxFuel; }
+  getVelocity(): THREE.Vector3 { return this.velocity; }
+  getLastLandingTime(): number { return this.lastLandingTime; }
   syncNetworkPosition(x: number, y: number, z: number): void {
     this.position.set(x, y, z);
     this.updateCamera();
   }
-
-  getLoadout(): Loadout | null {
-    return this.loadout;
-  }
+  getLoadout(): Loadout | null { return this.loadout; }
 }

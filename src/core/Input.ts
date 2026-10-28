@@ -5,6 +5,7 @@ export interface InputActions {
   onMute: () => void;
   onPauseRequest: () => void;
   onInteract: () => void;
+  onSecondaryInteract?: () => void;
   onPlaceLadder: () => boolean;
   onToggleLadder: () => void;
   onToggleLadderPlacement: () => void;
@@ -12,6 +13,9 @@ export interface InputActions {
   onLadderDialMove: (dx: number, dy: number) => void;
   onLadderDialEnd: (commit: boolean) => void;
   onToggleInventory: () => void;
+  onToggleMap?: () => void;
+  onPlaceBeacon?: () => void;
+  onTogglePerf?: () => void;
 }
 
 const MOVEMENT_KEYS = new Set([
@@ -67,6 +71,13 @@ export class InputController {
         }
         return;
       }
+      if (event.code === 'F3' || event.code === 'Backquote') {
+        event.preventDefault();
+        if (!event.repeat) {
+          this.actions.onTogglePerf?.();
+        }
+        return;
+      }
       if (
         (event.code === 'Tab' || event.code === 'KeyI') &&
         (this.locked || this.inventoryOpen)
@@ -113,12 +124,21 @@ export class InputController {
       } else if (event.code === 'KeyE') {
         event.preventDefault();
         this.actions.onInteract();
+      } else if (event.code === 'KeyF') {
+        event.preventDefault();
+        this.actions.onSecondaryInteract?.();
       } else if (event.code === 'KeyR') {
         event.preventDefault();
         this.actions.onToggleLadder();
       } else if (event.code === 'KeyG') {
         event.preventDefault();
         this.actions.onToggleLadderPlacement();
+      } else if (event.code === 'KeyC') {
+        event.preventDefault();
+        this.actions.onToggleMap?.();
+      } else if (event.code === 'KeyQ') {
+        event.preventDefault();
+        this.actions.onPlaceBeacon?.();
       } else if (event.code === 'KeyM') {
         event.preventDefault();
         this.actions.onMute();

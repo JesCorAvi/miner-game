@@ -201,6 +201,77 @@
   color: var(--green);
 }
 
+.quota-timer-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.return-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  border: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.06em;
+  background: rgba(6, 11, 12, 0.65);
+  transition: all 180ms ease;
+}
+
+.return-chip strong {
+  font-size: 0.52rem !important;
+  font-weight: 700;
+}
+
+.return-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+}
+
+.return-chip.status-safe {
+  border-color: rgba(120, 221, 170, 0.4);
+  color: var(--green);
+}
+
+.return-chip.status-warning {
+  border-color: rgba(226, 162, 71, 0.5);
+  color: var(--amber-bright);
+}
+
+.return-chip.status-danger {
+  border-color: rgba(228, 102, 83, 0.6);
+  color: #ff8b7b;
+}
+
+.return-chip.status-no-route {
+  border-color: rgba(228, 102, 83, 0.8);
+  color: #ff624f;
+  background: rgba(49, 17, 13, 0.8);
+}
+
+.hopper-ribbon {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+  padding: 2px 6px;
+  border-top: 1px dashed rgba(198, 217, 208, 0.14);
+  font-family: var(--mono);
+  font-size: 0.47rem;
+  color: var(--cyan);
+  letter-spacing: 0.08em;
+}
+
+.hopper-ribbon span:last-child {
+  color: var(--muted-strong);
+}
+
 .hud-side {
   display: flex;
   flex-direction: column;
@@ -966,158 +1037,4 @@
   background: transparent;
 }
 
-.toast-stack {
-  position: absolute;
-  right: 20px;
-  bottom: 105px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 5px;
-  width: min(340px, 44vw);
-}
-
-.toast {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  max-width: 100%;
-  padding: 8px 11px;
-  border-left: 2px solid var(--amber);
-  background: rgba(7, 13, 14, 0.9);
-  color: var(--ink-soft);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-  font-size: 0.71rem;
-  line-height: 1.4;
-  animation: toast-in 180ms ease both;
-}
-
-.toast::before {
-  content: "//";
-  color: var(--amber);
-  font-family: var(--mono);
-  font-size: 0.6rem;
-}
-
-.toast.is-positive {
-  border-left-color: var(--green);
-}
-
-.toast.is-positive::before {
-  color: var(--green);
-}
-
-.toast.is-danger {
-  border-left-color: var(--danger);
-  color: #f0b9ad;
-}
-
-.toast.is-danger::before {
-  color: var(--danger);
-}
-
-.toast.is-leaving {
-  animation: toast-out 220ms ease both;
-}
-
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translateX(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes toast-out {
-  to {
-    opacity: 0;
-    transform: translateX(9px);
-  }
-}
-
-.float-layer {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-}
-
-.float-text {
-  position: absolute;
-  z-index: 2;
-  color: var(--amber-bright);
-  font-family: var(--mono);
-  font-size: 0.71rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.85);
-  white-space: nowrap;
-  animation: float-up 1.5s ease-out both;
-}
-
-.float-text.is-positive {
-  color: var(--green);
-}
-
-.float-text.is-cyan {
-  color: var(--cyan);
-}
-
-@keyframes float-up {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 7px);
-  }
-  18% {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-    transform: translate(-50%, -36px);
-  }
-}
-
-.hud-banner {
-  position: absolute;
-  top: 24%;
-  left: 50%;
-  min-width: min(430px, 70vw);
-  padding: 14px 24px;
-  border-top: 2px solid var(--amber);
-  border-bottom: 2px solid var(--amber);
-  background: linear-gradient(90deg, transparent, rgba(8, 13, 14, 0.92) 18%, rgba(8, 13, 14, 0.92) 82%, transparent);
-  text-align: center;
-  transform: translateX(-50%);
-  animation: banner-in 280ms ease both;
-}
-
-.hud-banner span {
-  display: block;
-  color: var(--amber);
-  font-family: var(--mono);
-  font-size: 0.58rem;
-  letter-spacing: 0.17em;
-}
-
-.hud-banner strong {
-  display: block;
-  margin-top: 3px;
-  font-family: var(--display);
-  font-size: clamp(2rem, 5vw, 3.8rem);
-  letter-spacing: 0.04em;
-  line-height: 1;
-}
-
-@keyframes banner-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 9px);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
-}
 

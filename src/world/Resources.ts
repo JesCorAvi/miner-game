@@ -1,14 +1,17 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { CHEST_REWARDS, MINERALS, PASSIVE_ORDER, PIT_HALF } from '../config';
+import { MINERALS, PIT_HALF, MINE_DEPTH, mapMaxDepth } from '../config';
 import { hash3, hashString, mulberry32 } from '../core/Rng';
 import type {
   ChestReward,
+  DifficultyModifier,
+  MapId,
   MineralDefinition,
   MineralId,
-  PassiveId,
 } from '../types';
 import type { Terrain } from './Terrain';
+import { buildResourceSpecs } from './ResourceSpecs';
+import { resolveChestReward } from './ChestRewards';
 
 export type ResourceType = MineralId | 'chest';
 
@@ -62,31 +65,6 @@ interface TypeMesh {
   nodes: ResourceNode[];
 }
 
-interface Spec {
-  type: MineralId;
-  clusters: number;
-  minNodes: number;
-  maxNodes: number;
-  depthMin: number;
-  depthMax: number;
-}
-
-const SPECS: readonly Spec[] = [
-  { type: 'coal', clusters: 180, minNodes: 5, maxNodes: 8, depthMin: 1, depthMax: 23 },
-  { type: 'coalDense', clusters: 170, minNodes: 5, maxNodes: 8, depthMin: 26, depthMax: 53 },
-  { type: 'coalPressure', clusters: 160, minNodes: 5, maxNodes: 8, depthMin: 56, depthMax: 83 },
-  { type: 'coalPure', clusters: 170, minNodes: 6, maxNodes: 9, depthMin: 86, depthMax: 118 },
-  { type: 'copper', clusters: 100, minNodes: 4, maxNodes: 7, depthMin: 2, depthMax: 23 },
-  { type: 'iron', clusters: 90, minNodes: 4, maxNodes: 7, depthMin: 27, depthMax: 52 },
-  { type: 'amethyst', clusters: 85, minNodes: 4, maxNodes: 7, depthMin: 29, depthMax: 53 },
-  { type: 'gold', clusters: 85, minNodes: 4, maxNodes: 7, depthMin: 56, depthMax: 82 },
-  { type: 'ruby', clusters: 80, minNodes: 4, maxNodes: 7, depthMin: 58, depthMax: 83 },
-  { type: 'emerald', clusters: 80, minNodes: 4, maxNodes: 7, depthMin: 86, depthMax: 117 },
-  { type: 'diamond', clusters: 65, minNodes: 4, maxNodes: 6, depthMin: 90, depthMax: 118 },
-];
-
-const TYPE_ORDER: readonly ResourceType[] = [...SPECS.map((spec) => spec.type), 'chest'];
-const CHEST_COUNT = 16;
 const RETRY_COUNT = 24;
 
 function makeGlowTexture(): THREE.CanvasTexture {
@@ -259,12 +237,25 @@ export class Resources {
     });
   }
 
-  generate(seed: number, day: number, terrain: Terrain): void {
+  generate(
+    seed: number,
+    day: number,
+    terrain: Terrain,
+    modifiers: readonly DifficultyModifier[] = [],
+    mapId: MapId = 'standard',
+  ): void {
     this.clear();
     this.seed = seed >>> 0;
     const random = mulberry32(this.seed ^ hashString(`resources-${day}`));
+    const depthLimit = mapMaxDepth(mapId);
+    const specs = buildResourceSpecs(modifiers)
+      .map((spec) => ({
+        ...spec,
+        depthMax: Math.min(spec.depthMax, depthLimit),
+      }))
+      .filter((spec) => spec.depthMin < spec.depthMax);
 
-    for (const [specIndex, spec] of SPECS.entries()) {
+    for (const [specIndex, spec] of specs.entries()) {
       const mineral = MINERALS[spec.type];
       for (let cluster = 0; cluster < spec.clusters; cluster += 1) {
         const clusterId = `${day}-${spec.type}-${specIndex}-${cluster}`;
@@ -283,7 +274,7 @@ export class Resources {
             const bound = PIT_HALF - 0.8;
             const x = Math.max(-bound, Math.min(bound, centerX + Math.cos(offsetAngle) * offsetRadius));
             const z = Math.max(-bound, Math.min(bound, centerZ + Math.sin(offsetAngle) * offsetRadius));
-            const y = Math.max(-119, Math.min(-1, centerY + offsetDepth));
+            const y = Math.max(-depthLimit + 1, Math.min(-1, centerY + offsetDepth));
             if (terrain.getDensityAt(x, y, z) > 0.64) {
               placed = { x, y, z };
               break;
@@ -335,14 +326,15 @@ export class Resources {
       }
     }
 
-    for (let chest = 0; chest < CHEST_COUNT; chest += 1) {
-      const depth = 12 + random() * 102;
+    const chestCount = modifiers.includes('no_chests') ? 0 : 24;
+    for (let chest = 0; chest < chestCount; chest += 1) {
+      const depth = 12 + random() * (Math.min(MINE_DEPTH, depthLimit) - 18);
       let placed: { x: number; y: number; z: number } | null = null;
       for (let attempt = 0; attempt < 32; attempt += 1) {
         const bound = PIT_HALF - 1;
         const x = (random() * 2 - 1) * bound;
         const z = (random() * 2 - 1) * bound;
-        const y = -Math.max(3, Math.min(118, depth + (random() - 0.5) * 6));
+        const y = -Math.max(3, Math.min(Math.min(MINE_DEPTH, depthLimit) - 2, depth + (random() - 0.5) * 6));
         if (terrain.getDensityAt(x, y, z) > 0.64) {
           placed = { x, y, z };
           break;
@@ -398,14 +390,13 @@ export class Resources {
 
   private createTypeMeshes(): void {
     const buckets = new Map<ResourceType, ResourceNode[]>();
-    for (const type of TYPE_ORDER) {
-      buckets.set(type, []);
-    }
     for (const node of this.nodes) {
-      buckets.get(node.meshType)?.push(node);
+      if (!buckets.has(node.meshType)) {
+        buckets.set(node.meshType, []);
+      }
+      buckets.get(node.meshType)!.push(node);
     }
-    for (const type of TYPE_ORDER) {
-      const nodes = buckets.get(type) ?? [];
+    for (const [type, nodes] of buckets) {
       if (nodes.length === 0) {
         continue;
       }
@@ -819,11 +810,7 @@ export class Resources {
   }
 
   getChestReward(node: ResourceNode): ChestReward {
-    const seed = hashString(`${this.seed}:${node.id}:chest`);
-    const random = mulberry32(seed);
-    const passive = PASSIVE_ORDER[Math.floor(random() * PASSIVE_ORDER.length)] as PassiveId;
-    const reward = CHEST_REWARDS.find((entry) => entry.passive === passive);
-    return reward ?? CHEST_REWARDS[0];
+    return resolveChestReward(this.seed, node);
   }
 
   getBrokenIds(): string[] {

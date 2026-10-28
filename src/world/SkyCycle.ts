@@ -260,6 +260,16 @@ export class SkyCycle {
   private readonly sun: THREE.DirectionalLight;
   private readonly fill: THREE.DirectionalLight;
   private readonly pitGlow: THREE.PointLight;
+  private footprintStage = 0;
+  private suspendedDust = false;
+
+  setSuspendedDust(active: boolean): void {
+    this.suspendedDust = active;
+  }
+
+  setFootprintStage(stage: number): void {
+    this.footprintStage = Math.max(0, Math.min(4, Math.floor(stage)));
+  }
   private readonly backgroundColor = new THREE.Color();
   private readonly fogColor = new THREE.Color();
   private readonly zenithColor = new THREE.Color();
@@ -408,6 +418,11 @@ export class SkyCycle {
     this.mixColor(this.sun.color, from.sun, to.sun, f);
     this.mixColor(this.cloudColor, from.cloud, to.cloud, f);
 
+    if (this.footprintStage >= 2) {
+      this.fogColor.lerp(new THREE.Color(0x946b48), 0.25 * (this.footprintStage / 4));
+      this.horizonColor.lerp(new THREE.Color(0xb45309), 0.3 * (this.footprintStage / 4));
+    }
+
     const fogDensity = this.mixNumber(from.fogDensity, to.fogDensity, f);
     const nightMix = this.mixNumber(from.nightMix, to.nightMix, f);
     const sunGlow = this.mixNumber(from.sunGlow, to.sunGlow, f);
@@ -466,11 +481,14 @@ export class SkyCycle {
     } else {
       this.scene.background = this.backgroundColor.clone();
     }
+    const dustClauseMult = this.suspendedDust ? 1.4 : 1.0;
+    const dustMult = (1 + this.footprintStage * 0.45) * dustClauseMult;
+    const finalFogDensity = fogDensity * dustMult;
     if (this.scene.fog instanceof THREE.FogExp2) {
       this.scene.fog.color.copy(this.fogColor);
-      this.scene.fog.density = fogDensity;
+      this.scene.fog.density = finalFogDensity;
     } else {
-      this.scene.fog = new THREE.FogExp2(this.fogColor.getHex(), fogDensity);
+      this.scene.fog = new THREE.FogExp2(this.fogColor.getHex(), finalFogDensity);
     }
   }
 

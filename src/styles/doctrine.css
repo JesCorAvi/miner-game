@@ -1,0 +1,205 @@
+/* doctrine.css — Estilos para el modal de Actas de Operación y Cláusulas */
+
+.doctrine-overlay {
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(3, 7, 8, 0.88);
+  backdrop-filter: blur(4px);
+  padding: 1rem;
+}
+
+.doctrine-shell {
+  width: min(940px, 95vw);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background: #0d1315;
+  border: 2px solid #2f4347;
+  padding: 1.5rem;
+  overflow-y: auto;
+  gap: 1.25rem;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.85);
+}
+
+.doctrine-header {
+  border-bottom: 1px solid #1e2c2e;
+  padding-bottom: 0.75rem;
+}
+
+.doctrine-header h2 {
+  margin: 0.25rem 0;
+  color: #f2c14e;
+  font-family: inherit;
+  font-size: 1.4rem;
+  letter-spacing: 0.05em;
+}
+
+.doctrine-header p {
+  margin: 0;
+  color: #8da4a0;
+  font-size: 0.85rem;
+}
+
+.doctrine-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.75rem;
+}
+
+.doctrine-card {
+  background: #141c1e;
+  border: 1px solid #273739;
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.doctrine-card:hover {
+  border-color: #f2c14e;
+  background: #192426;
+}
+
+.doctrine-card.is-active {
+  border-color: #f2c14e;
+  background: #1f2d2f;
+  box-shadow: inset 0 0 12px rgba(242, 193, 78, 0.15);
+}
+
+.doctrine-card-title {
+  color: #dbebe6;
+  font-size: 0.95rem;
+  font-weight: bold;
+  letter-spacing: 0.03em;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.doctrine-badge {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 2px;
+  background: #273739;
+  color: #8da4a0;
+}
+
+.doctrine-card.is-active .doctrine-badge {
+  background: #f2c14e;
+  color: #0d1315;
+  font-weight: bold;
+}
+
+.doctrine-motto {
+  font-style: italic;
+  font-size: 0.75rem;
+  color: #7b9994;
+  line-height: 1.3;
+}
+
+.doctrine-list {
+  font-size: 0.75rem;
+  margin: 0;
+  padding-left: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.doctrine-perks {
+  color: #6ee7b7;
+}
+
+.doctrine-prohibitions {
+  color: #fca5a5;
+}
+
+.doctrine-clauses-wrapper {
+  margin-top: 0.5rem;
+  border-top: 1px solid #1e2c2e;
+  padding-top: 0.75rem;
+}
+
+.doctrine-clauses-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+}
+
+.clause-card {
+  background: #141c1e;
+  border: 1px solid #233133;
+  padding: 0.65rem 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.clause-card:hover {
+  border-color: #5eead4;
+}
+
+.clause-card.is-active {
+  border-color: #38bdf8;
+  background: #162933;
+}
+
+.clause-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.clause-head strong {
+  font-size: 0.82rem;
+  color: #cbd5e1;
+}
+
+.clause-card.is-active .clause-head strong {
+  color: #38bdf8;
+}
+
+.clause-desc {
+  font-size: 0.72rem;
+  color: #8da4a0;
+  line-height: 1.3;
+}
+
+.doctrine-reserve-box {
+  background: #12191b;
+  border: 1px solid #233133;
+  padding: 0.75rem 1rem;
+  border-radius: 2px;
+}
+
+.doctrine-reserve-box p {
+  font-size: 0.75rem;
+  color: #8da4a0;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.doctrine-reserve-status {
+  font-family: monospace;
+  font-size: 0.85rem;
+  color: #f2c14e;
+}
+
+.doctrine-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.5rem;
+  border-top: 1px solid #1e2c2e;
+}
+
+.overflow-active {
+  color: #f59e0b !important;
+  font-weight: bold;
+}

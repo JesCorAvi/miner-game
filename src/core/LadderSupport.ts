@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {
+  MINE_DEPTH,
   PIT_HALF,
   SAFE_ZONE_HALF,
   SURFACE_DECK_HALF,
@@ -279,7 +280,7 @@ export function validateLadderCandidate(game: Game, state: NetworkLadderState): 
   } else {
     high = state.orientation === 'vertical' ? state.y + state.height : state.y + 0.08;
   }
-  if (low < -119 || high > 8) {
+  if (low < -MINE_DEPTH + 1 || high > 8) {
     return { state, valid: false, reason: 'FUERA DE LOS LÍMITES DEL POZO' };
   }
   if (Math.abs(state.x) > SAFE_ZONE_HALF || Math.abs(state.z) > SAFE_ZONE_HALF) {

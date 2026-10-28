@@ -6,7 +6,7 @@ import {
   quotaForDay,
 } from '../config';
 import { PeerNetwork } from '../network/PeerNetwork';
-import type { LadderOrientation, Loadout, WeaponId } from '../types';
+import type { DifficultyModifier, GameMode, LadderOrientation, Loadout, WeaponId } from '../types';
 import { randomSeed } from './Rng';
 import { cloneLoadout, cloneStats, defaultRun } from './RunState';
 import type { Game } from './Game';
@@ -25,6 +25,12 @@ export function startSolo(game: Game): void {
   game.staffAvatars.clear();
   game.remoteStates.clear();
   game.run = defaultRun();
+  const config = game.ui.getRunConfig();
+  game.run.mode = config.mode;
+  game.run.modifiers = config.modifiers;
+  game.run.map = config.map;
+  game.run.loadout.profession = config.profession;
+  game.run.quota = quotaForDay(1, 1, config.mode, config.modifiers);
   game.carveHistory = [];
   game.resetInventory();
   game.clearCargo();
@@ -50,6 +56,9 @@ export function continueRun(game: Game): void {
   }
   game.saves.saveName(game.ui.getPlayerName());
   const loadout = cloneLoadout(saved.loadout);
+  const mode: GameMode = saved.mode ?? 'normal';
+  const modifiers: DifficultyModifier[] = saved.modifiers ?? [];
+  const map = saved.map ?? 'standard';
   game.online = false;
   game.role = 'solo';
   game.roster = [];
@@ -61,11 +70,15 @@ export function continueRun(game: Game): void {
     day: saved.day,
     money: saved.money,
     carbon: 0,
-    quota: quotaForDay(saved.day, 1),
+    quota: quotaForDay(saved.day, 1, mode, modifiers),
     timeLeft: dayDuration(loadout),
     infinite: saved.infinite,
+    mode,
+    modifiers,
+    map,
     loadout,
     stats: cloneStats(saved.stats),
+    platformDepth: saved.platformDepth || 0,
   };
   game.carveHistory = [];
   game.shopVictory = false;
@@ -161,8 +174,13 @@ export function startOnlineMatch(game: Game): void {
   }
   void game.audio.init();
   game.run = defaultRun();
+  const config = game.ui.getRunConfig();
+  game.run.mode = config.mode;
+  game.run.modifiers = config.modifiers;
+  game.run.map = config.map;
+  game.run.loadout.profession = config.profession;
   const players = game.network.getPlayerCount();
-  game.run.quota = quotaForDay(1, players);
+  game.run.quota = quotaForDay(1, players, config.mode, config.modifiers);
   game.seed = randomSeed();
   game.carveHistory = [];
   game.shopVictory = false;

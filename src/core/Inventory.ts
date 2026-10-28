@@ -38,7 +38,29 @@ export interface LadderStack {
   count: number;
 }
 
-export type InventoryItem = MineralStack | ToolStack | GrenadeStack | LadderStack;
+export interface WinchStack {
+  kind: 'winch';
+  count: number;
+}
+
+export interface FieldDepotStack {
+  kind: 'field_depot';
+  count: number;
+}
+
+export interface BeaconStack {
+  kind: 'beacon';
+  count: number;
+}
+
+export type InventoryItem =
+  | MineralStack
+  | ToolStack
+  | GrenadeStack
+  | LadderStack
+  | WinchStack
+  | FieldDepotStack
+  | BeaconStack;
 
 export interface InventoryAddResult {
   accepted: boolean;
@@ -54,6 +76,10 @@ function maxStack(item: InventoryItem): number {
       return GRENADE_STACK_MAX;
     case 'ladder':
       return LADDER_STACK_MAX;
+    case 'winch':
+    case 'field_depot':
+    case 'beacon':
+      return 99;
     case 'tool':
       return 1;
   }
@@ -66,7 +92,11 @@ function sameStack(a: InventoryItem, b: InventoryItem): boolean {
   if (a.kind === 'grenade' && b.kind === 'grenade') {
     return a.tier === b.tier;
   }
-  return a.kind === 'ladder' && b.kind === 'ladder';
+  if (a.kind === 'ladder' && b.kind === 'ladder') return true;
+  if (a.kind === 'winch' && b.kind === 'winch') return true;
+  if (a.kind === 'field_depot' && b.kind === 'field_depot') return true;
+  if (a.kind === 'beacon' && b.kind === 'beacon') return true;
+  return false;
 }
 
 function itemCount(item: InventoryItem): number {
@@ -153,7 +183,32 @@ export class Inventory {
     }
 
     this.syncLadders(loadout.ladders);
+    this.syncEquipmentItem('winch', loadout.winches ?? 0);
+    this.syncEquipmentItem('field_depot', loadout.fieldDepots ?? 0);
+    this.syncEquipmentItem('beacon', loadout.beacons ?? 0);
     this.syncGrenades(loadout.grenades);
+  }
+
+  syncEquipmentItem(kind: 'winch' | 'field_depot' | 'beacon', count: number): void {
+    const safeCount = Math.max(0, Math.floor(count));
+    const index = this.slots.findIndex((item) => item?.kind === kind);
+    if (safeCount <= 0) {
+      if (index >= 0) {
+        this.slots[index] = null;
+      }
+      return;
+    }
+    if (index >= 0) {
+      const item = this.slots[index];
+      if (item && item.kind === kind) {
+        item.count = safeCount;
+        return;
+      }
+    }
+    const slot = this.findEmpty(0, HOTBAR_SLOTS, HOTBAR_SLOTS, INVENTORY_SLOTS);
+    if (slot >= 0) {
+      this.slots[slot] = { kind, count: safeCount };
+    }
   }
 
   syncLadders(count: number): void {
@@ -258,7 +313,12 @@ export class Inventory {
         }
         return true;
       }
-      if (source.kind === 'ladder' && target.kind === 'ladder') {
+      if (
+        (source.kind === 'ladder' && target.kind === 'ladder') ||
+        (source.kind === 'winch' && target.kind === 'winch') ||
+        (source.kind === 'field_depot' && target.kind === 'field_depot') ||
+        (source.kind === 'beacon' && target.kind === 'beacon')
+      ) {
         const moved = Math.min(source.count, room);
         target.count += moved;
         source.count -= moved;
@@ -296,6 +356,25 @@ export class Inventory {
       if (this.slots[index]?.kind === 'mineral') {
         this.slots[index] = null;
       }
+    }
+  }
+
+  getSlots(): ReadonlyArray<InventoryItem | null> {
+    return this.slots;
+  }
+
+  removeOreFromSlot(slotIndex: number, amount: number): void {
+    const item = this.slots[slotIndex];
+    if (!item || item.kind !== 'mineral') return;
+    const safeAmount = Math.min(item.count, Math.max(0, Math.floor(amount)));
+    if (safeAmount <= 0) return;
+    const ratio = safeAmount / item.count;
+    item.carbon -= Math.round(item.carbon * ratio);
+    item.money -= Math.round(item.money * ratio);
+    item.weight -= item.weight * ratio;
+    item.count -= safeAmount;
+    if (item.count <= 0) {
+      this.slots[slotIndex] = null;
     }
   }
 
@@ -363,6 +442,15 @@ export class Inventory {
       }
       if (item.kind === 'ladder') {
         return { kind: 'ladder', count: item.count };
+      }
+      if (item.kind === 'winch') {
+        return { kind: 'winch', count: item.count };
+      }
+      if (item.kind === 'field_depot') {
+        return { kind: 'field_depot', count: item.count };
+      }
+      if (item.kind === 'beacon') {
+        return { kind: 'beacon', count: item.count };
       }
       return { kind: 'tool', weapon: item.weapon };
     });

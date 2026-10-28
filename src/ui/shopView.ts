@@ -51,6 +51,9 @@ function iconForItem(item: ShopItemView): ItemIconKind | null {
     return { kind: 'tool', weapon: key as WeaponId };
   }
   if (item.kind === 'supply') {
+    if (key === 'winch') return { kind: 'winch' };
+    if (key === 'field_depot') return { kind: 'field_depot' };
+    if (key === 'beacon') return { kind: 'beacon' };
     return { kind: 'ladder' };
   }
   if (item.kind === 'grenade') {
@@ -64,6 +67,15 @@ function iconForItem(item: ShopItemView): ItemIconKind | null {
       kind: 'employee',
       role: item.kind === 'employee_convert' ? 'collector' : 'miner',
     };
+  }
+  if (item.kind === 'patent') {
+    return { kind: 'patent', tier: parseInt(key, 10) || 1 };
+  }
+  if (item.kind === 'certification') {
+    return { kind: 'certification', certId: key };
+  }
+  if (item.kind === 'pickaxe') {
+    return { kind: 'tool', weapon: 'pickaxe' };
   }
   return null;
 }
@@ -84,6 +96,12 @@ function itemKindLabel(item: ShopItemView): string {
       return 'RECONVERSIÓN';
     case 'employee_rank':
       return 'ASCENSO';
+    case 'patent':
+      return 'PATENTE';
+    case 'pickaxe':
+      return 'PICO';
+    case 'certification':
+      return 'CERTIFICACIÓN';
   }
 }
 
@@ -103,7 +121,7 @@ export function renderShopItems(
       return item.kind.startsWith('employee');
     }
     if (tab === 'equipment') {
-      return item.kind === 'weapon' || item.kind === 'supply' || item.kind === 'grenade';
+      return item.kind === 'weapon' || item.kind === 'pickaxe' || item.kind === 'supply' || item.kind === 'grenade' || item.kind === 'patent' || item.kind === 'certification';
     }
     return item.kind === 'upgrade';
   });
@@ -239,6 +257,16 @@ function renderInventoryTab(container: HTMLElement, data: ShopViewData): void {
         definition.name,
         definition.description,
         'EQUIPADA',
+      ),
+    );
+  }
+  if (loadout.patent && loadout.patent > 0) {
+    grid.appendChild(
+      inventoryCard(
+        { kind: 'patent', tier: loadout.patent },
+        `Patente ${loadout.patent}: Homologación de Minería`,
+        'Certificación corporativa de ingeniería. Multiplica el daño y la fractura de excavación en todas las herramientas.',
+        `TIER ${loadout.patent}`,
       ),
     );
   }

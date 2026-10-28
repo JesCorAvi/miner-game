@@ -4,6 +4,7 @@ import type { AimViewData, HudViewData } from '../ui/UI';
 import { formatMoney, formatNumber } from '../ui/format';
 import type { Game } from './Game';
 import { SIGN_READ_DISTANCE } from './GameConstants';
+import { hasUtilityActive } from './Progression';
 
 export function updateHud(game: Game): void {
   if (game.phase !== 'playing') {
@@ -13,6 +14,19 @@ export function updateHud(game: Game): void {
   const layer = layerAtDepth(game.player.getDepth());
   const employees = game.run.loadout.employees.roster.length;
   const inventoryTotals = game.inventory.totals();
+  const returnPlan = game.returnPlanner.calculate(
+    performance.now(),
+    game.player.getPosition(),
+    game.player.getLookAngles().yaw,
+    game.hopper.getPosition(),
+    game.ladders.getAll(),
+    game.run.loadout.upgrades.jetpack > 0,
+    game.cargoWeight,
+    maxCarryWeight(game.run.loadout),
+    game.run.timeLeft,
+    false,
+    game.winches.getSnapshot(),
+  );
   const data: HudViewData = {
     day: game.run.day,
     timeLeft: game.run.timeLeft,
@@ -39,6 +53,10 @@ export function updateHud(game: Game): void {
     ladders: game.run.loadout.ladders,
     ladderPlacementEnabled: game.ladderPlacementEnabled,
     jetpackUnlocked: game.run.loadout.upgrades.jetpack > 0,
+    returnStatus: returnPlan.status,
+    returnText: returnPlan.statusLabel,
+    hopperBearingText: returnPlan.bearingText,
+    hopperVerticalText: returnPlan.verticalText,
     prompt: game.interactionPrompt,
   };
   const signature = [
@@ -48,6 +66,10 @@ export function updateHud(game: Game): void {
     Math.ceil(data.quota),
     Math.ceil(data.money),
     Math.ceil(data.depth),
+    data.returnStatus,
+    data.returnText,
+    data.hopperBearingText,
+    data.hopperVerticalText,
     Math.ceil(data.fuel),
     data.onlineActive,
     data.onlinePlayers,
@@ -115,17 +137,19 @@ export function updateAim(game: Game, forceUi: boolean): void {
     }
     return;
   }
-  const terrainHit = game.terrain.raycast(origin, direction, weapon.range + 1);
+  const hasProbe = hasUtilityActive(game.run.loadout, 'vein_probe');
+  const scanRange = weapon.range + (hasProbe ? 2.5 : 0);
+  const terrainHit = game.terrain.raycast(origin, direction, scanRange + 1);
   const terrainDistance = terrainHit?.distance ?? Number.POSITIVE_INFINITY;
   const nodeHit = game.resources.raycast(
     origin,
     direction,
-    weapon.range,
+    scanRange,
     terrainDistance,
   );
   const assistHit = nodeHit
     ? null
-    : game.resources.raycastAssist(origin, direction, weapon.range, game.terrain);
+    : game.resources.raycastAssist(origin, direction, scanRange, game.terrain);
   const resolvedHit = nodeHit ?? assistHit;
   if (resolvedHit) {
     game.aim = {
@@ -170,17 +194,24 @@ export function buildAimView(game: Game): AimViewData | null {
     if (!mineral) {
       return null;
     }
-    const reward = [
-      mineral.carbonYield > 0 ? `+${formatNumber(mineral.carbonYield)} CARBÓN` : null,
-      mineral.moneyYield > 0 ? `+${formatMoney(mineral.moneyYield)}` : null,
-    ]
-      .filter((part): part is string => part !== null)
-      .join(' · ');
+    const hasProbe = hasUtilityActive(game.run.loadout, 'vein_probe');
+    const probeTag = hasProbe ? ' · [SONDA ACTIVADA]' : '';
+    if (mineral.family === 'coal') {
+      const ley = (mineral.carbonYield / mineral.hp).toFixed(2).replace('.', ',');
+      return {
+        kind: 'node',
+        title: `${mineral.name.toUpperCase()} · LEY ${ley}${probeTag}`,
+        status: `VETA DE CARBONO · ${Math.ceil(node.hp)} / ${node.maxHp} HP`,
+        detail: `+${formatNumber(mineral.carbonYield)} t cuota · +${formatMoney(mineral.moneyYield)} capital`,
+        ratio: node.maxHp > 0 ? node.hp / node.maxHp : 0,
+      };
+    }
+    const yieldPerHp = (mineral.moneyYield / mineral.hp).toFixed(2).replace('.', ',');
     return {
       kind: 'node',
-      title: mineral.name.toUpperCase(),
-      status: `VETA · ${Math.ceil(node.hp)} / ${node.maxHp}`,
-      detail: `${reward} · CAPA ${mineral.layer}`,
+      title: `${mineral.name.toUpperCase()} · MINERAL${probeTag}`,
+      status: `VETA MINERAL · ${Math.ceil(node.hp)} / ${node.maxHp} HP`,
+      detail: `+${formatMoney(mineral.moneyYield)} capital · ${yieldPerHp} $/HP · BIOMA ${mineral.layer}`,
       ratio: node.maxHp > 0 ? node.hp / node.maxHp : 0,
     };
   }
@@ -188,8 +219,8 @@ export function buildAimView(game: Game): AimViewData | null {
   return {
     kind: 'terrain',
     title: layer.name,
-    status: `ROCA · DUREZA ×${layer.hardness.toFixed(1)}`,
-    detail: `PROFUNDIDAD ${Math.round(game.aim.depth)} M`,
+    status: `ROCA · DUREZA ×${layer.hardness.toFixed(1)} · BIOMA ${layer.biomeIndex}`,
+    detail: `PROFUNDIDAD ${Math.round(game.aim.depth)} M · NIVEL ${layer.index}`,
     ratio: 1,
   };
 }
@@ -200,6 +231,15 @@ export function computeObjective(game: Game): string {
   }
   if (!game.input.isLocked()) {
     return 'Haz clic en la escena para capturar el ratón y controlar al operario.';
+  }
+  if (
+    game.run.day === 1 &&
+    game.player.getDepth() < 2.5 &&
+    game.run.carbon === 0 &&
+    game.cargoCoal === 0 &&
+    game.cargoMoney === 0
+  ) {
+    return 'DÍA 1: Desciende al pozo, extrae carbón para cubrir la cuota (40 t) y vuelve a la tolva.';
   }
   const remaining = game.run.quota - game.run.carbon;
   if (game.nearHopper) {
@@ -212,7 +252,7 @@ export function computeObjective(game: Game): string {
     return 'Lleva la carga a la tolva de la superficie. Si termina el turno abajo, la pierdes.';
   }
   if (remaining <= 0) {
-    return 'Cuota cubierta. Extrae mineral precioso y deposítalo para financiar la próxima mejora.';
+    return 'Cuota cubierta. Extrae minerales de capital o vuelve a la tolva para asegurar la prima.';
   }
   if (game.run.timeLeft <= 20) {
     return `CIERRE INMINENTE · faltan ${formatNumber(remaining)} t de carbón depositado.`;
@@ -227,5 +267,5 @@ export function computeObjective(game: Game): string {
     return `Veta detectada: ${game.aim.node.mineral?.name ?? 'cofre'}. Fractúrala, recoge la carga y vuelve arriba.`;
   }
   const layer = layerAtDepth(game.player.getDepth());
-  return `Capa ${layer.index} · ${layer.name}. Busca vetas incrustadas; el jetpack se desbloquea más adelante.`;
+  return `Nivel ${layer.index} · ${layer.name}. Busca vetas incrustadas; el jetpack se desbloquea más adelante.`;
 }
