@@ -7,6 +7,7 @@ import {
 } from '../config';
 import { PeerNetwork } from '../network/PeerNetwork';
 import type { DifficultyModifier, GameMode, LadderOrientation, Loadout, WeaponId } from '../types';
+import { applyProfessionStartingKit } from '../data/professions';
 import { BigValue } from './BigValue';
 import { randomSeed } from './Rng';
 import { cloneLoadout, cloneStats, defaultRun } from './RunState';
@@ -31,6 +32,7 @@ export function startSolo(game: Game): void {
   game.run.modifiers = config.modifiers;
   game.run.map = config.map;
   game.run.loadout.profession = config.profession;
+  applyProfessionStartingKit(game.run.loadout);
   game.run.quota = quotaForDay(1, 1, config.mode, config.modifiers);
   game.carveHistory = [];
   game.resetInventory();
@@ -181,6 +183,7 @@ export function startOnlineMatch(game: Game): void {
   game.run.modifiers = config.modifiers;
   game.run.map = config.map;
   game.run.loadout.profession = config.profession;
+  applyProfessionStartingKit(game.run.loadout);
   const players = game.network.getPlayerCount();
   game.run.quota = quotaForDay(1, players, config.mode, config.modifiers);
   game.seed = randomSeed();

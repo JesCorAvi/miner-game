@@ -14,6 +14,8 @@ import {
   layerAtDepth,
   maxJetpackFuel,
   passiveMultiplier,
+  professionJumpMultiplier,
+  professionMoveSpeedMultiplier,
 } from '../config';
 import type { Loadout, NetworkLadderState } from '../types';
 import type { InputController } from '../core/Input';
@@ -224,7 +226,9 @@ export class Player {
     const sprintBonus = sprinting
       ? passiveMultiplier('sprintSpeed', this.loadout?.passives.sprintSpeed ?? 0)
       : 1;
-    const targetSpeed = (sprinting ? SPRINT_SPEED : WALK_SPEED) * loadPenalty * sprintBonus;
+    const professionSpeed = professionMoveSpeedMultiplier(this.loadout?.profession);
+    const targetSpeed =
+      (sprinting ? SPRINT_SPEED : WALK_SPEED) * loadPenalty * sprintBonus * professionSpeed;
     const airControl = this.grounded ? 1 : 0.52;
     const acceleration = (this.grounded ? 18 : 7.5) * airControl;
     this.horizontalVelocity.x = THREE.MathUtils.damp(
@@ -266,7 +270,10 @@ export class Player {
       wantsJetpack &&
       this.elapsed >= this.jumpSuppressUntil
     ) {
-      this.velocity.y = JUMP_SPEED * passiveMultiplier('jumpVelocity', this.loadout?.passives.jumpVelocity ?? 0);
+      this.velocity.y =
+        JUMP_SPEED *
+        passiveMultiplier('jumpVelocity', this.loadout?.passives.jumpVelocity ?? 0) *
+        professionJumpMultiplier(this.loadout?.profession);
       this.grounded = false;
       if (this.maxFuel > 0) {
         this.fuel = Math.max(0, this.fuel - 2.5);

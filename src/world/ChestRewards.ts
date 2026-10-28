@@ -1,4 +1,10 @@
-import { MINE_DEPTH, PASSIVES, PASSIVE_ORDER, chestPassivePoints } from '../config';
+import {
+  MINE_DEPTH,
+  PASSIVES,
+  PASSIVE_ORDER,
+  chestPassivePoints,
+  professionPassiveAffinity,
+} from '../config';
 import { hashString, mulberry32 } from '../core/Rng';
 import type { ChestReward, MineralId } from '../types';
 
@@ -7,8 +13,16 @@ interface ChestNodeLike {
   y: number;
 }
 
-/** Resuelve el botín determinista de un cofre según su nivel de profundidad. */
-export function resolveChestReward(seed: number, node: ChestNodeLike): ChestReward {
+/**
+ * Resuelve el botín determinista de un cofre según su nivel de profundidad.
+ * La profesión sesga las pasivas hacia su afinidad, pero nunca cambia gemas,
+ * pergaminos ni la cantidad de puntos.
+ */
+export function resolveChestReward(
+  seed: number,
+  node: ChestNodeLike,
+  profession?: string | null,
+): ChestReward {
   const random = mulberry32(hashString(`${seed}:${node.id}:chest`));
   const depth = Math.max(0, -node.y);
   const level = Math.max(1, Math.min(12, Math.ceil(depth / (MINE_DEPTH / 12))));
@@ -51,8 +65,13 @@ export function resolveChestReward(seed: number, node: ChestNodeLike): ChestRewa
     };
   }
 
+  const affinity = profession
+    ? professionPassiveAffinity(profession).filter((id) => PASSIVE_ORDER.includes(id))
+    : [];
+  const useAffinity = affinity.length > 0 && random() < 0.65;
+  const pool = useAffinity ? affinity : PASSIVE_ORDER;
   const passive =
-    PASSIVE_ORDER[Math.floor(random() * PASSIVE_ORDER.length)] ?? PASSIVE_ORDER[0];
+    pool[Math.floor(random() * pool.length)] ?? PASSIVE_ORDER[0];
   const points = chestPassivePoints(level);
   const definition = PASSIVES[passive];
   return {

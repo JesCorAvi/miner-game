@@ -76,6 +76,7 @@ export interface HudViewData {
   ladders: number;
   ladderPlacementEnabled: boolean;
   jetpackUnlocked: boolean;
+  jetpackLockedHint: string;
   returnStatus: ReturnRouteStatus;
   returnText: string;
   missionText: string;
@@ -490,7 +491,7 @@ export class UI {
     } else {
       setText(this.hudFuelValue, 'BLOQUEADO');
       this.hudFuel.style.width = '0%';
-      setText(this.jetHint, 'SE DESBLOQUEA EN LA OFICINA NOCTURNA');
+      setText(this.jetHint, data.jetpackLockedHint || 'SE DESBLOQUEA EN LA OFICINA NOCTURNA');
       this.jetCard.classList.add('is-locked');
     }
     const progress = Math.max(0, Math.min(1, data.carbon / Math.max(1, data.quota)));

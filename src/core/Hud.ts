@@ -1,5 +1,12 @@
 import * as THREE from 'three';
-import { WEAPONS, layerAtDepth, maxCarryWeight, maxStackFor } from '../config';
+import {
+  WEAPONS,
+  layerAtDepth,
+  maxCarryWeight,
+  maxJetpackFuel,
+  maxStackFor,
+  professionAllowsJetpack,
+} from '../config';
 import { moneyOf } from './Economy';
 import type { AimViewData, HudViewData } from '../ui/UI';
 import { formatMoney, formatNumber } from '../ui/format';
@@ -21,7 +28,7 @@ export function updateHud(game: Game): void {
     game.player.getLookAngles().yaw,
     game.hopper.getPosition(),
     game.ladders.getAll(),
-    game.run.loadout.upgrades.jetpack > 0,
+    maxJetpackFuel(game.run.loadout) > 0,
     game.cargoWeight,
     maxCarryWeight(game.run.loadout),
     game.run.timeLeft,
@@ -54,7 +61,10 @@ export function updateHud(game: Game): void {
     activeHotbarSlot: game.activeHotbarSlot,
     ladders: game.run.loadout.ladders,
     ladderPlacementEnabled: game.ladderPlacementEnabled,
-    jetpackUnlocked: game.run.loadout.upgrades.jetpack > 0,
+    jetpackUnlocked: maxJetpackFuel(game.run.loadout) > 0,
+    jetpackLockedHint: professionAllowsJetpack(game.run.loadout.profession)
+      ? ''
+      : 'TU PROFESIÓN NO USA JETPACK',
     returnStatus: returnPlan.status,
     returnText: returnPlan.statusLabel,
     missionText: game.missions.getTracker().text,
@@ -107,6 +117,7 @@ export function updateHud(game: Game): void {
     data.ladders,
     data.ladderPlacementEnabled,
     data.jetpackUnlocked,
+    data.jetpackLockedHint,
     data.prompt?.key ?? '',
     data.prompt?.text ?? '',
   ].join('|');

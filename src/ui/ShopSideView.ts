@@ -7,7 +7,9 @@ import {
   passiveCapPoints,
   passiveMultiplier,
   passiveOverflowPoints,
+  professionAllowsJetpack,
   professionDefinition,
+  professionPassiveAffinity,
 } from '../config';
 import {
   CLAUSES,
@@ -21,6 +23,7 @@ import type { Loadout } from '../types';
 
 export function renderShopPassives(container: HTMLElement, loadout: Loadout): void {
   container.replaceChildren();
+  const affinity = new Set(professionPassiveAffinity(loadout.profession));
   for (const passive of PASSIVE_ORDER) {
     const level = loadout.passives[passive] ?? 0;
     const multiplier = passiveMultiplier(passive, level);
@@ -31,7 +34,9 @@ export function renderShopPassives(container: HTMLElement, loadout: Loadout): vo
     row.style.setProperty('--passive-color', PASSIVES[passive].color);
 
     const name = document.createElement('strong');
-    name.textContent = PASSIVES[passive].name;
+    name.textContent = affinity.has(passive)
+      ? `${PASSIVES[passive].name} · AFÍN`
+      : PASSIVES[passive].name;
 
     const value = document.createElement('span');
     if (level <= 0) {
@@ -59,9 +64,11 @@ export function renderShopLoadoutSummary(container: HTMLElement, loadout: Loadou
     `JETPACK: ${
       loadout.doctrine === 'crew'
         ? 'PROHIBIDO POR ACTA'
-        : loadout.upgrades.jetpack > 0
-          ? `${Math.round(maxJetpackFuel(loadout))} u.`
-          : 'BLOQUEADO'
+        : !professionAllowsJetpack(loadout.profession)
+          ? 'PROHIBIDO POR PROFESIÓN'
+          : loadout.upgrades.jetpack > 0
+            ? `${Math.round(maxJetpackFuel(loadout))} u.`
+            : 'BLOQUEADO'
     }`,
     `CAPACIDAD: ${maxCarryWeight(loadout)} kg${loadout.doctrine === 'freight' ? ' (+40% FLETE)' : ''}`,
     `ESCALERAS: ${loadout.ladders}`,

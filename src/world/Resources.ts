@@ -814,8 +814,8 @@ export class Resources {
     return best;
   }
 
-  getChestReward(node: ResourceNode): ChestReward {
-    return resolveChestReward(this.seed, node);
+  getChestReward(node: ResourceNode, profession?: string | null): ChestReward {
+    return resolveChestReward(this.seed, node, profession);
   }
 
   getBrokenIds(): string[] {

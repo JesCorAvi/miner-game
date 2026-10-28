@@ -31,6 +31,7 @@ import {
   PROFESSIONS,
   PROFESSION_ORDER,
   PROFESSION_WEAPON_POOLS,
+  professionAllowsJetpack,
   professionCanHire,
   professionCanUseWeapon,
   professionCapacityMultiplier,
@@ -40,7 +41,18 @@ import {
   professionGrenadeCostMultiplier,
   professionGrenadeDamageMultiplier,
   professionJetpackFuelMultiplier,
+  professionJumpMultiplier,
+  professionMoveSpeedMultiplier,
+  professionPassiveAffinity,
+  professionShopLockReason,
+  professionStartingWeapon,
+  professionTraits,
+  professionWeaponDiscount,
   professionWeaponPool,
+  applyProfessionStartingKit,
+  PROFESSION_TRAITS,
+  type ProfessionShopLock,
+  type ProfessionTraits,
 } from './data/professions';
 import {
   WEAPON_FAMILIES,
@@ -80,6 +92,7 @@ export {
   PROFESSIONS,
   PROFESSION_ORDER,
   PROFESSION_WEAPON_POOLS,
+  professionAllowsJetpack,
   professionCanHire,
   professionCanUseWeapon,
   professionCapacityMultiplier,
@@ -89,7 +102,18 @@ export {
   professionGrenadeCostMultiplier,
   professionGrenadeDamageMultiplier,
   professionJetpackFuelMultiplier,
+  professionJumpMultiplier,
+  professionMoveSpeedMultiplier,
+  professionPassiveAffinity,
+  professionShopLockReason,
+  professionStartingWeapon,
+  professionTraits,
+  professionWeaponDiscount,
   professionWeaponPool,
+  applyProfessionStartingKit,
+  PROFESSION_TRAITS,
+  type ProfessionShopLock,
+  type ProfessionTraits,
   WEAPON_FAMILIES,
   WEAPON_FAMILY_ORDER,
   familyTierBuy,
@@ -589,6 +613,9 @@ export function maxStackFor(loadout: Loadout): number {
 
 export function maxJetpackFuel(loadout: Loadout): number {
   if (loadout.upgrades.jetpack <= 0) {
+    return 0;
+  }
+  if (!professionAllowsJetpack(loadout.profession)) {
     return 0;
   }
   return (

@@ -164,10 +164,12 @@ export function makeShopCard(item: ShopItemView, data: ShopViewData): HTMLElemen
   if (iconKind) {
     icon.style.backgroundImage = `url("${itemIconUrl(iconKind)}")`;
   }
+  const locked = item.level.includes('BLOQUEADA');
   const cost = document.createElement('span');
   cost.className = 'shop-card-price';
-  cost.textContent =
-    item.maxed || item.owned
+  cost.textContent = locked
+    ? 'BLOQUEADA'
+    : item.maxed || item.owned
       ? item.owned
         ? 'EQUIPADO'
         : 'MÁXIMO'
@@ -192,13 +194,15 @@ export function makeShopCard(item: ShopItemView, data: ShopViewData): HTMLElemen
   button.type = 'button';
   button.className = 'button small';
   button.dataset.itemId = item.id;
-  button.textContent = item.maxed
-    ? 'AL MÁXIMO'
-    : item.owned
-      ? 'ADQUIRIDO'
-      : item.affordable
-        ? 'COMPRAR'
-        : 'FONDOS INSUFICIENTES';
+  button.textContent = locked
+    ? 'BLOQUEADA'
+    : item.maxed
+      ? 'AL MÁXIMO'
+      : item.owned
+        ? 'ADQUIRIDO'
+        : item.affordable
+          ? 'COMPRAR'
+          : 'FONDOS INSUFICIENTES';
   button.disabled =
     item.owned || item.maxed || !data.canPurchase || !item.affordable;
   footer.append(level, button);

@@ -1,8 +1,8 @@
-import type { EmployeeKind, ProfessionId, WeaponStyle } from '../types';
+import type { EmployeeKind, Loadout, ProfessionId, WeaponStyle } from '../types';
 import { WEAPON_FAMILY_ORDER } from './weaponFamilies';
 
 /**
- * 13 profesiones del referente con efectos propios de Carbon Magnate.
+ * 15 profesiones del referente con efectos propios de Carbon Magnate.
  * La profesión se elige al iniciar la expedición y se comparte con el equipo.
  */
 export interface ProfessionDefinition {
@@ -42,8 +42,10 @@ export const PROFESSION_WEAPON_POOLS: Record<string, readonly string[]> = {
   ],
   shaman: ['pickaxe', 'poisonGun', 'poisonStaff', 'flamethrower', 'magicStaff'],
   gunslinger: ['pickaxe', 'pistol', 'rifle', 'minigun', 'shotgun', 'tank'],
+  shotgunner: ['pickaxe', 'shotgun'],
   wizard: ['pickaxe', 'magicStaff', 'poisonStaff', 'waterStaff', 'orb', 'tesla'],
   barbarian: ['pickaxe', 'axe', 'battleaxe', 'boxingGlove', 'roundhouseKick'],
+  martialArtist: ['pickaxe', 'boxingGlove', 'roundhouseKick'],
   loneRanger: [...WEAPON_FAMILY_ORDER],
   demolitionist: ['pickaxe', 'drill', 'shotgun', 'mortar', 'earthquake'],
   waterbender: ['pickaxe', 'drill', 'waterGun', 'waterStaff'],
@@ -77,6 +79,219 @@ export function professionCanUseWeapon(
     return true;
   }
   return professionWeaponPool(id).includes(weaponId);
+}
+
+/**
+ * Rasgos que no encajan en la ficha de combate: kit inicial, movilidad,
+ * afinidad de pasivas y árbol de tienda. Viven separados para que añadir una
+ * clase no obligue a tocar las 15 fichas existentes.
+ */
+export interface ProfessionShopLock {
+  /** ID exacto de la tienda o prefijo terminado en `*`. */
+  item: string;
+  reason: string;
+}
+
+export interface ProfessionTraits {
+  startingWeapon: string;
+  passiveAffinity: readonly string[];
+  startingJetpack?: number;
+  moveSpeedMultiplier?: number;
+  jumpMultiplier?: number;
+  jetpackForbidden?: boolean;
+  weaponDiscounts?: Readonly<Record<string, number>>;
+  shopLocks?: readonly ProfessionShopLock[];
+}
+
+export const PROFESSION_TRAITS: Record<string, ProfessionTraits> = {
+  internship: {
+    startingWeapon: 'pickaxe',
+    passiveAffinity: ['pickaxeDamage', 'pickaxeSpeed', 'sprintSpeed', 'jumpVelocity'],
+  },
+  shaman: {
+    startingWeapon: 'poisonGun',
+    passiveAffinity: ['fireDamage', 'poisonDamage', 'wetDamage', 'bombDamage'],
+    weaponDiscounts: { poisonGun: 0.1, poisonStaff: 0.1 },
+  },
+  gunslinger: {
+    startingWeapon: 'pistol',
+    passiveAffinity: ['bulletDamage', 'gunRecoil', 'tankDamage', 'tankRate'],
+    weaponDiscounts: { pistol: 0.1, rifle: 0.1, minigun: 0.1 },
+  },
+  shotgunner: {
+    startingWeapon: 'shotgun',
+    passiveAffinity: ['bulletDamage', 'gunRecoil', 'pickaxeDamage', 'sprintSpeed'],
+    moveSpeedMultiplier: 0.95,
+    jetpackForbidden: true,
+    weaponDiscounts: { shotgun: 0.15 },
+    shopLocks: [
+      {
+        item: 'upgrade:jetpack',
+        reason: 'SIN MOVILIDAD · esta clase no puede comprar ni usar jetpack.',
+      },
+      {
+        item: 'employee_hire:*',
+        reason: 'SIN PLANTILLA · esta clase trabaja sola.',
+      },
+      {
+        item: 'employee_rank:*',
+        reason: 'SIN PLANTILLA · esta clase trabaja sola.',
+      },
+      {
+        item: 'employee_convert:*',
+        reason: 'SIN PLANTILLA · esta clase trabaja sola.',
+      },
+    ],
+  },
+  wizard: {
+    startingWeapon: 'magicStaff',
+    passiveAffinity: ['magicRegen', 'magicMissileDamage', 'orbDamage', 'orbRadius'],
+    weaponDiscounts: { magicStaff: 0.1 },
+  },
+  barbarian: {
+    startingWeapon: 'axe',
+    passiveAffinity: ['axeDamage', 'punchDamage', 'kickDamage', 'sprintSpeed'],
+    weaponDiscounts: { axe: 0.1, battleaxe: 0.1 },
+  },
+  martialArtist: {
+    startingWeapon: 'boxingGlove',
+    passiveAffinity: [
+      'punchDamage',
+      'punchSpeed',
+      'kickDamage',
+      'kickSpeed',
+      'sprintSpeed',
+      'jumpVelocity',
+    ],
+    moveSpeedMultiplier: 1.15,
+    jumpMultiplier: 1.12,
+    weaponDiscounts: { boxingGlove: 0.2, roundhouseKick: 0.2 },
+    shopLocks: [
+      {
+        item: 'grenade:*',
+        reason: 'SIN EXPLOSIVOS · esta clase no compra granadas.',
+      },
+    ],
+  },
+  loneRanger: {
+    startingWeapon: 'rifle',
+    passiveAffinity: ['pickaxeDamage', 'pickaxeSpeed', 'bulletDamage', 'sprintSpeed'],
+  },
+  demolitionist: {
+    startingWeapon: 'shotgun',
+    passiveAffinity: ['bombDamage', 'mortarDamage', 'mortarRate', 'airstrikeDamage'],
+    weaponDiscounts: { mortar: 0.15, earthquake: 0.15 },
+  },
+  waterbender: {
+    startingWeapon: 'waterGun',
+    passiveAffinity: ['wetDamage', 'drillDamage', 'poisonDamage', 'fireDamage'],
+    weaponDiscounts: { waterGun: 0.1, waterStaff: 0.1 },
+  },
+  maverick: {
+    startingWeapon: 'jet',
+    startingJetpack: 1,
+    passiveAffinity: ['airstrikeRate', 'airstrikeDamage', 'jumpVelocity', 'sprintSpeed'],
+    weaponDiscounts: { jet: 0.1 },
+  },
+  lumberjack: {
+    startingWeapon: 'axe',
+    passiveAffinity: ['axeDamage', 'punchDamage', 'sprintSpeed', 'pickaxeSpeed'],
+    weaponDiscounts: { axe: 0.1, battleaxe: 0.1 },
+  },
+  destructor: {
+    startingWeapon: 'drill',
+    passiveAffinity: ['drillDamage', 'pickaxeDamage', 'bombDamage', 'punchDamage'],
+    weaponDiscounts: { drill: 0.1 },
+  },
+  mule: {
+    startingWeapon: 'drill',
+    passiveAffinity: ['collectorCapacity', 'sprintSpeed', 'jumpVelocity', 'minerSpeed'],
+  },
+  generalist: {
+    startingWeapon: 'pistol',
+    passiveAffinity: ['pickaxeDamage', 'bulletDamage', 'sprintSpeed', 'bombDamage'],
+  },
+};
+
+export function professionTraits(
+  id: string | null | undefined,
+): ProfessionTraits {
+  return PROFESSION_TRAITS[id ?? 'internship'] ?? PROFESSION_TRAITS.internship;
+}
+
+export function professionStartingWeapon(
+  id: string | null | undefined,
+): string {
+  return professionTraits(id).startingWeapon;
+}
+
+export function professionPassiveAffinity(
+  id: string | null | undefined,
+): readonly string[] {
+  return professionTraits(id).passiveAffinity;
+}
+
+export function professionMoveSpeedMultiplier(
+  id: string | null | undefined,
+): number {
+  return professionTraits(id).moveSpeedMultiplier ?? 1;
+}
+
+export function professionJumpMultiplier(
+  id: string | null | undefined,
+): number {
+  return professionTraits(id).jumpMultiplier ?? 1;
+}
+
+export function professionAllowsJetpack(
+  id: string | null | undefined,
+): boolean {
+  return !(professionTraits(id).jetpackForbidden ?? false);
+}
+
+export function professionWeaponDiscount(
+  id: string | null | undefined,
+  weaponId: string,
+): number {
+  const discount = professionTraits(id).weaponDiscounts?.[weaponId] ?? 0;
+  return Math.max(0, Math.min(0.9, discount));
+}
+
+export function professionShopLockReason(
+  id: string | null | undefined,
+  itemId: string,
+): string | null {
+  for (const lock of professionTraits(id).shopLocks ?? []) {
+    const matches = lock.item.endsWith('*')
+      ? itemId.startsWith(lock.item.slice(0, -1))
+      : itemId === lock.item;
+    if (matches) {
+      return lock.reason;
+    }
+  }
+  return null;
+}
+
+/** Aplica el kit inicial de la clase: arma característica y jetpack de serie. */
+export function applyProfessionStartingKit(loadout: Loadout): void {
+  const traits = professionTraits(loadout.profession);
+  loadout.weapons.pickaxe = true;
+  if (!loadout.weaponTiers) {
+    loadout.weaponTiers = {};
+  }
+  loadout.weaponTiers.pickaxe = Math.max(1, loadout.weaponTiers.pickaxe ?? 0);
+  loadout.pickaxeTier = Math.max(1, loadout.pickaxeTier ?? 1);
+  const weapon = traits.startingWeapon;
+  if (weapon && weapon !== 'pickaxe') {
+    loadout.weapons[weapon] = true;
+    loadout.weaponTiers[weapon] = Math.max(1, loadout.weaponTiers[weapon] ?? 0);
+  }
+  if ((traits.startingJetpack ?? 0) > 0) {
+    loadout.upgrades.jetpack = Math.max(
+      loadout.upgrades.jetpack,
+      traits.startingJetpack ?? 0,
+    );
+  }
 }
 
 const PROFESSION_LIST: readonly ProfessionDefinition[] = [  {
@@ -128,6 +343,31 @@ const PROFESSION_LIST: readonly ProfessionDefinition[] = [  {
     hireForbidden: [],
   },
   {
+    id: 'shotgunner',
+    name: 'Escopetero de Galería',
+    shortName: 'ESCOPETERO',
+    motto: 'Un cartucho, un túnel.',
+    description:
+      'Especialista absoluto en escopetas. Renuncia al jetpack y a la plantilla para concentrar todo el capital en potencia de disparo.',
+    perks: [
+      '+40 % daño de escopeta',
+      'Escopetas 15 % más baratas',
+      '+10 % capacidad de mochila',
+    ],
+    prohibitions: [
+      'Solo pico y escopeta',
+      'Sin jetpack',
+      'No puede contratar empleados',
+    ],
+    capacityMultiplier: 1.1,
+    carveMultiplier: 1.05,
+    jetpackFuelMultiplier: 1,
+    grenadeCostMultiplier: 1,
+    styleDamage: { melee: -0.15 },
+    familyDamage: { shotgun: 0.4 },
+    hireForbidden: ['miner', 'collector'],
+  },
+  {
     id: 'wizard',
     name: 'Ingeniero Arcano',
     shortName: 'ARCANO',
@@ -157,6 +397,31 @@ const PROFESSION_LIST: readonly ProfessionDefinition[] = [  {
     grenadeCostMultiplier: 1,
     styleDamage: { shotgun: -0.15 },
     familyDamage: { axe: 0.25, battleaxe: 0.25 },
+    hireForbidden: [],
+  },
+  {
+    id: 'martialArtist',
+    name: 'Artista Marcial de Galería',
+    shortName: 'MARCIAL',
+    motto: 'El túnel se abre a puñetazos.',
+    description:
+      'Combate cuerpo a cuerpo puro. Guantes y patadas con movilidad superior; renuncia a armas de fuego y explosivos.',
+    perks: [
+      '+35 % daño melee',
+      '+15 % con guantes y patadas',
+      '+15 % velocidad a pie y +12 % salto',
+      'Guantes y patadas 20 % más baratos',
+    ],
+    prohibitions: [
+      'Solo pico, guantes y patadas',
+      'Sin armas de fuego, bastones ni explosivos',
+    ],
+    capacityMultiplier: 1.05,
+    carveMultiplier: 1.1,
+    jetpackFuelMultiplier: 1,
+    grenadeCostMultiplier: 1,
+    styleDamage: { melee: 0.35 },
+    familyDamage: { boxingGlove: 0.15, roundhouseKick: 0.15 },
     hireForbidden: [],
   },
   {

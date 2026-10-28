@@ -67,7 +67,7 @@ export function breakNodeAsClient(game: Game, node: ResourceNode, dropSeed: numb
   game.loot.spawnFromNode(node, game.terrain, dropSeed);
   game.run.stats.nodesBroken += 1;
   if (node.type === 'chest') {
-    const reward = game.resources.getChestReward(node);
+    const reward = game.resources.getChestReward(node, game.run.loadout.profession);
     game.ui.notify(`Cofre fracturado · ${reward.title}. El anfitrión valida la mejora.`, 'positive');
   }
 }
@@ -87,7 +87,7 @@ export function breakNodeLocally(game: Game, node: ResourceNode): void {
     if (game.isAuthority()) {
       grantChestReward(game, node, game.selfPeerId || 'solo');
     } else {
-      const reward = game.resources.getChestReward(node);
+      const reward = game.resources.getChestReward(node, game.run.loadout.profession);
       game.ui.notify(`Cofre fracturado · ${reward.title}. Pendiente de validación.`, 'positive');
     }
   }
@@ -115,7 +115,7 @@ export function grantChestReward(game: Game, node: ResourceNode, by: string): vo
     return;
   }
   game.run.stats.chestsOpened += 1;
-  const reward = game.resources.getChestReward(node);
+  const reward = game.resources.getChestReward(node, game.run.loadout.profession);
   game.audio.playChest(
     node ? new THREE.Vector3(node.x, node.y, node.z) : game.player.getPosition(),
   );

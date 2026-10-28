@@ -34,6 +34,10 @@ async function runE2E() {
       logs.push('[E2E] 1. Menú inicial detectado: fase=' + game.phase);
       if (game.phase !== 'menu') throw new Error('Se esperaba fase "menu", se obtuvo ' + game.phase);
 
+      // Elegir Escopetero para validar el kit inicial de clase.
+      const professionSelect = document.getElementById('menu-profession');
+      if (professionSelect) professionSelect.value = 'shotgunner';
+
       // Iniciar partida individual mediante botón de interfaz o startSolo
       const startBtn = document.getElementById('start-new') || document.getElementById('start-continue');
       if (startBtn) {
@@ -43,7 +47,10 @@ async function runE2E() {
       }
       await wait(400);
 
-      logs.push('[E2E] 2. Partida iniciada: fase=' + game.phase + ', día=' + game.run.day);
+      if (!game.run.loadout.weapons.shotgun || game.run.loadout.weaponTiers.shotgun !== 1) {
+        throw new Error('El kit inicial del Escopetero no entregó la escopeta T1');
+      }
+      logs.push('[E2E] 2. Partida iniciada: fase=' + game.phase + ', día=' + game.run.day + ', clase=' + game.run.loadout.profession);
       if (game.phase !== 'playing' || game.run.day !== 1) {
         throw new Error('Fallo al iniciar Día 1, fase=' + game.phase + ' día=' + game.run.day);
       }

@@ -26,6 +26,8 @@ import {
   professionCanUseWeapon,
   professionDefinition,
   professionGrenadeCostMultiplier,
+  professionShopLockReason,
+  professionWeaponDiscount,
   rankCost,
   upgradeCost,
   weaponFamily,
@@ -88,6 +90,39 @@ export function getEmployeeHireCost(rosterLength: number, doctrine?: DoctrineId 
   return base;
 }
 
+/** Coste del siguiente tier de una familia con el descuento de la profesión. */
+export function weaponUpgradeCost(
+  weapon: WeaponId,
+  currentTier: number,
+  profession?: ProfessionId | null,
+): number {
+  const family = weaponFamily(weapon);
+  const nextTier = Math.min(family.tierCount, Math.max(0, currentTier) + 1);
+  const tradeIn = currentTier > 0 ? familyTierSell(weapon, currentTier) : 0;
+  const listPrice = Math.max(0, familyTierBuy(weapon, nextTier) - tradeIn);
+  const discount = professionWeaponDiscount(profession, weapon);
+  return Math.max(0, Math.round(listPrice * (1 - discount)));
+}
+
+function applyProfessionShopLock(
+  item: ShopItemView,
+  profession: ProfessionId | null | undefined,
+): ShopItemView {
+  const reason = professionShopLockReason(profession, item.id);
+  if (!reason) {
+    return item;
+  }
+  return {
+    ...item,
+    cost: 0,
+    description: `${item.description} [BLOQUEADA POR PROFESIÓN: ${reason}]`,
+    level: 'BLOQUEADA POR PROFESIÓN',
+    owned: false,
+    maxed: true,
+    affordable: false,
+  };
+}
+
 /**
  * Construye el catálogo de la oficina nocturna a partir del estado de la partida.
  * Es una función pura: no toca red, audio, UI ni guardado.
@@ -126,7 +161,12 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
     const maxed = currentTier >= family.tierCount;
     const nextTier = Math.min(family.tierCount, currentTier + 1);
     const tradeIn = currentTier > 0 ? familyTierSell(weapon, currentTier) : 0;
-    const cost = maxed ? 0 : Math.max(0, familyTierBuy(weapon, nextTier) - tradeIn);
+    const discount = professionWeaponDiscount(profession, weapon);
+    const cost = maxed ? 0 : weaponUpgradeCost(weapon, currentTier, profession);
+    const discountNote =
+      !maxed && discount > 0
+        ? ` Descuento de clase: −${Math.round(discount * 100)} %.`
+        : '';
     items.push({
       id: `weapon:${weapon}`,
       kind: 'weapon',
@@ -138,7 +178,7 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
         currentTier > 0
           ? ` Recompra del tier actual: ${formatMoney(tradeIn)}.`
           : ''
-      }`,
+      }${discountNote}`,
       cost,
       level: maxed
         ? `TIER ${family.tierCount} / ${family.tierCount}`
@@ -421,7 +461,7 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
       });
     }
   });
-  return items;
+  return items.map((item) => applyProfessionShopLock(item, profession));
 }
 
 /**
@@ -434,6 +474,9 @@ export function buildShopItems(run: RunSnapshot): ShopItemView[] {
 export function applyPurchaseToRun(run: RunSnapshot, itemId: string): PurchaseResult | null {
   const [kind, rawId] = itemId.split(':');
   if (!kind || !rawId) {
+    return null;
+  }
+  if (professionShopLockReason(run.loadout.profession, itemId)) {
     return null;
   }
   let cost = 0;
@@ -479,8 +522,7 @@ export function applyPurchaseToRun(run: RunSnapshot, itemId: string): PurchaseRe
       return null;
     }
     const nextTier = currentTier + 1;
-    const tradeIn = currentTier > 0 ? familyTierSell(weapon, currentTier) : 0;
-    cost = Math.max(0, familyTierBuy(weapon, nextTier) - tradeIn);
+    cost = weaponUpgradeCost(weapon, currentTier, run.loadout.profession);
     if (!canAfford(run, cost)) {
       return null;
     }
